@@ -1,0 +1,47 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": false, // JS 혼용 금지 - 타입 안전성 강제
+    "skipLibCheck": true,
+    "strict": true, // 엄격 모드 필수
+    "noUncheckedIndexedAccess": true, // 배열 접근 시 undefined 가능성 강제 체크
+    "noImplicitReturns": true, // 모든 코드 경로에서 반환값 명시 강제
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true, // optional 프로퍼티 undefined 혼용 방지
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
