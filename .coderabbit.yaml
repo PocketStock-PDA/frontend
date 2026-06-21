@@ -2,6 +2,7 @@
 # PocketStock frontend — 한국어 자동 리뷰 (PR 머지 승인은 사람 0명, CodeRabbit이 코멘트만)
 language: "ko-KR"
 early_access: false
+focus: "high"                       # casual=다 보여줌, balanced=장식 줄임, high=핵심 리뷰만 (최상위 필드)
 tone_instructions: "간결하고 핵심만. 칭찬보다 개선점 위주로, 근거와 함께 제안."
 
 reviews:
@@ -17,11 +18,15 @@ reviews:
     base_branches:
       - "dev"
       - "main"
-  path_filters:                   # 리뷰 제외 (빌드 산출물·락파일·정적자산)
+  path_filters:                   # 리뷰 제외 (빌드 산출물·락파일·자동생성·정적자산)
     - "!**/.next/**"
     - "!**/node_modules/**"
     - "!**/out/**"
+    - "!**/dist/**"
+    - "!**/build/**"
     - "!**/public/**"
+    - "!**/generated/**"
+    - "!**/*.min.js"
     - "!**/*.lock"
     - "!**/package-lock.json"
     - "!**/*.xlsx"
