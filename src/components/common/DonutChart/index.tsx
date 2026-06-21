@@ -20,7 +20,13 @@ export function DonutChart({
 }: DonutChartProps) {
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
-  const total = data.reduce((sum, d) => sum + d.value, 0);
+
+  // 음수/비유한 값은 0으로 정규화 (잘못된 arc 방지)
+  const segments = data.map((d) => ({
+    ...d,
+    value: Number.isFinite(d.value) && d.value > 0 ? d.value : 0,
+  }));
+  const total = segments.reduce((sum, d) => sum + d.value, 0);
 
   let offset = 0;
 
@@ -39,7 +45,7 @@ export function DonutChart({
           strokeWidth={thickness}
         />
         {total > 0 &&
-          data.map((d, i) => {
+          segments.map((d, i) => {
             const len = (d.value / total) * circumference;
             const seg = (
               <circle

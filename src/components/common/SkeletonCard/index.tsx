@@ -9,6 +9,8 @@ export interface SkeletonCardProps {
 
 /** 카드 로딩 스켈레톤 */
 export function SkeletonCard({ lines = 2, className }: SkeletonCardProps) {
+  // 음수/비유한 값으로 인한 RangeError 방지
+  const count = Number.isFinite(lines) ? Math.max(0, Math.floor(lines)) : 0;
   return (
     <div
       className={cn(
@@ -17,10 +19,10 @@ export function SkeletonCard({ lines = 2, className }: SkeletonCardProps) {
       )}
     >
       <Skeleton className="h-5 w-1/3" />
-      {Array.from({ length: lines }).map((_, i) => (
+      {Array.from({ length: count }).map((_, i) => (
         <Skeleton
           key={i}
-          className={cn("h-4", i === lines - 1 ? "w-2/3" : "w-full")}
+          className={cn("h-4", i === count - 1 ? "w-2/3" : "w-full")}
         />
       ))}
     </div>

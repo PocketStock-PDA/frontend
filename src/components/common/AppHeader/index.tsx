@@ -36,6 +36,7 @@ export function AppHeader({
   const router = useRouter();
   const openSidebar = useUiStore((s) => s.openSidebar);
   const handleBack = onBack ?? (() => router.back());
+  const handleClose = onClose ?? (() => router.back());
   const menuVisible = showMenu ?? variant === "sub";
 
   return (
@@ -71,7 +72,7 @@ export function AppHeader({
           <Button
             variant="ghost"
             size="icon"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="닫기"
           >
             <X />

@@ -30,7 +30,7 @@ export function BalanceCard({
       <p className="text-sm text-white/90">{label}</p>
       <AmountDisplay value={amount} size="xl" className="mt-1 text-white" />
       {caption && <p className="mt-1 text-sm text-white/80">{caption}</p>}
-      {actionLabel && (
+      {actionLabel && onAction && (
         <button
           type="button"
           onClick={onAction}
