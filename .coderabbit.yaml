@@ -1,0 +1,56 @@
+# CodeRabbit 설정 — https://docs.coderabbit.ai/reference/configuration
+# PocketStock frontend — 한국어 자동 리뷰 (PR 머지 승인은 사람 0명, CodeRabbit이 코멘트만)
+language: "ko-KR"
+early_access: false
+tone_instructions: "간결하고 핵심만. 칭찬보다 개선점 위주로, 근거와 함께 제안."
+
+reviews:
+  profile: "chill"               # chill=핵심 위주(덜 깐깐), assertive=엄격
+  request_changes_workflow: false # 승인 강제 안 함 (우리 정책: 리뷰 승인 0명)
+  high_level_summary: true        # PR 상단에 변경 요약
+  review_status: true
+  poem: false                     # 시(poem) 코멘트 끄기
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false                 # Draft PR은 리뷰 안 함
+    base_branches:
+      - "dev"
+      - "main"
+  path_filters:                   # 리뷰 제외 (빌드 산출물·락파일·정적자산)
+    - "!**/.next/**"
+    - "!**/node_modules/**"
+    - "!**/out/**"
+    - "!**/public/**"
+    - "!**/*.lock"
+    - "!**/package-lock.json"
+    - "!**/*.xlsx"
+  path_instructions:
+    - path: "**/*.{ts,tsx}"
+      instructions: >
+        Next.js 16(App Router) + React 19 + TypeScript 컨벤션을 본다. Server/Client
+        컴포넌트 경계(`"use client"` 남용 여부)와 데이터 패칭(React Query) 패턴을 확인하고,
+        금액·수량은 부동소수점 대신 decimal.js로 다루는지, 상태관리(zustand)·폼/스키마(zod)
+        검증 누락이 없는지, 접근성(a11y)·키 누락·불필요한 리렌더를 점검한다.
+        매수/매도 주문은 따닥 클릭으로 중복 제출되지 않게 요청 in-flight 동안 버튼
+        disable·mutation `isPending` 가드가 있는지 본다.
+    - path: "src/{app,components,hooks,lib,store}/**"
+      instructions: >
+        PocketStock는 잔돈·포인트 기반 소수점 투자 서비스다. 증권 화면에서 프론트가
+        자체적으로 신경 써야 할 부분을 본다. (1) 금액·주식 수량은 decimal.js로만
+        연산하고 float·parseFloat·toFixed 반올림을 쓰지 않는지, 통화(KRW/USD)와 소수점
+        자릿수를 구분하는지. (2) 가격·등락은 부호/색상(상승·하락·보합)이 일관되고
+        천단위 구분·반올림 표기가 사용자에게 오해를 주지 않는지. (3) 실시간 시세는
+        끊김·로딩 중일 때 마지막 값을 최신 체결가처럼 보여주지 않고 stale/연결끊김을
+        명확히 표시하는지. (4) 주문 입력은 수량·금액 경계값(0·음수·잔고초과·최소단위)
+        검증과 확인 단계가 있는지. (5) JWT·계좌번호 등 민감정보를 콘솔/로그/URL에
+        노출하지 않는지.
+    - path: "src/components/**"
+      instructions: >
+        shadcn/radix-ui 기반 컴포넌트 재사용성과 Tailwind 클래스 일관성(cn/clsx/tailwind-merge),
+        prop 타입 명확성을 본다.
+    - path: "**/*.css"
+      instructions: "Tailwind v4 토큰·디자인 시스템 일관성, 하드코딩된 색상/간격 여부를 본다."
+
+chat:
+  auto_reply: true
