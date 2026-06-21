@@ -1,11 +1,20 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter, Noto_Sans_KR } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
+// 숫자/금액 표기용
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+// 본문/한글 기본 폰트
+const notoSansKr = Noto_Sans_KR({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-noto-sans-kr",
   display: "swap",
 });
 
@@ -21,6 +30,15 @@ export const metadata: Metadata = {
   },
 };
 
+// PWA standalone: 노치/상태바 영역까지 콘텐츠를 펼치고 safe-area로 여백 처리
+export const viewport: Viewport = {
+  themeColor: "#2563eb",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -28,10 +46,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <head>
-        <meta name="theme-color" content="#1a56db" />
-      </head>
-      <body className={inter.variable}>
+      <body className={`${notoSansKr.variable} ${inter.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>
