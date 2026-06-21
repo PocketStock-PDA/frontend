@@ -1,5 +1,6 @@
 "use client";
 
+import Decimal from "decimal.js";
 import { Settings } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
@@ -38,11 +39,19 @@ export function HoldingCard({
   onSettings,
 }: HoldingCardProps) {
   const initial = (ticker ?? name).trim().charAt(0).toUpperCase();
-  const shares = quantity.toLocaleString("ko-KR", { maximumFractionDigits: 4 });
+  const shares = new Decimal(quantity).toDecimalPlaces(4).toString();
 
   return (
     <div
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
       className="cursor-pointer rounded-2xl border border-border bg-card p-4"
     >
       <div className="flex items-start gap-3">

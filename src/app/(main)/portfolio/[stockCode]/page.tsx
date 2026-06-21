@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button";
 import { JigsawPuzzle } from "@/components/features/portfolio/JigsawPuzzle";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
+import Decimal from "decimal.js";
 import { formatKRW } from "@/lib/utils/currency";
 
 const PIECES_PER_SHARE = 100; // 1주 = 100조각
 
-function formatShares(q: number) {
-  return q.toLocaleString("ko-KR", { maximumFractionDigits: 4 });
+function formatShares(q: Decimal) {
+  return q.toDecimalPlaces(4).toString();
 }
 
 export default function StockPuzzlePage() {
@@ -50,14 +51,18 @@ export default function StockPuzzlePage() {
   }
 
   const detail = detailQ.data;
-  const price = detail.price.currentPrice;
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
-  const qty = holding?.quantity ?? 0;
 
-  const frac = qty - Math.floor(qty);
-  const pieces = Math.round(frac * PIECES_PER_SHARE); // 0~100
-  const evalAmount = qty * price; // 내 보유 평가금액
-  const remainAmount = (1 - frac) * price; // 1주까지 남은 금액
+  // 금액·수량 계산은 decimal.js 필수 (README 가이드라인)
+  const qty = new Decimal(holding?.quantity ?? 0);
+  const price = new Decimal(detail.price.currentPrice);
+  const frac = qty.minus(qty.floor());
+  const pieces = frac
+    .times(PIECES_PER_SHARE)
+    .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
+    .toNumber(); // 0~100
+  const evalAmount = qty.times(price); // 내 보유 평가금액
+  const remainAmount = new Decimal(1).minus(frac).times(price); // 1주까지 남은 금액
 
   return (
     <>
@@ -66,7 +71,7 @@ export default function StockPuzzlePage() {
       <div className="space-y-6 pb-8 pt-1">
         {/* 현재가 + 등락 */}
         <div className="flex items-baseline gap-2">
-          <AmountDisplay value={price} size="lg" />
+          <AmountDisplay value={price.toString()} size="lg" />
           <ChangeIndicator value={detail.price.changeRate} percent size="md" />
         </div>
 
@@ -93,13 +98,13 @@ export default function StockPuzzlePage() {
               {formatShares(qty)}주
             </p>
             <p className="text-xs text-muted-foreground">
-              = {formatKRW(evalAmount)}
+              = {formatKRW(evalAmount.toString())}
             </p>
           </div>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">1주까지 남은 금액</p>
             <AmountDisplay
-              value={remainAmount}
+              value={remainAmount.toString()}
               size="lg"
               className="font-bold"
             />
