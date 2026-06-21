@@ -10,7 +10,7 @@
   --font-sans: var(--font-noto-sans-kr), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-noto-sans-kr), ui-sans-serif, system-ui, sans-serif;
   --font-numeric: var(--font-inter), ui-sans-serif, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
   /* 브랜드 / 등락(상승=red, 하락=blue) */
   --color-brand: var(--brand);
   --color-brand-surface: var(--brand-surface);
