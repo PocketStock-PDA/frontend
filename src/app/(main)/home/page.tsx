@@ -157,15 +157,22 @@ export default function HomePage() {
           )}
         </div>
 
-        <Button
-          variant="outline"
-          onClick={() => collect.mutate()}
-          disabled={data.totalCollectable <= 0 || collect.isPending}
-          className="h-12 w-full border-primary text-base font-bold text-primary hover:bg-brand-surface"
-        >
-          <ArrowUp />
-          {formatKRW(data.totalCollectable)} CMA로 모으기
-        </Button>
+        <div>
+          <Button
+            variant="outline"
+            onClick={() => collect.mutate()}
+            disabled={data.totalCollectable <= 0 || collect.isPending}
+            className="h-12 w-full border-primary text-base font-bold text-primary hover:bg-brand-surface"
+          >
+            <ArrowUp />
+            {formatKRW(data.totalCollectable)} CMA로 모으기
+          </Button>
+          {collect.isError && (
+            <p className="mt-2 text-center text-xs text-destructive">
+              모으기에 실패했어요. 잠시 후 다시 시도해 주세요.
+            </p>
+          )}
+        </div>
 
         <Separator />
 

@@ -7,8 +7,11 @@ if (!BASE_URL) {
 }
 
 // 개발용 임시 인증 — 로그인 구현 전까지 /dev/token JWT를 Bearer로 부착.
-// 운영에선 미설정(로그인 시 메모리 access token + 인터셉터로 대체 예정).
-const DEV_TOKEN = process.env.NEXT_PUBLIC_DEV_TOKEN;
+// 운영(NODE_ENV !== "development")에선 절대 사용 안 함 (로그인 시 메모리 access token으로 대체 예정).
+const DEV_TOKEN =
+  process.env.NODE_ENV === "development"
+    ? process.env.NEXT_PUBLIC_DEV_TOKEN
+    : undefined;
 
 const pendingRequests = new Map<string, Promise<unknown>>();
 
