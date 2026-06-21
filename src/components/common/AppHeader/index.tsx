@@ -42,7 +42,7 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        "box-content flex h-14 items-center gap-1 bg-background px-2 pt-[env(safe-area-inset-top)]",
+        "-mx-5 box-content flex h-14 items-center gap-1 bg-background px-2 pt-[env(safe-area-inset-top)]",
         sticky && "sticky top-0 z-40",
         className,
       )}

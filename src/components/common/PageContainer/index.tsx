@@ -20,7 +20,7 @@ export function PageContainer({
     <div
       className={cn(
         "mx-auto w-full max-w-[430px]",
-        !noPadding && "px-4",
+        !noPadding && "px-5",
         className,
       )}
     >

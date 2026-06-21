@@ -32,12 +32,19 @@ export function StatCard({
         type={interactive ? "button" : undefined}
         onClick={onClick}
         className={cn(
-          "flex flex-col gap-2 rounded-xl border border-border bg-card p-3 text-left",
+          "flex flex-col gap-1 rounded-xl border border-border bg-card p-3 text-left",
           className,
         )}
       >
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-        <span className="text-xs text-muted-foreground">{title}</span>
+        {icon && (
+          <span className="mb-1 flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            {icon}
+          </span>
+        )}
+        <span className="text-sm font-bold text-foreground">{title}</span>
+        {subtitle && (
+          <span className="text-xs text-muted-foreground">{subtitle}</span>
+        )}
         <span className="text-sm font-bold text-foreground">{value}</span>
       </Tag>
     );
