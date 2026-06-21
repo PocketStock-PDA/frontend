@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 export interface BalanceCardProps {
   label: string;
   amount: number;
+  /** 잔액 표기 통화 (원/달러 토글), 기본 KRW */
+  currency?: "KRW" | "USD";
   caption?: React.ReactNode;
   actionLabel?: string;
   onAction?: () => void;
@@ -15,6 +17,7 @@ export interface BalanceCardProps {
 export function BalanceCard({
   label,
   amount,
+  currency = "KRW",
   caption,
   actionLabel,
   onAction,
@@ -28,7 +31,12 @@ export function BalanceCard({
       )}
     >
       <p className="text-sm text-white/90">{label}</p>
-      <AmountDisplay value={amount} size="xl" className="mt-1 text-white" />
+      <AmountDisplay
+        value={amount}
+        currency={currency}
+        size="xl"
+        className="mt-1 text-white"
+      />
       {caption && <p className="mt-1 text-sm text-white/80">{caption}</p>}
       {actionLabel && onAction && (
         <button

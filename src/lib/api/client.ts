@@ -6,6 +6,10 @@ if (!BASE_URL) {
   throw new Error("[Critical] NEXT_PUBLIC_API_URL 환경변수가 누락되었습니다.");
 }
 
+// 개발용 임시 인증 — 로그인 구현 전까지 /dev/token JWT를 Bearer로 부착.
+// 운영에선 미설정(로그인 시 메모리 access token + 인터셉터로 대체 예정).
+const DEV_TOKEN = process.env.NEXT_PUBLIC_DEV_TOKEN;
+
 const pendingRequests = new Map<string, Promise<unknown>>();
 
 interface RequestOptions extends RequestInit {
@@ -19,7 +23,10 @@ async function apiClient<T>(
 ): Promise<T> {
   const { params, dedupe = false, ...fetchOptions } = options;
 
-  const url = new URL(`${BASE_URL}${endpoint}`);
+  // 브라우저: same-origin(/api/*) 호출 → next.config rewrite가 백엔드로 프록시 (CORS 회피).
+  // 서버(SSR): 백엔드를 직접 호출.
+  const base = typeof window === "undefined" ? BASE_URL : window.location.origin;
+  const url = new URL(endpoint, base);
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   }
@@ -35,6 +42,7 @@ async function apiClient<T>(
     headers: {
       "Content-Type": "application/json",
       "X-Requested-With": "XMLHttpRequest",
+      ...(DEV_TOKEN ? { Authorization: `Bearer ${DEV_TOKEN}` } : {}),
       ...fetchOptions.headers,
     },
     credentials: "include",

@@ -35,11 +35,11 @@ export function HomeHeader({
   const openSidebar = useUiStore((s) => s.openSidebar);
 
   return (
-    <header className="-mx-5 bg-background px-5 pt-[env(safe-area-inset-top)]">
+    <header className="bg-background px-4 pt-[env(safe-area-inset-top)]">
       <div className="flex items-start justify-between gap-2 pt-3">
         <div className="min-w-0">
           <p className="text-[11px] text-muted-foreground">{formatDate(date)}</p>
-          <h1 className="mt-1 truncate text-xl font-bold tracking-tight text-foreground">
+          <h1 className="mt-0.5 truncate text-[22px] font-bold leading-tight text-foreground">
             안녕하세요, {userName}님
           </h1>
         </div>

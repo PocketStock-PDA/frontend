@@ -5,10 +5,8 @@ declare namespace NodeJS {
     readonly NEXT_PUBLIC_WS_URL: string;
     readonly NEXT_PUBLIC_APP_ENV: "development" | "staging" | "production";
     readonly NEXT_PUBLIC_VAPID_PUBLIC_KEY: string;
-
-    // 서버 전용 (NEXT_PUBLIC_ 절대 금지)
-    readonly VAPID_PRIVATE_KEY: string;
-    readonly VAPID_SUBJECT: string;
+    // 개발용 임시 토큰 (로그인 구현 후 제거)
+    readonly NEXT_PUBLIC_DEV_TOKEN?: string;
 
     readonly NODE_ENV: "development" | "production" | "test";
   }
