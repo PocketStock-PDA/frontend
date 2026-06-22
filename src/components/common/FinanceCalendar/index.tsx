@@ -85,6 +85,7 @@ export function FinanceCalendar({
               key={d.toISOString()}
               type="button"
               onClick={() => onSelectDate?.(d)}
+              aria-label={format(d, "M월 d일")}
               className={cn(
                 "aspect-square bg-background p-1",
                 !inMonth && "opacity-40",

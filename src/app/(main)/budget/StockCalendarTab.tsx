@@ -41,8 +41,12 @@ export function StockCalendarTab() {
     calendarMonth.getMonth() + 1,
   );
   const events = calendarQ.data?.events ?? [];
-  const eventMap = new Map<string, StockEvent>();
-  events.forEach((e) => eventMap.set(e.eventDate, e));
+  const eventMap = new Map<string, StockEvent[]>();
+  events.forEach((e) => {
+    const list = eventMap.get(e.eventDate) ?? [];
+    list.push(e);
+    eventMap.set(e.eventDate, list);
+  });
 
   const today = startOfDay(new Date());
 
@@ -61,7 +65,7 @@ export function StockCalendarTab() {
           if (!isCurrentMonth) return <span />;
 
           const key = format(date, "yyyy-MM-dd");
-          const event = eventMap.get(key);
+          const dayEvents = eventMap.get(key);
           const isFuture = isAfter(startOfDay(date), today);
           const isSelected = isSameDay(date, selectedDate);
 
@@ -73,8 +77,9 @@ export function StockCalendarTab() {
             );
           }
 
-          if (event) {
-            const c = EVENT_COLORS[event.eventType];
+          if (dayEvents) {
+            const first = dayEvents[0];
+            const c = EVENT_COLORS[first.eventType];
             return (
               <span
                 className="flex aspect-square w-full flex-col items-center justify-center gap-[3px] rounded-lg border"
@@ -87,7 +92,7 @@ export function StockCalendarTab() {
                   className="rounded-[3px] px-1 py-px text-[9px] leading-none text-white"
                   style={{ background: c.badgeBg }}
                 >
-                  {event.stockCode}
+                  {dayEvents.length > 1 ? `+${dayEvents.length}` : first.stockCode}
                 </span>
               </span>
             );
