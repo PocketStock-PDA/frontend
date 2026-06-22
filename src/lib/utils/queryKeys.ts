@@ -3,6 +3,7 @@ export const queryKeys = {
     all: ["asset"] as const,
     spending: (period: { year: number; month: number }) =>
       ["asset", "spending", period] as const,
+    bankAccounts: ["asset", "bank-accounts"] as const,
   },
   portfolio: {
     all: ["portfolio"] as const,
@@ -24,6 +25,8 @@ export const queryKeys = {
     search: (q: string) => ["trading", "search", q] as const,
     orderbook: (code: string) => ["trading", "orderbook", code] as const,
     autoInvest: (code: string) => ["trading", "autoInvest", code] as const,
+    rewards: ["trading", "rewards"] as const,
+    rewardCandidates: ["trading", "rewards", "candidates"] as const,
   },
   cma: {
     all: ["cma"] as const,

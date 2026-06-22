@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeftRight,
   ArrowUp,
@@ -23,7 +25,9 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { WelcomeEventDialog } from "@/components/features/onboarding/WelcomeEventDialog";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
+import { useWelcomeRewards } from "@/hooks/queries/useWelcomeRewards";
 import { useCollectChange } from "@/hooks/mutations/useCollectChange";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
@@ -63,10 +67,28 @@ const QUICK_LINKS: QuickLink[] = [
   { label: "포인트", icon: Coins, href: "#" },
 ];
 
+const WELCOME_DISMISS_KEY = "ps.welcomeEvent.dismissed";
+
 export default function HomePage() {
+  const router = useRouter();
   // TODO: 인사말 이름은 사용자 프로필 API 연동 시 교체 (/home 응답엔 없음)
   const { data, isLoading, isError, refetch } = useCmaHome();
   const collect = useCollectChange();
+
+  // 첫 가입 이벤트 팝업: 첫 주식 미수령(rewards 비어있음) + 미닫힘 시 노출 (issue #34)
+  const rewardsQ = useWelcomeRewards();
+  const [welcomeDismissed, setWelcomeDismissed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      localStorage.getItem(WELCOME_DISMISS_KEY) === "1",
+  );
+  const welcomeEligible =
+    rewardsQ.isSuccess && (rewardsQ.data?.length ?? 0) === 0;
+  const dismissWelcome = () => {
+    if (typeof window !== "undefined")
+      localStorage.setItem(WELCOME_DISMISS_KEY, "1");
+    setWelcomeDismissed(true);
+  };
 
   if (isLoading) {
     return (
@@ -95,6 +117,18 @@ export default function HomePage() {
 
   return (
     <>
+      {welcomeEligible && (
+        <WelcomeEventDialog
+          open={!welcomeDismissed}
+          onOpenChange={(o) => {
+            if (!o) dismissWelcome();
+          }}
+          onProceed={() => {
+            dismissWelcome();
+            router.push("/account/open");
+          }}
+        />
+      )}
       <HomeHeader userName="회원" />
       <div className="space-y-4">
         {/* TODO: usdToKrwRate는 환율 API 연동 시 전달(펼침 시 'N원 기준' 표기) */}
@@ -173,12 +207,12 @@ export default function HomePage() {
           <p className="mb-3 text-[13px] font-medium text-muted-foreground">
             바로가기
           </p>
-          <div className="flex flex-wrap justify-between gap-y-5">
+          <div className="grid grid-cols-4 gap-y-5">
             {QUICK_LINKS.map(({ label, icon: Icon, href, highlight }) => (
               <Link
                 key={label}
                 href={href}
-                className="flex w-[5.25rem] flex-col items-center gap-1.5"
+                className="flex flex-col items-center gap-1.5"
               >
                 <span
                   className={cn(
