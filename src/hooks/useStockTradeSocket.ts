@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useStompTopic } from "@/hooks/useStompTopic";
 import { queryKeys } from "@/lib/utils/queryKeys";
 import type { StockDetail, TradeFrame } from "@/types/domain/trading";
+import type { OrderBook } from "@/types/domain/orderbook";
 
 /**
  * 실시간 체결(시세) 구독 — issue #10.
@@ -45,6 +46,12 @@ export function useStockTradeSocket(
                 },
               }
             : prev,
+      );
+      // 호가창 캐시의 현재가도 동기화 (실시간 호가 프레임엔 currentPrice가 없음)
+      queryClient.setQueryData<OrderBook>(
+        queryKeys.trading.orderbook(stockCode),
+        (prev) =>
+          prev ? { ...prev, currentPrice: frame.currentPrice } : prev,
       );
     },
     enabled,
