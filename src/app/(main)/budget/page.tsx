@@ -212,15 +212,20 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   calendarQ.data?.days.forEach((d) => dayMap.set(d.date, d));
 
   const daysInCalendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
-  const calendarDailyBudget = calendarQ.data?.dailyBudget ?? 0;
-  const dailyBudget = calendarDailyBudget > 0 ? calendarDailyBudget : goals.monthlyBudget / daysInCalendarMonth;
-  const calendarSpent = calendarQ.data?.days.reduce((s, d) => s + Number(d.spent), 0) ?? goals.spentAmount;
-  const calendarMonthlyBudget = calendarDailyBudget > 0 ? calendarDailyBudget * daysInCalendarMonth : goals.monthlyBudget;
-  const usedPct = calendarMonthlyBudget > 0 ? Math.min(100, Math.round((calendarSpent / calendarMonthlyBudget) * 100)) : 0;
-
   const today = startOfDay(new Date());
   const now = new Date();
   const isCurrentMonth = calendarMonth.getFullYear() === now.getFullYear() && calendarMonth.getMonth() === now.getMonth();
+
+  const calendarDailyBudget = calendarQ.data?.dailyBudget ?? 0;
+  const calendarSpent = calendarQ.data?.days.reduce((s, d) => s + Number(d.spent), 0) ?? goals.spentAmount;
+  // 현재 월은 goals.monthlyBudget을 직접 사용 (dailyBudget * days 역산 시 나머지 손실)
+  const calendarMonthlyBudget = isCurrentMonth
+    ? goals.monthlyBudget
+    : calendarDailyBudget > 0
+      ? calendarDailyBudget * daysInCalendarMonth
+      : goals.monthlyBudget;
+  const dailyBudget = calendarMonthlyBudget / daysInCalendarMonth;
+  const usedPct = calendarMonthlyBudget > 0 ? Math.min(100, Math.round((calendarSpent / calendarMonthlyBudget) * 100)) : 0;
 
   return (
     <div className="pb-6">
