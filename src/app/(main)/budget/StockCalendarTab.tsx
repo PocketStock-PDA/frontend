@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
-import { ko } from "date-fns/locale";
 import { FinanceCalendar } from "@/components/common/FinanceCalendar";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useStockCalendar } from "@/hooks/queries/useStockCalendar";
-import { cn } from "@/lib/utils";
 import type { StockEvent, StockEventType } from "@/types/domain/stockCalendar";
 
 const EVENT_COLORS: Record<
