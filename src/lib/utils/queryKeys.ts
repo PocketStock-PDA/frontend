@@ -30,6 +30,10 @@ export const queryKeys = {
     all: ["exchange"] as const,
     rate: ["exchange", "rate"] as const,
   },
+  stockCalendar: {
+    all: ["stockCalendar"] as const,
+    events: (year: number, month: number) => ["stockCalendar", "events", year, month] as const,
+  },
   user: {
     profile: ["user", "profile"] as const,
   },
