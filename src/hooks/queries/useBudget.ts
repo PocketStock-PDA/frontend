@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { queryKeys } from "@/lib/utils/queryKeys";
-import type { BudgetGoalSummary, CalendarResponse, TransactionsResponse } from "@/types/domain/budget";
+import type { BudgetGoalSummary, CalendarResponse, SavingsStatusResponse, TransactionsResponse } from "@/types/domain/budget";
 
 export function useBudgetGoals() {
   return useQuery({
@@ -32,6 +32,13 @@ export function useBudgetTransactions(params: {
       api.get<TransactionsResponse>("/api/budget/transactions", {
         params: toStringParams(params),
       }),
+  });
+}
+
+export function useBudgetSavings() {
+  return useQuery({
+    queryKey: queryKeys.budget.savings,
+    queryFn: () => api.get<SavingsStatusResponse>("/api/budget/savings"),
   });
 }
 

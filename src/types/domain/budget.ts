@@ -46,3 +46,13 @@ export interface AutoBudgetGoalResponse {
   monthlyBudget: number;
   categories: AutoBudgetGoalCategory[];
 }
+
+export interface SavingsStatusResponse {
+  period: string;
+  totalBudget: number;
+  spentAmount: number;
+  savedAmount: number;
+  targetSavingsAmount: number;
+  isCollectAgreed: boolean;
+  transferStatus: string;
+}
