@@ -77,8 +77,8 @@ export function StockCalendarTab() {
             );
           }
 
-          if (dayEvents) {
-            const first = dayEvents[0];
+          const first = dayEvents?.[0];
+          if (first) {
             const c = EVENT_COLORS[first.eventType];
             return (
               <span

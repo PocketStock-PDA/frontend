@@ -4,9 +4,8 @@ import { queryKeys } from "@/lib/utils/queryKeys";
 import type { CollectResult } from "@/types/domain/cma";
 
 /**
- * 잔돈 모으기 실행 (POST /api/cma/collect).
- * 성공 시 CMA 홈 데이터 무효화.
- * ⚠️ 백엔드 엔드포인트 미구현 — 문서 스펙 기준 선구현.
+ * 잔돈 모으기 실행 (POST /api/cma/collect) — 구현됨.
+ * 응답은 소스별 결과 배열(CollectResult). 성공 시 CMA 홈 데이터 무효화.
  */
 export function useCollectChange() {
   const queryClient = useQueryClient();
