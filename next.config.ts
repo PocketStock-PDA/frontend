@@ -11,10 +11,14 @@ const nextConfig: NextConfig = {
     const target = process.env.NEXT_PUBLIC_API_URL;
     if (!target) return [];
     // budget은 core-api(8081)에 있어서 catch-all 앞에 먼저 매칭
-    const coreTarget = process.env.NEXT_PUBLIC_CORE_API_URL ?? "http://localhost:8081";
+    const coreTarget = process.env.NEXT_PUBLIC_CORE_API_URL;
     return [
-      { source: "/api/budget/:path*", destination: `${coreTarget}/api/budget/:path*` },
-      { source: "/api/assets/:path*", destination: `${coreTarget}/api/assets/:path*` },
+      ...(coreTarget
+        ? [
+            { source: "/api/budget/:path*", destination: `${coreTarget}/api/budget/:path*` },
+            { source: "/api/assets/:path*", destination: `${coreTarget}/api/assets/:path*` },
+          ]
+        : []),
       { source: "/api/:path*", destination: `${target}/api/:path*` },
     ];
   },
