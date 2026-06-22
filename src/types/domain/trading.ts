@@ -44,3 +44,21 @@ export interface StockDetail {
   logoUrl: string | null;
   price: StockPrice;
 }
+
+/**
+ * 실시간 체결(시세) 프레임 — STOMP push.
+ *   국내: /topic/stock/trade/{stockCode}
+ *   해외: /topic/foreign/transaction/{stockCode}
+ * ⚠️ payload 스키마가 이슈 #10에 명시되지 않음 → 추정(틀). 실제 필드 확인 후 조정.
+ */
+export interface TradeFrame {
+  stockCode: string;
+  currentPrice: number;
+  changePrice?: number;
+  /** 등락률(%) */
+  changeRate?: number;
+  /** 누적/체결 거래량 */
+  volume?: number;
+  /** 체결 시각 */
+  tradeTime?: string;
+}
