@@ -103,6 +103,8 @@ export const api = {
     apiClient<T>(ep, { ...opts, method: "GET" }),
   post: <T>(ep: string, body: unknown, opts?: RequestOptions) =>
     apiClient<T>(ep, { ...opts, method: "POST", body: JSON.stringify(body) }),
+  put: <T>(ep: string, body: unknown, opts?: RequestOptions) =>
+    apiClient<T>(ep, { ...opts, method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(ep: string, body: unknown, opts?: RequestOptions) =>
     apiClient<T>(ep, { ...opts, method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(ep: string, opts?: RequestOptions) =>
