@@ -41,6 +41,8 @@ import type { BudgetGoalCategoryItem, BudgetGoalSummary, CalendarDayItem } from 
 
 // ── 페이지 진입점 ──────────────────────────────────────────────────────────────
 
+import { AppHeader } from "@/components/common/AppHeader";
+
 export default function BudgetPage() {
   const goalsQ = useBudgetGoals();
 
@@ -505,15 +507,40 @@ function getCategoryIcon(name: string) {
 function CategoryBar({ name, percentage, isPrimary, isOther }: { name: string; percentage: number; isPrimary: boolean; isOther: boolean }) {
   return (
     <div className="space-y-1.5">
+      <AppHeader variant="sub" title="가계부" />
+      <p className="text-sm text-muted-foreground">준비 중인 화면이에요.</p>
       <div className="flex items-center justify-between text-sm">
-        <span className={cn("font-medium", isOther ? "text-muted-foreground" : "text-foreground")}>{name}</span>
-        <span className={cn("font-numeric font-bold", isPrimary ? "text-primary" : isOther ? "text-muted-foreground" : "text-foreground/60")}>
+        <span
+          className={cn(
+            "font-medium",
+            isOther ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          {name}
+        </span>
+        <span
+          className={cn(
+            "font-numeric font-bold",
+            isPrimary
+              ? "text-primary"
+              : isOther
+                ? "text-muted-foreground"
+                : "text-foreground/60",
+          )}
+        >
           {percentage}%
         </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className={cn("h-full rounded-full", isPrimary ? "bg-primary" : isOther ? "bg-muted-foreground/30" : "bg-primary/30")}
+          className={cn(
+            "h-full rounded-full",
+            isPrimary
+              ? "bg-primary"
+              : isOther
+                ? "bg-muted-foreground/30"
+                : "bg-primary/30",
+          )}
           style={{ width: `${percentage}%` }}
         />
       </div>

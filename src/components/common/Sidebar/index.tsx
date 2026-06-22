@@ -37,10 +37,10 @@ export function Sidebar() {
     >
       <SheetContent
         side="right"
-        className="w-[88%] gap-0 p-0 sm:max-w-sm"
+        className="w-[80%] gap-0 px-5 pb-6 pt-[calc(env(safe-area-inset-top)+1.5rem)] sm:max-w-sm"
         aria-describedby={undefined}
       >
-        <SheetHeader className="pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+        <SheetHeader className="p-0">
           <button
             type="button"
             className="flex w-fit items-center gap-0.5 text-sm text-muted-foreground"
@@ -51,7 +51,7 @@ export function Sidebar() {
           <SheetTitle className="sr-only">전체 메뉴</SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-6">
+        <div className="mt-4 flex-1 overflow-y-auto">
           <h2 className="mb-2 text-sm font-bold text-foreground">최근/MY 메뉴</h2>
           <div className="mb-6 flex h-28 items-center justify-center rounded-2xl bg-brand-surface text-sm text-muted-foreground">
             최근 메뉴가 없습니다

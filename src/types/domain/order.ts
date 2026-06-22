@@ -24,6 +24,23 @@ export type SellOrderRequest =
   | (SellOrderBase & { orderType: "AMOUNT"; amount: number })
   | (SellOrderBase & { orderType: "ALL" });
 
+// 온주(정수 주) 주문 (POST /api/trading/orders/whole)
+// ⚠️ 백엔드 미구현 — 문서 스펙 기준(issue #4 멱등키 동일 패턴).
+interface WholeOrderBase {
+  /** 멱등키 — 주문 시도당 1개(재시도 시 동일 값 재사용). issue #4 */
+  clientOrderId: string;
+  stockCode: string;
+  market: Market;
+  side: "BUY" | "SELL";
+  /** 정수 주 수량 */
+  quantity: number;
+}
+
+/** MARKET=시장가(간편) / LIMIT=지정가(호가창) */
+export type WholeOrderRequest =
+  | (WholeOrderBase & { orderType: "MARKET" })
+  | (WholeOrderBase & { orderType: "LIMIT"; price: number });
+
 export interface OrderResult {
   orderId: string;
   stockCode: string;
