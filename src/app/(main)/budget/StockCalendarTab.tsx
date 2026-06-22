@@ -7,7 +7,6 @@ import { FinanceCalendar } from "@/components/common/FinanceCalendar";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useStockCalendar } from "@/hooks/queries/useStockCalendar";
-import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import type { StockEvent, StockEventType } from "@/types/domain/stockCalendar";
 
@@ -45,7 +44,7 @@ export function StockCalendarTab() {
   );
   const events = calendarQ.data?.events ?? [];
   const eventMap = new Map<string, StockEvent>();
-  events.forEach((e) => eventMap.set(e.date, e));
+  events.forEach((e) => eventMap.set(e.eventDate, e));
 
   const today = startOfDay(new Date());
 
@@ -77,7 +76,7 @@ export function StockCalendarTab() {
           }
 
           if (event) {
-            const c = EVENT_COLORS[event.type];
+            const c = EVENT_COLORS[event.eventType];
             return (
               <span
                 className="flex aspect-square w-full flex-col items-center justify-center gap-[3px] rounded-lg border"
@@ -137,7 +136,7 @@ export function StockCalendarTab() {
       ) : (
         <div className="divide-y divide-border">
           {events.map((event) => (
-            <EventRow key={event.eventId} event={event} />
+            <EventRow key={`${event.eventDate}-${event.stockCode}`} event={event} />
           ))}
         </div>
       )}
@@ -146,9 +145,7 @@ export function StockCalendarTab() {
 }
 
 function EventRow({ event }: { event: StockEvent }) {
-  const c = EVENT_COLORS[event.type];
-  const completedColor = event.completed ? c.dateColor : "#AAAAAA";
-  const hasTradeButtons = event.type === "RECOMMEND" && !event.completed;
+  const c = EVENT_COLORS[event.eventType];
 
   return (
     <div className="space-y-2 py-3">
@@ -158,46 +155,15 @@ function EventRow({ event }: { event: StockEvent }) {
             className="shrink-0 rounded-full px-2 py-[3px] text-[11px] text-white"
             style={{ background: c.badgeBg }}
           >
-            {EVENT_LABELS[event.type]}
+            {EVENT_LABELS[event.eventType]}
           </span>
           <div className="space-y-[2px]">
             <p className="text-xs font-medium text-foreground">{event.title}</p>
             <p className="text-[11px] text-[#AAAAAA]">{event.detail}</p>
           </div>
         </div>
-        <span className="shrink-0 text-xs font-medium" style={{ color: completedColor }}>
-          {event.completed ? "완료" : "예정"}
-        </span>
+        <span className="shrink-0 text-[11px] text-[#AAAAAA]">{event.eventDate}</span>
       </div>
-
-      {hasTradeButtons && (
-        <>
-          {event.currentPrice !== undefined && event.changeRate !== undefined && (
-            <p className="text-[11px] text-[#AAAAAA]">
-              현재가 {formatKRW(event.currentPrice)} ·{" "}
-              <span className={event.changeRate >= 0 ? "text-primary" : "text-[#F04452]"}>
-                {event.changeRate >= 0 ? "+" : ""}
-                {event.changeRate.toFixed(2)}%
-              </span>
-            </p>
-          )}
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              className="flex-1 rounded-lg border border-primary bg-accent py-2 text-sm font-semibold text-primary"
-            >
-              매수
-            </button>
-            <button
-              type="button"
-              className="flex-1 rounded-lg border py-2 text-sm font-semibold"
-              style={{ borderColor: "#F04452", background: "#FFF5F5", color: "#F04452" }}
-            >
-              매도
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }

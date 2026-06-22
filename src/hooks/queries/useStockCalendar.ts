@@ -7,7 +7,7 @@ export function useStockCalendar(year: number, month: number) {
   return useQuery({
     queryKey: queryKeys.stockCalendar.events(year, month),
     queryFn: () =>
-      api.get<StockCalendarResponse>("/api/calendar/events", {
+      api.get<StockCalendarResponse>("/api/trading/calendar/events", {
         params: { year: String(year), month: String(month) },
       }),
   });
