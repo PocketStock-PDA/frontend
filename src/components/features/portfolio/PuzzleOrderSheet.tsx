@@ -8,7 +8,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 
 export interface PuzzleOrderSheetProps {
@@ -23,6 +22,8 @@ export interface PuzzleOrderSheetProps {
   total: number;
   /** ≈ 주문 금액 (부모가 decimal.js로 계산해 전달) */
   amount: number;
+  /** 통화별 금액 포맷터 (부모가 종목 통화에 맞춰 주입: KRW/USD) */
+  formatAmount: (amount: number) => string;
   onConfirm: () => void;
   pending?: boolean;
 }
@@ -37,6 +38,7 @@ export function PuzzleOrderSheet({
   currentFilled,
   total,
   amount,
+  formatAmount,
   onConfirm,
   pending = false,
 }: PuzzleOrderSheetProps) {
@@ -75,7 +77,7 @@ export function PuzzleOrderSheet({
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">금액</span>
             <span className="font-numeric text-lg font-bold text-foreground">
-              ≈ {formatKRW(amount)}
+              ≈ {formatAmount(amount)}
             </span>
           </div>
           <p className="text-right font-numeric text-xs text-muted-foreground">

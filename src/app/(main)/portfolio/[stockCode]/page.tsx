@@ -17,7 +17,7 @@ import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useOrders } from "@/hooks/queries/useOrders";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
-import { formatKRW } from "@/lib/utils/currency";
+import { formatKRW, formatUSD } from "@/lib/utils/currency";
 
 const PIECES_PER_SHARE = 100; // 1주 = 100조각
 
@@ -80,13 +80,15 @@ export default function StockPuzzlePage() {
   const remainAmount = new Decimal(1).minus(frac).times(price);
 
   // 주문 (틀): 조각당 금액 = 현재가 / 100
-  const market = detail.currency === "USD" ? "OVERSEAS" : "DOMESTIC";
+  const isUSD = detail.currency === "USD";
+  const market = isUSD ? "OVERSEAS" : "DOMESTIC";
+  const fmtAmount = (v: number | string) => (isUSD ? formatUSD(v) : formatKRW(v));
   const selPieces = sel?.indexes.length ?? 0;
   const orderAmount = price.div(PIECES_PER_SHARE).times(selPieces);
   const ordering = buyOrder.isPending || sellOrder.isPending;
 
   const handleConfirm = () => {
-    if (!sel) return;
+    if (!sel || ordering) return;
     const amount = orderAmount.toNumber();
     const opts = { onSuccess: () => setSel(null) };
     if (sel.mode === "buy") {
@@ -145,7 +147,7 @@ export default function StockPuzzlePage() {
               {formatShares(qty)}주
             </p>
             <p className="text-xs text-muted-foreground">
-              = {formatKRW(evalAmount.toString())}
+              = {fmtAmount(evalAmount.toString())}
             </p>
           </div>
           <div className="space-y-1">
@@ -184,7 +186,7 @@ export default function StockPuzzlePage() {
                       {formatShares(new Decimal(o.quantity))}주
                     </p>
                     <p className="font-numeric text-xs text-muted-foreground">
-                      {formatKRW(
+                      {fmtAmount(
                         new Decimal(o.price).times(o.quantity).toString(),
                       )}
                     </p>
@@ -205,6 +207,7 @@ export default function StockPuzzlePage() {
         currentFilled={pieces}
         total={PIECES_PER_SHARE}
         amount={orderAmount.toNumber()}
+        formatAmount={fmtAmount}
         onConfirm={handleConfirm}
         pending={ordering}
       />

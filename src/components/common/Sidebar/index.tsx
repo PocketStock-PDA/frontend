@@ -5,7 +5,6 @@ import { ChevronRight } from "lucide-react";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -39,6 +38,7 @@ export function Sidebar() {
       <SheetContent
         side="right"
         className="w-[88%] gap-0 p-0 sm:max-w-sm"
+        aria-describedby={undefined}
       >
         <SheetHeader className="pt-[calc(env(safe-area-inset-top)+0.5rem)]">
           <button
@@ -49,7 +49,6 @@ export function Sidebar() {
             <ChevronRight className="size-4" />
           </button>
           <SheetTitle className="sr-only">전체 메뉴</SheetTitle>
-          <SheetDescription className="sr-only">앱 전체 메뉴</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4 pb-6">

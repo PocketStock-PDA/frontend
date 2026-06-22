@@ -10,13 +10,15 @@ export interface BuyOrderRequest {
   amount: number;
 }
 
-export interface SellOrderRequest {
+interface SellOrderBase {
   stockCode: string;
   market: Market;
-  /** ALL=전량 / AMOUNT=부분(N조각) — 부분 매도 타입은 백엔드 확인 필요 */
-  orderType: "AMOUNT" | "ALL";
-  amount?: number;
 }
+
+/** ALL=전량 / AMOUNT=부분(N조각) — 부분 매도 타입은 백엔드 확인 필요 */
+export type SellOrderRequest =
+  | (SellOrderBase & { orderType: "AMOUNT"; amount: number })
+  | (SellOrderBase & { orderType: "ALL" });
 
 export interface OrderResult {
   orderId: string;
