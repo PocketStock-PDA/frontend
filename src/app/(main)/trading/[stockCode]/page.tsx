@@ -89,6 +89,7 @@ export default function TradePage() {
   const detail = detailQ.data;
   const isUSD = detail.currency === "USD";
   const market = isUSD ? "OVERSEAS" : "DOMESTIC";
+  const amountDp = isUSD ? 2 : 0; // 금액 반올림 자리수: KRW 0 / USD 2(센트)
   const fmtAmount = (v: number | string) => (isUSD ? formatUSD(v) : formatKRW(v));
 
   // 금액 계산은 decimal.js 필수 (README 가이드라인). API 값은 toDecimal로 안전 변환(null→0)
@@ -280,9 +281,9 @@ export default function TradePage() {
               />
               <QuickAmountChips
                 options={[
-                  { label: "10%", value: new Decimal(buyingPower).times(0.1).toDecimalPlaces(0).toNumber() },
-                  { label: "25%", value: new Decimal(buyingPower).times(0.25).toDecimalPlaces(0).toNumber() },
-                  { label: "50%", value: new Decimal(buyingPower).times(0.5).toDecimalPlaces(0).toNumber() },
+                  { label: "10%", value: new Decimal(buyingPower).times(0.1).toDecimalPlaces(amountDp).toNumber() },
+                  { label: "25%", value: new Decimal(buyingPower).times(0.25).toDecimalPlaces(amountDp).toNumber() },
+                  { label: "50%", value: new Decimal(buyingPower).times(0.5).toDecimalPlaces(amountDp).toNumber() },
                   { label: "최대", value: "max" },
                 ]}
                 onSelect={(v) =>
@@ -336,7 +337,7 @@ export default function TradePage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          수수료 {FEE_RATE * 100}% · 약 {fmtAmount(fee.toDecimalPlaces(0).toNumber())}
+          수수료 {FEE_RATE * 100}% · 약 {fmtAmount(fee.toDecimalPlaces(amountDp).toNumber())}
         </p>
 
         {/* 온주: 호가창(지정가) 매매로 이동 (이슈 ②) */}

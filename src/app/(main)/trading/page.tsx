@@ -8,13 +8,17 @@ import { StockListItem } from "@/components/common/StockListItem";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useStockSearch } from "@/hooks/queries/useStockSearch";
+import { cn } from "@/lib/utils";
 
 /** T1. 종목 검색·탐색 — 검색 후 종목 선택 시 매수/매도 화면으로 이동 */
 export default function TradingSearchPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const { data, isLoading } = useStockSearch(query);
+  const { data, isLoading, isFetching, isPlaceholderData } =
+    useStockSearch(query);
   const stocks = data ?? [];
+  // keepPreviousData로 이전 결과가 보이는 동안(검색 중) 흐리게 → stale 구분
+  const showingStale = isFetching && isPlaceholderData;
 
   return (
     <>
@@ -41,7 +45,12 @@ export default function TradingSearchPage() {
             className="py-10"
           />
         ) : (
-          <div className="divide-y divide-border">
+          <div
+            className={cn(
+              "divide-y divide-border transition-opacity",
+              showingStale && "opacity-60",
+            )}
+          >
             {stocks.map((s) => (
               <StockListItem
                 key={s.stockCode}

@@ -11,7 +11,7 @@ export interface StockSummary {
   currentPrice: number;
   /** 등락률(%) — 예: 1.2 = +1.20% */
   changeRate: number;
-  currency: string;
+  currency: "KRW" | "USD";
 }
 
 export interface Holding {

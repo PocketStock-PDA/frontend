@@ -94,7 +94,7 @@ export function Stepper({
               onFocus={(e) => e.target.select()}
               onBlur={() => setDraft(null)}
               aria-label="수량"
-              className="w-full min-w-0 bg-transparent text-center font-numeric text-lg font-bold tabular-nums outline-none"
+              className="w-full min-w-0 rounded bg-transparent text-center font-numeric text-lg font-bold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             />
             {suffix && (
               <span className="ml-0.5 shrink-0 text-sm font-medium text-muted-foreground">

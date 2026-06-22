@@ -11,7 +11,9 @@ export function toDecimal(
     return new Decimal(0);
   }
   try {
-    return new Decimal(value);
+    // decimal.js는 NaN/Infinity에 예외를 안 던지고 유효 인스턴스를 만들므로 별도 검사
+    const d = new Decimal(value);
+    return d.isFinite() ? d : new Decimal(0);
   } catch {
     return new Decimal(0);
   }
