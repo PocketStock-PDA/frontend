@@ -23,6 +23,7 @@ export const queryKeys = {
     stockDetail: (code: string) => ["trading", "stock", code] as const,
     search: (q: string) => ["trading", "search", q] as const,
     orderbook: (code: string) => ["trading", "orderbook", code] as const,
+    autoInvest: (code: string) => ["trading", "autoInvest", code] as const,
   },
   cma: {
     all: ["cma"] as const,

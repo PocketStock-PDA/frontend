@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Repeat } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -11,7 +11,6 @@ import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { Stepper } from "@/components/common/Stepper";
-import { QuickAmountChips } from "@/components/common/QuickAmountChips";
 import { AmountInput } from "@/components/common/AmountInput";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
@@ -33,6 +32,7 @@ type InputMode = "QTY" | "AMOUNT"; // 수량으로 / 금액으로
 type Side = "BUY" | "SELL";
 
 const FEE_RATE = 0.001; // 수수료 0.1%
+const AMOUNT_CHIPS = [5000, 10000, 50000, 100000]; // 금액 빠른 추가(원)
 
 function formatShares(q: Decimal) {
   return q.toDecimalPlaces(4).toString();
@@ -117,7 +117,8 @@ export default function TradePage() {
     resetKeys();
   };
   const changeInputMode = (im: InputMode) => {
-    if (im === "AMOUNT" && method === "WHOLE") setMethod("FRACTION");
+    // 금액으로는 항상 소수점 고정 (백엔드 전달 값도 소수점)
+    if (im === "AMOUNT") setMethod("FRACTION");
     setInputMode(im);
     resetKeys();
   };
@@ -204,15 +205,17 @@ export default function TradePage() {
       />
 
       <div className="space-y-5">
-        {/* 소수점 | 온주 */}
-        <SegmentedControl<Method>
-          options={[
-            { label: "소수점", value: "FRACTION" },
-            { label: "온주", value: "WHOLE" },
-          ]}
-          value={method}
-          onChange={changeMethod}
-        />
+        {/* 소수점 | 온주 — 수량으로일 때만 (금액으로는 소수점 고정) */}
+        {inputMode === "QTY" && (
+          <SegmentedControl<Method>
+            options={[
+              { label: "소수점", value: "FRACTION" },
+              { label: "온주", value: "WHOLE" },
+            ]}
+            value={method}
+            onChange={changeMethod}
+          />
+        )}
 
         {/* 수량/금액 입력 카드 */}
         <div className="space-y-3 rounded-2xl bg-muted/50 p-4">
@@ -277,19 +280,20 @@ export default function TradePage() {
               <AmountInput
                 value={amount}
                 onChange={onAmountChange}
-                placeholder="매수 금액"
+                placeholder="주문 금액"
               />
-              <QuickAmountChips
-                options={[
-                  { label: "10%", value: new Decimal(buyingPower).times(0.1).toDecimalPlaces(amountDp).toNumber() },
-                  { label: "25%", value: new Decimal(buyingPower).times(0.25).toDecimalPlaces(amountDp).toNumber() },
-                  { label: "50%", value: new Decimal(buyingPower).times(0.5).toDecimalPlaces(amountDp).toNumber() },
-                  { label: "최대", value: "max" },
-                ]}
-                onSelect={(v) =>
-                  onAmountChange(v === "max" ? buyingPower : v)
-                }
-              />
+              <div className="flex gap-2">
+                {AMOUNT_CHIPS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => onAmountChange(new Decimal(amount).plus(n).toNumber())}
+                    className="flex-1 rounded-lg border border-border bg-background py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    +{n.toLocaleString("ko-KR")}원
+                  </button>
+                ))}
+              </div>
             </>
           )}
         </div>
@@ -351,6 +355,19 @@ export default function TradePage() {
             <ChevronRight className="size-4" />
           </button>
         )}
+
+        {/* 자동모으기(적립식) 설정 진입 (이슈 ③) */}
+        <button
+          type="button"
+          onClick={() => router.push(`/trading/${stockCode}/auto`)}
+          className="flex w-full items-center justify-between rounded-xl bg-muted/60 px-4 py-3.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <span className="flex items-center gap-2">
+            <Repeat className="size-4 text-primary" />
+            자동모으기 설정
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground" />
+        </button>
       </div>
     </>
   );
