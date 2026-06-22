@@ -250,25 +250,25 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                   ? "#FFFFFF"
                   : "#333333";
 
+              const fillPct = Math.min(100, fillRatio * 100);
+              const fillColor = `rgba(4,113,233,${isOver ? 0.7 : 0.25})`;
+
               return (
                 <span
                   className={cn(
-                    "relative flex h-full w-full overflow-hidden rounded-lg",
+                    "flex h-full w-full flex-col items-center justify-end rounded-lg",
                     isSelected && "ring-2 ring-primary",
                   )}
+                  style={
+                    info && !isFuture && fillRatio > 0
+                      ? {
+                          background: `linear-gradient(to top, ${fillColor} ${fillPct}%, transparent ${fillPct}%)`,
+                        }
+                      : undefined
+                  }
                 >
-                  {info && !isFuture && (
-                    <span
-                      className="absolute inset-x-0 bottom-0 rounded-lg"
-                      style={{
-                        top: `${Math.max(0, (1 - fillRatio) * 100)}%`,
-                        backgroundColor: "hsl(var(--primary))",
-                        opacity: isOver ? 0.7 : 0.25,
-                      }}
-                    />
-                  )}
                   <span
-                    className="absolute inset-x-0 bottom-0 flex justify-center pb-1 text-[11px] leading-none"
+                    className="pb-1 text-[11px] leading-none"
                     style={{ color: dateColor }}
                   >
                     {date.getDate()}
