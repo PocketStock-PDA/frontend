@@ -1,3 +1,6 @@
+"use client";
+
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export interface JigsawPuzzleProps {
@@ -9,6 +12,12 @@ export interface JigsawPuzzleProps {
   columns?: number;
   /** 최근 채워진(하이라이트) 조각 인덱스. 기본 filled-1 */
   recentIndex?: number;
+  /** 선택 확정(탭/드래그 종료 시). 지정 시 인터랙티브 */
+  onSelectionCommit?: (
+    selection: { mode: "buy" | "sell"; indexes: number[] } | null,
+  ) => void;
+  /** 확정된(하이라이트) 조각 인덱스 */
+  selectedIndexes?: number[];
   className?: string;
 }
 
@@ -78,16 +87,110 @@ export function JigsawPuzzle({
   filled,
   columns = 10,
   recentIndex,
+  onSelectionCommit,
+  selectedIndexes,
   className,
 }: JigsawPuzzleProps) {
   const cols = columns;
   const rows = Math.ceil(total / cols);
   const recent = recentIndex ?? filled - 1;
+  const interactive = !!onSelectionCommit;
+
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [drag, setDrag] = useState<{ start: number; cur: number } | null>(null);
+
+  const stateOf = (idx: number): "filled" | "recent" | "empty" =>
+    idx < filled ? (idx === recent ? "recent" : "filled") : "empty";
+
+  // 시작 조각이 빈칸이면 매수, 채워진 칸이면 매도
+  const modeOf = (idx: number): "buy" | "sell" =>
+    stateOf(idx) === "empty" ? "buy" : "sell";
+
+  // 시작~현재의 사각 범위 내, 모드에 맞는 조각(매수=빈칸 / 매도=채운칸)
+  const rectSelection = (start: number, cur: number) => {
+    const mode = modeOf(start);
+    const sr = Math.floor(start / cols);
+    const sc = start % cols;
+    const cr = Math.floor(cur / cols);
+    const cc = cur % cols;
+    const r0 = Math.min(sr, cr);
+    const r1 = Math.max(sr, cr);
+    const c0 = Math.min(sc, cc);
+    const c1 = Math.max(sc, cc);
+    const indexes: number[] = [];
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        const i = r * cols + c;
+        if (i >= total) continue;
+        const match =
+          mode === "buy" ? stateOf(i) === "empty" : stateOf(i) !== "empty";
+        if (match) indexes.push(i);
+      }
+    }
+    return { mode, indexes };
+  };
+
+  const liveSel = drag ? rectSelection(drag.start, drag.cur) : null;
+  const highlight = new Set(
+    liveSel ? liveSel.indexes : (selectedIndexes ?? []),
+  );
+
+  // 포인터 좌표 → 조각 인덱스 (마우스·터치 공통, getScreenCTM 기반)
+  const pieceAt = (clientX: number, clientY: number): number | null => {
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!svg || !ctm) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const p = pt.matrixTransform(ctm.inverse());
+    const col = Math.floor(p.x / S);
+    const row = Math.floor(p.y / S);
+    if (col < 0 || col >= cols || row < 0 || row >= rows) return null;
+    const idx = row * cols + col;
+    return idx < total ? idx : null;
+  };
+
+  const handleDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!interactive) return;
+    const idx = pieceAt(e.clientX, e.clientY);
+    if (idx === null) return;
+    svgRef.current?.setPointerCapture(e.pointerId);
+    setDrag({ start: idx, cur: idx });
+  };
+
+  const handleMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!interactive || !drag) return;
+    const idx = pieceAt(e.clientX, e.clientY);
+    if (idx !== null && idx !== drag.cur) {
+      setDrag({ start: drag.start, cur: idx });
+    }
+  };
+
+  // 드래그/탭 종료 시점에 선택 확정 → 팝업
+  const handleUp = () => {
+    if (!drag) return;
+    const sel = rectSelection(drag.start, drag.cur);
+    onSelectionCommit?.(sel.indexes.length ? sel : null);
+    setDrag(null);
+  };
+
+  const handleCancel = () => setDrag(null);
 
   return (
     <svg
+      ref={svgRef}
       viewBox={`-3 -3 ${cols * S + 8} ${rows * S + 14}`}
-      className={cn("w-full", className)}
+      className={cn(
+        "w-full",
+        interactive && "cursor-pointer select-none",
+        className,
+      )}
+      style={interactive ? { touchAction: "none" } : undefined}
+      onPointerDown={handleDown}
+      onPointerMove={handleMove}
+      onPointerUp={handleUp}
+      onPointerCancel={handleCancel}
       role="img"
       aria-label={`${filled}/${total} 조각 완성`}
     >
@@ -167,20 +270,32 @@ export function JigsawPuzzle({
         const state =
           idx < filled ? (idx === recent ? "recent" : "filled") : "empty";
         const d = piecePath(r, c, rows, cols);
+        const isSelected = highlight.has(idx);
 
         if (state === "empty") {
           // 흰 표면에 파인 음각 홈 (인디고 그루브)
           return (
-            <path
-              key={idx}
-              d={d}
-              fill="#f4f6fb"
-              fillOpacity={0.7}
-              stroke="#e9edf4"
-              strokeWidth={0.75}
-              strokeLinejoin="round"
-              filter="url(#jp-groove)"
-            />
+            <g key={idx}>
+              <path
+                d={d}
+                fill="#f4f6fb"
+                fillOpacity={0.7}
+                stroke="#e9edf4"
+                strokeWidth={0.75}
+                strokeLinejoin="round"
+                filter="url(#jp-groove)"
+              />
+              {isSelected && (
+                <path
+                  d={d}
+                  fill="#2563eb"
+                  fillOpacity={0.18}
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                />
+              )}
+            </g>
           );
         }
 
@@ -202,6 +317,15 @@ export function JigsawPuzzle({
               strokeLinejoin="round"
               filter="url(#jp-glass)"
             />
+            {isSelected && (
+              <path
+                d={d}
+                fill="none"
+                stroke="#1d4ed8"
+                strokeWidth={2.5}
+                strokeLinejoin="round"
+              />
+            )}
           </g>
         );
       })}

@@ -38,6 +38,7 @@ export function Sidebar() {
       <SheetContent
         side="right"
         className="w-[88%] gap-0 p-0 sm:max-w-sm"
+        aria-describedby={undefined}
       >
         <SheetHeader className="pt-[calc(env(safe-area-inset-top)+0.5rem)]">
           <button
