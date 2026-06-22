@@ -25,9 +25,20 @@ export interface CmaHome {
   totalCollectable: number;
 }
 
-// 잔돈 모으기 실행 (POST /api/cma/collect)
-// ⚠️ 문서 스펙 기준 — 백엔드 컨트롤러 미구현 상태 (구현 시 동작)
-export interface CollectResult {
-  collectedAmount: number;
-  newBalance: number;
+// 잔돈 모으기 실행 (POST /api/cma/collect) — 구현됨
+export type CollectStatus = "SUCCESS" | "SKIPPED" | "FAILED";
+
+/** 소스별 수집 결과 (응답 data 배열의 한 항목) */
+export interface CollectSourceResult {
+  sourceType: CollectSourceType;
+  status: CollectStatus;
+  /** 수집 금액 (SKIPPED/FAILED 시 0) */
+  amount: number;
+  /** 수집 후 CMA 잔액 (성공 시), 그 외 null */
+  balanceAfter: number | null;
+  /** 실패/스킵 사유 */
+  errorMessage: string | null;
 }
+
+/** POST /api/cma/collect 응답 = 소스별 결과 배열 */
+export type CollectResult = CollectSourceResult[];
