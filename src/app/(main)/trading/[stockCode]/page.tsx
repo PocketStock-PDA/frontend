@@ -287,7 +287,7 @@ export default function TradePage() {
                   <button
                     key={n}
                     type="button"
-                    onClick={() => onAmountChange(amount + n)}
+                    onClick={() => onAmountChange(new Decimal(amount).plus(n).toNumber())}
                     className="flex-1 rounded-lg border border-border bg-background py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                   >
                     +{n.toLocaleString("ko-KR")}원

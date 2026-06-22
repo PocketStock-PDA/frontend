@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Minus, Plus } from "lucide-react";
+import Decimal from "decimal.js";
 import {
   Sheet,
   SheetContent,
@@ -154,9 +155,13 @@ function BuyForm({
   const [amount, setAmount] = useState(value.amount);
   const [quantity, setQuantity] = useState(value.quantity);
 
-  const profitRate =
-    avgPrice > 0 ? ((currentPrice / avgPrice - 1) * 100).toFixed(2) : "0.00";
-  const target = Math.round(avgPrice * (1 - dropRate / 100));
+  const profit =
+    avgPrice > 0
+      ? new Decimal(currentPrice).div(avgPrice).minus(1).times(100)
+      : new Decimal(0);
+  const profitText = (profit.gte(0) ? "+" : "") + profit.toFixed(2);
+  const profitTone = profit.gte(0) ? "text-up" : "text-down";
+  const target = new Decimal(avgPrice).times(100 - dropRate).div(100);
 
   return (
     <div className="space-y-4">
@@ -166,7 +171,9 @@ function BuyForm({
           {formatKRW(currentPrice)}
         </span>{" "}
         · 내 수익률{" "}
-        <span className="font-numeric font-bold text-up">+{profitRate}%</span>
+        <span className={cn("font-numeric font-bold", profitTone)}>
+          {profitText}%
+        </span>
       </p>
 
       <div className="space-y-1.5 rounded-xl bg-muted/60 p-4">
@@ -177,7 +184,7 @@ function BuyForm({
           <RateStepper value={dropRate} onChange={setDropRate} prefix="-" />
         </div>
         <p className="text-xs text-muted-foreground">
-          예상 감지가 {formatKRW(target)} 이하일 때
+          예상 감지가 {formatKRW(target.toString())} 이하일 때
         </p>
       </div>
 
@@ -278,9 +285,13 @@ function SellForm({
   const [ratioPct, setRatioPct] = useState(value.ratioPct);
   const [quantity, setQuantity] = useState(value.quantity);
 
-  const profitRate =
-    avgPrice > 0 ? ((currentPrice / avgPrice - 1) * 100).toFixed(2) : "0.00";
-  const target = Math.round(avgPrice * (1 + riseRate / 100));
+  const profit =
+    avgPrice > 0
+      ? new Decimal(currentPrice).div(avgPrice).minus(1).times(100)
+      : new Decimal(0);
+  const profitText = (profit.gte(0) ? "+" : "") + profit.toFixed(2);
+  const profitTone = profit.gte(0) ? "text-up" : "text-down";
+  const target = new Decimal(avgPrice).times(100 + riseRate).div(100);
 
   return (
     <div className="space-y-4">
@@ -290,7 +301,9 @@ function SellForm({
           {formatKRW(currentPrice)}
         </span>{" "}
         · 내 수익률{" "}
-        <span className="font-numeric font-bold text-up">+{profitRate}%</span>
+        <span className={cn("font-numeric font-bold", profitTone)}>
+          {profitText}%
+        </span>
       </p>
 
       <div className="space-y-1.5 rounded-xl bg-muted/60 p-4">
@@ -301,7 +314,7 @@ function SellForm({
           <RateStepper value={riseRate} onChange={setRiseRate} prefix="+" />
         </div>
         <p className="text-xs text-muted-foreground">
-          예상 감지가 {formatKRW(target)} 이상일 때
+          예상 감지가 {formatKRW(target.toString())} 이상일 때
         </p>
       </div>
 
