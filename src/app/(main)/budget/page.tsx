@@ -38,11 +38,8 @@ import { useAutoBudgetGoals } from "@/hooks/mutations/useAutoBudgetGoals";
 import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
-import type {
-  BudgetGoalCategoryItem,
-  BudgetGoalSummary,
-  CalendarDayItem,
-} from "@/types/domain/budget";
+import { StockCalendarTab } from "./StockCalendarTab";
+import type { BudgetGoalCategoryItem, BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
 
 // ── 페이지 진입점 ──────────────────────────────────────────────────────────────
 
@@ -454,9 +451,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
           ) : null}
         </div>
       ) : (
-        <div className="pt-4">
-          <EmptyState title="증권 캘린더는 준비 중이에요" />
-        </div>
+        <StockCalendarTab />
       )}
 
       {/* 목표 설정 시트 */}

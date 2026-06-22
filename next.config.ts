@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
         ? [
             { source: "/api/budget/:path*", destination: `${coreTarget}/api/budget/:path*` },
             { source: "/api/assets/:path*", destination: `${coreTarget}/api/assets/:path*` },
+            { source: "/api/trading/calendar/:path*", destination: `${coreTarget}/api/trading/calendar/:path*` },
           ]
         : []),
       { source: "/api/:path*", destination: `${target}/api/:path*` },
