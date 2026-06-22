@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import Decimal from "decimal.js";
+import { toast } from "sonner";
+import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
@@ -18,6 +20,7 @@ import { useOrders } from "@/hooks/queries/useOrders";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
+import { genClientOrderId } from "@/lib/utils/idempotency";
 
 const PIECES_PER_SHARE = 100; // 1주 = 100조각
 
@@ -28,6 +31,8 @@ function formatShares(q: Decimal) {
 interface Selection {
   mode: "buy" | "sell";
   indexes: number[];
+  /** 이 주문 시도의 멱등키 — 재확인/재시도 시 동일 값 재사용 (issue #4) */
+  clientOrderId: string;
 }
 
 export default function StockPuzzlePage() {
@@ -87,18 +92,44 @@ export default function StockPuzzlePage() {
   const orderAmount = price.div(PIECES_PER_SHARE).times(selPieces);
   const ordering = buyOrder.isPending || sellOrder.isPending;
 
+  // 선택 확정 = 새 주문 시도 → 멱등키 1개 발급(해제는 null). 재드래그하면 새 키.
+  const handleCommit = (
+    s: { mode: "buy" | "sell"; indexes: number[] } | null,
+  ) => setSel(s ? { ...s, clientOrderId: genClientOrderId() } : null);
+
   const handleConfirm = () => {
     if (!sel || ordering) return;
+    const isBuy = sel.mode === "buy";
     const amount = orderAmount.toNumber();
-    const opts = { onSuccess: () => setSel(null) };
+    // sel.clientOrderId 재사용 → 따닥 탭/재시도해도 동일 키 = 멱등 (성공 시에만 폐기)
+    const clientOrderId = sel.clientOrderId;
+    const opts = {
+      onSuccess: () => {
+        toast.success(`${isBuy ? "매수" : "매도"} 주문이 접수됐어요`);
+        setSel(null); // 키 폐기 → 다음 주문은 새 멱등키
+      },
+      // 실패 시 sel 유지 → 같은 멱등키로 재시도 가능 (시트도 열린 채)
+      onError: (err: unknown) => {
+        if (err instanceof ApiError && err.status === 409) {
+          // 멱등 충돌: 거의 동시 동일 키 → 같은 키로 다시 누르면 기존 결과 반환
+          toast.error("이미 처리 중인 주문이에요. 잠시 후 다시 확인해 주세요.");
+          return;
+        }
+        toast.error(
+          err instanceof ApiError
+            ? err.message
+            : "주문에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        );
+      },
+    };
     if (sel.mode === "buy") {
       buyOrder.mutate(
-        { stockCode, market, orderType: "AMOUNT", amount },
+        { clientOrderId, stockCode, market, orderType: "AMOUNT", amount },
         opts,
       );
     } else {
       sellOrder.mutate(
-        { stockCode, market, orderType: "AMOUNT", amount },
+        { clientOrderId, stockCode, market, orderType: "AMOUNT", amount },
         opts,
       );
     }
@@ -130,7 +161,7 @@ export default function StockPuzzlePage() {
           <JigsawPuzzle
             total={PIECES_PER_SHARE}
             filled={pieces}
-            onSelectionCommit={setSel}
+            onSelectionCommit={handleCommit}
             selectedIndexes={sel?.indexes ?? []}
           />
           <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
