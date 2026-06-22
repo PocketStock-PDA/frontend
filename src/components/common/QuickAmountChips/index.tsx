@@ -15,13 +15,13 @@ export function QuickAmountChips({
   className,
 }: QuickAmountChipsProps) {
   return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
+    <div className={cn("flex gap-2", className)}>
       {options.map((opt) => (
         <button
           key={opt.label}
           type="button"
           onClick={() => onSelect(opt.value)}
-          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
         >
           {opt.label}
         </button>

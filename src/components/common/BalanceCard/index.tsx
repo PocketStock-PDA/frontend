@@ -25,10 +25,10 @@ export function BalanceCard({
 }: BalanceCardProps) {
   return (
     <div
-      className={cn(
-        "rounded-2xl bg-gradient-to-br from-[#3b82f6] to-[#4f46e5] p-5 text-white",
-        className,
-      )}
+      style={{
+        background: "linear-gradient(135deg, #0046FF 0%, #6B3FF5 100%)",
+      }}
+      className={cn("rounded-xl p-5 text-white", className)}
     >
       <p className="text-sm text-white/90">{label}</p>
       <AmountDisplay

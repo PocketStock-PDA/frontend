@@ -1,8 +1,10 @@
-// src/app/(main)/my/page.tsx
+import { AppHeader } from "@/components/common/AppHeader";
+
 export default function MyPage() {
   return (
-    <div className="p-4">
-      <h1 className="text-xl font-bold">마이페이지</h1>
-    </div>
+    <>
+      <AppHeader variant="sub" title="마이페이지" />
+      <p className="text-sm text-muted-foreground">준비 중인 화면이에요.</p>
+    </>
   );
 }

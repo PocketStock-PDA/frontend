@@ -89,7 +89,7 @@ export function StockCalendarTab() {
                   className="rounded-[3px] px-1 py-px text-[9px] leading-none text-white"
                   style={{ background: c.badgeBg }}
                 >
-                  {event.stockName}
+                  {event.stockCode}
                 </span>
               </span>
             );
