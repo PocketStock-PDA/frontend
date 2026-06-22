@@ -8,8 +8,8 @@ type Size = "sm" | "md" | "lg" | "xl";
 const sizeMap: Record<Size, string> = {
   sm: "text-sm",
   md: "text-base",
-  lg: "text-xl font-bold",
-  xl: "text-3xl font-bold", // 잔액 카드 히어로용
+  lg: "text-2xl font-semibold",
+  xl: "text-3xl font-semibold", // 잔액 카드 히어로용
 };
 
 export interface AmountDisplayProps {

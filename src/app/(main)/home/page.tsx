@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeftRight,
@@ -16,7 +15,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { HomeHeader } from "@/components/common/HomeHeader";
-import { BalanceCard } from "@/components/common/BalanceCard";
+import { CmaBalanceCard } from "@/components/features/cma/CmaBalanceCard";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
@@ -28,7 +27,7 @@ import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useCollectChange } from "@/hooks/mutations/useCollectChange";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
-import type { CollectSourceType, Currency } from "@/types/domain/cma";
+import type { CollectSourceType } from "@/types/domain/cma";
 
 const SOURCE_ICON: Record<
   CollectSourceType,
@@ -54,7 +53,7 @@ interface QuickLink {
 
 // TODO: 라우트 일부 미확정 — 사용자 지정 대기 중 (#)
 const QUICK_LINKS: QuickLink[] = [
-  { label: "주식 모으기", icon: TrendingUp, href: "#", highlight: true },
+  { label: "주식 모으기", icon: TrendingUp, href: "/trading", highlight: true },
   { label: "환전", icon: ArrowLeftRight, href: "/exchange" },
   { label: "가계부", icon: BookText, href: "/budget" },
   { label: "포트폴리오", icon: PieChart, href: "/portfolio" },
@@ -66,13 +65,12 @@ const QUICK_LINKS: QuickLink[] = [
 
 export default function HomePage() {
   // TODO: 인사말 이름은 사용자 프로필 API 연동 시 교체 (/home 응답엔 없음)
-  const [currency, setCurrency] = useState<Currency>("KRW");
   const { data, isLoading, isError, refetch } = useCmaHome();
   const collect = useCollectChange();
 
   if (isLoading) {
     return (
-      <div className="space-y-4 pt-6">
+      <div className="space-y-4">
         <SkeletonCard lines={2} className="h-32" />
         <SkeletonCard lines={3} className="h-48" />
       </div>
@@ -81,7 +79,7 @@ export default function HomePage() {
 
   if (isError || !data) {
     return (
-      <div className="pt-6">
+      <div>
         <EmptyState
           title="불러오지 못했어요"
           description="잠시 후 다시 시도해 주세요."
@@ -95,22 +93,16 @@ export default function HomePage() {
     );
   }
 
-  const ratePct = Number((data.interestRate * 100).toFixed(2));
-
   return (
     <>
-      <HomeHeader
-        userName="회원"
-        currency={currency}
-        onCurrencyChange={setCurrency}
-      />
-      <div className="space-y-4 pb-6 pt-3">
-        <BalanceCard
-          label="포켓스톡 CMA"
-          amount={data.cmaBalance[currency]}
-          currency={currency}
-          caption={`연 ${ratePct}% · 오늘 이자 +${data.todayInterest.toLocaleString("ko-KR")}원`}
-          actionLabel="상세보기"
+      <HomeHeader userName="회원" />
+      <div className="space-y-4">
+        {/* TODO: usdToKrwRate는 환율 API 연동 시 전달(펼침 시 'N원 기준' 표기) */}
+        <CmaBalanceCard
+          krwBalance={data.cmaBalance.KRW}
+          usdBalance={data.cmaBalance.USD}
+          interestRate={data.interestRate}
+          todayInterest={data.todayInterest}
         />
 
         {/* 수집 잔돈 통합 블록 */}

@@ -1,8 +1,10 @@
-// src/app/(main)/asset/page.tsx
+import { AppHeader } from "@/components/common/AppHeader";
+
 export default function AssetPage() {
   return (
-    <div className="p-4">
-      <h1 className="text-xl font-bold">자산</h1>
-    </div>
+    <>
+      <AppHeader variant="sub" title="자산" />
+      <p className="text-sm text-muted-foreground">준비 중인 화면이에요.</p>
+    </>
   );
 }

@@ -20,6 +20,7 @@ import { useOrders } from "@/hooks/queries/useOrders";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
+import { toDecimal } from "@/lib/utils/decimal";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 
 const PIECES_PER_SHARE = 100; // 1주 = 100조각
@@ -46,7 +47,7 @@ export default function StockPuzzlePage() {
 
   if (holdingsQ.isLoading || detailQ.isLoading) {
     return (
-      <div className="space-y-4 pt-4">
+      <div className="space-y-4">
         <SkeletonCard lines={1} className="h-10 border-0 bg-transparent p-0" />
         <SkeletonCard lines={0} className="aspect-square" />
         <SkeletonCard lines={2} />
@@ -56,7 +57,7 @@ export default function StockPuzzlePage() {
 
   if (detailQ.isError || !detailQ.data) {
     return (
-      <div className="pt-6">
+      <div>
         <EmptyState
           title="불러오지 못했어요"
           description="잠시 후 다시 시도해 주세요."
@@ -73,9 +74,9 @@ export default function StockPuzzlePage() {
   const detail = detailQ.data;
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
 
-  // 금액·수량 계산은 decimal.js 필수 (README 가이드라인)
-  const qty = new Decimal(holding?.quantity ?? 0);
-  const price = new Decimal(detail.price.currentPrice);
+  // 금액·수량 계산은 decimal.js 필수 (README 가이드라인). API 값은 toDecimal로 안전 변환(null→0)
+  const qty = toDecimal(holding?.quantity);
+  const price = toDecimal(detail.price.currentPrice);
   const frac = qty.minus(qty.floor());
   const pieces = frac
     .times(PIECES_PER_SHARE)
@@ -141,9 +142,9 @@ export default function StockPuzzlePage() {
 
   return (
     <>
-      <AppHeader variant="sub" title={detail.stockName} showMenu={false} />
+      <AppHeader variant="sub" title={detail.stockName} />
 
-      <div className="space-y-6 pb-8 pt-1">
+      <div className="space-y-6">
         {/* 현재가 + 등락 */}
         <div className="flex items-baseline gap-2">
           <AmountDisplay value={price.toString()} size="lg" />
@@ -214,11 +215,11 @@ export default function StockPuzzlePage() {
                   </div>
                   <div className="text-right">
                     <p className="font-numeric text-sm font-bold text-foreground">
-                      {formatShares(new Decimal(o.quantity))}주
+                      {formatShares(toDecimal(o.quantity))}주
                     </p>
                     <p className="font-numeric text-xs text-muted-foreground">
                       {fmtAmount(
-                        new Decimal(o.price).times(o.quantity).toString(),
+                        toDecimal(o.price).times(toDecimal(o.quantity)).toString(),
                       )}
                     </p>
                   </div>

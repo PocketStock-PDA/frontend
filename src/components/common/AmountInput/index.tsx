@@ -43,7 +43,7 @@ export function AmountInput({
   return (
     <div
       className={cn(
-        "flex items-center gap-1 border-b-2 border-border focus-within:border-primary transition-colors",
+        "flex items-center gap-3 border-b-2 border-border focus-within:border-primary transition-colors",
         disabled && "opacity-50",
         className,
       )}
