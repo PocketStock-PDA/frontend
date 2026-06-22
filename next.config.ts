@@ -10,7 +10,17 @@ const nextConfig: NextConfig = {
   async rewrites() {
     const target = process.env.NEXT_PUBLIC_API_URL;
     if (!target) return [];
-    return [{ source: "/api/:path*", destination: `${target}/api/:path*` }];
+    // budget은 core-api(8081)에 있어서 catch-all 앞에 먼저 매칭
+    const coreTarget = process.env.NEXT_PUBLIC_CORE_API_URL;
+    return [
+      ...(coreTarget
+        ? [
+            { source: "/api/budget/:path*", destination: `${coreTarget}/api/budget/:path*` },
+            { source: "/api/assets/:path*", destination: `${coreTarget}/api/assets/:path*` },
+          ]
+        : []),
+      { source: "/api/:path*", destination: `${target}/api/:path*` },
+    ];
   },
 };
 

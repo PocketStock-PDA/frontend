@@ -1,12 +1,19 @@
 export const queryKeys = {
   asset: {
     all: ["asset"] as const,
+    spending: (period: { year: number; month: number }) =>
+      ["asset", "spending", period] as const,
   },
   portfolio: {
     all: ["portfolio"] as const,
   },
   budget: {
     all: ["budget"] as const,
+    goals: ["budget", "goals"] as const,
+    calendar: (year: number, month: number) => ["budget", "calendar", year, month] as const,
+    transactions: (params: { type?: string; year?: number; month?: number; day?: number }) =>
+      ["budget", "transactions", params] as const,
+    savings: ["budget", "savings"] as const,
   },
   trading: {
     all: ["trading"] as const,
