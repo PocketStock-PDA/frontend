@@ -70,9 +70,8 @@ export default function BudgetPage() {
     );
   }
 
-  const hasGoals = !!goalsQ.data && goalsQ.data.categories.length > 0;
-  if (!hasGoals) return <FirstEntry />;
-  return <Dashboard goals={goalsQ.data!} />;
+  if (!goalsQ.data || goalsQ.data.categories.length === 0) return <FirstEntry />;
+  return <Dashboard goals={goalsQ.data} />;
 }
 
 // ── 첫 진입 화면 ──────────────────────────────────────────────────────────────

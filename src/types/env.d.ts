@@ -8,6 +8,8 @@ declare namespace NodeJS {
     // 개발용 임시 토큰 (로그인 구현 후 제거)
     readonly NEXT_PUBLIC_DEV_TOKEN?: string;
 
+    readonly NEXT_PUBLIC_CORE_API_URL?: string;
+
     readonly NODE_ENV: "development" | "production" | "test";
   }
 }
