@@ -180,6 +180,13 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
+  const handleMonthChange = (newMonth: Date) => {
+    setCalendarMonth(newMonth);
+    const lastDay = new Date(newMonth.getFullYear(), newMonth.getMonth() + 1, 0).getDate();
+    const day = Math.min(selectedDate.getDate(), lastDay);
+    setSelectedDate(new Date(newMonth.getFullYear(), newMonth.getMonth(), day));
+  };
+
   const calendarQ = useBudgetCalendar(
     calendarMonth.getFullYear(),
     calendarMonth.getMonth() + 1,
@@ -193,11 +200,34 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
 
   const dayMap = new Map<string, CalendarDayItem>();
   calendarQ.data?.days.forEach((d) => dayMap.set(d.date, d));
-  const dailyBudget = calendarQ.data?.dailyBudget ?? 0;
+
+  // 해당 월 예산 목표 없으면(4·5월 등) 현재 목표 기준으로 daily 계산
+  const daysInCalendarMonth = new Date(
+    calendarMonth.getFullYear(),
+    calendarMonth.getMonth() + 1,
+    0,
+  ).getDate();
+  const calendarDailyBudget = calendarQ.data?.dailyBudget ?? 0;
+  const dailyBudget =
+    calendarDailyBudget > 0
+      ? calendarDailyBudget
+      : goals.monthlyBudget / daysInCalendarMonth;
+
+  // 해당 달 총 지출: calendarQ의 days 합산 (과거 달 포함)
+  const calendarSpent = calendarQ.data?.days.reduce(
+    (sum, d) => sum + Number(d.spent),
+    0,
+  ) ?? goals.spentAmount;
+
+  // 예산은 해당 달 목표가 없으면 현재 목표로 fallback
+  const calendarMonthlyBudget =
+    calendarDailyBudget > 0
+      ? calendarDailyBudget * daysInCalendarMonth
+      : goals.monthlyBudget;
 
   const usedPct =
-    goals.monthlyBudget > 0
-      ? Math.min(100, Math.round((goals.spentAmount / goals.monthlyBudget) * 100))
+    calendarMonthlyBudget > 0
+      ? Math.min(100, Math.round((calendarSpent / calendarMonthlyBudget) * 100))
       : 0;
 
   const today = startOfDay(new Date());
@@ -226,7 +256,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
           {/* 파도 캘린더 */}
           <FinanceCalendar
             month={calendarMonth}
-            onMonthChange={setCalendarMonth}
+            onMonthChange={handleMonthChange}
             selectedDate={selectedDate}
             onSelectDate={setSelectedDate}
             className="pt-4"
@@ -242,7 +272,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                 info && dailyBudget > 0
                   ? Math.min(1.2, info.spent / dailyBudget)
                   : 0;
-              const isOver = info?.status === "OVER";
+              const isOver = fillRatio > 1;
 
               const dateColor = isFuture
                 ? "#DDDDDD"
@@ -256,11 +286,13 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
               return (
                 <span
                   className={cn(
-                    "flex h-full w-full flex-col items-center justify-end rounded-lg",
+                    // h-full은 button의 aspect-square 높이를 못 받는 경우가 있어
+                    // span 자체에 aspect-square w-full로 크기 보장
+                    "flex aspect-square w-full flex-col items-center justify-end rounded-lg",
                     isSelected && "ring-2 ring-primary",
                   )}
                   style={
-                    info && !isFuture && fillRatio > 0
+                    info && !isFuture && fillPct > 0
                       ? {
                           background: `linear-gradient(to top, ${fillColor} ${fillPct}%, transparent ${fillPct}%)`,
                         }
@@ -292,20 +324,22 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
 
           <div className="-mx-5 mt-4 h-2 bg-muted" />
 
-          {/* 이번 달 지출 카드 */}
+          {/* 해당 월 지출 카드 */}
           <div className="mt-4 rounded-2xl bg-accent px-4 py-[14px]">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-[#555555]">이번 달 지출</span>
+              <span className="text-xs font-medium text-[#555555]">
+                {format(calendarMonth, "M월")} 지출
+              </span>
               <span className="text-[11px] text-muted-foreground">
-                예산 {formatKRW(goals.monthlyBudget)}
+                예산 {formatKRW(calendarMonthlyBudget)}
               </span>
             </div>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="font-numeric text-[22px] font-bold text-primary">
-                {formatKRW(goals.spentAmount)}
+                {formatKRW(calendarSpent)}
               </span>
               <span className="font-numeric text-xs text-muted-foreground">
-                / {formatKRW(goals.monthlyBudget)}
+                / {formatKRW(calendarMonthlyBudget)}
               </span>
             </div>
             {/* 진행바: 트랙 하늘색, fill 파란색 */}
@@ -317,7 +351,9 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             </div>
             <div className="mt-1.5 flex justify-between text-[11px]">
               <span className="text-muted-foreground">{usedPct}% 사용</span>
-              <span className="text-primary">남은 예산 {formatKRW(goals.remainAmount)}</span>
+              <span className="text-primary">
+                남은 예산 {formatKRW(calendarMonthlyBudget - calendarSpent)}
+              </span>
             </div>
           </div>
 
