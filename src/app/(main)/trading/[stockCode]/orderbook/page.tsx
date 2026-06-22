@@ -106,6 +106,19 @@ export default function OrderbookPage() {
       toast.error("주문 수량을 선택해 주세요.");
       return;
     }
+    // side별 한도 검증 (매수=구매가능, 매도=보유수량). ※구매가능은 CMA 잔액 기준
+    if (side === "BUY") {
+      const px = p === "MARKET" ? refPrice : p;
+      const maxBuy =
+        px > 0 ? new Decimal(buyingPower).div(px).floor().toNumber() : 0;
+      if (quantity > maxBuy) {
+        toast.error("구매 가능 수량을 초과했어요.");
+        return;
+      }
+    } else if (new Decimal(quantity).gt(holdingQty)) {
+      toast.error("보유 수량을 초과했어요.");
+      return;
+    }
     const sig = `${side}:${p}:${quantity}`;
     const clientOrderId = keyFor(sig);
     const label = side === "BUY" ? "매수" : "매도";
@@ -176,7 +189,18 @@ export default function OrderbookPage() {
         )}
 
         {/* 호가 사다리 */}
-        {obQ.isLoading || !ob ? (
+        {obQ.isError ? (
+          <EmptyState
+            title="호가를 불러오지 못했어요"
+            description="잠시 후 다시 시도해 주세요."
+            action={
+              <Button variant="outline" size="sm" onClick={() => obQ.refetch()}>
+                다시 시도
+              </Button>
+            }
+            className="py-8"
+          />
+        ) : obQ.isLoading || !ob ? (
           <SkeletonCard lines={6} className="h-72" />
         ) : (
           <>
@@ -185,6 +209,9 @@ export default function OrderbookPage() {
               bids={ob.bids}
               currentPrice={ob.currentPrice}
               count={showAll ? 10 : 5}
+              formatPrice={(n) =>
+                isUSD ? formatUSD(n) : n.toLocaleString("ko-KR")
+              }
               onSell={(p) => submit("SELL", p)}
               onBuy={(p) => submit("BUY", p)}
               disabled={pending}

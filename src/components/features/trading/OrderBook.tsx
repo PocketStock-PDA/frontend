@@ -18,6 +18,8 @@ export interface OrderBookProps {
   currentPrice: number;
   /** 한쪽당 표시 호가 단계 수 (예: 5 또는 10) */
   count?: number;
+  /** 가격 포맷 (통화별). 미지정 시 ko-KR 천단위 */
+  formatPrice?: (price: number) => string;
   onSell: (price: OrderPrice) => void;
   onBuy: (price: OrderPrice) => void;
   disabled?: boolean;
@@ -103,11 +105,13 @@ export function OrderBook({
   bids,
   currentPrice,
   count,
+  formatPrice,
   onSell,
   onBuy,
   disabled,
   className,
 }: OrderBookProps) {
+  const fmtPrice = formatPrice ?? ((n: number) => n.toLocaleString("ko-KR"));
   const n = count ?? Math.max(asks.length, bids.length);
   // 매도호가: 최우선(rank1) n개를 높은가가 위로 오도록 역순
   const askRows = asks.slice(0, n).reverse();
@@ -116,7 +120,7 @@ export function OrderBook({
   const row = (e: OrderBookEntry, tone: Tone, keyPrefix: string) => (
     <ActionRow
       key={`${keyPrefix}-${e.price}`}
-      center={e.price.toLocaleString("ko-KR")}
+      center={fmtPrice(e.price)}
       tone={tone}
       isCurrent={e.price === currentPrice}
       badge={<span>{e.volume.toLocaleString("ko-KR")}</span>}
