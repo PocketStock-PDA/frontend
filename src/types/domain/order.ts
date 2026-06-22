@@ -4,6 +4,8 @@
 export type Market = "DOMESTIC" | "OVERSEAS";
 
 export interface BuyOrderRequest {
+  /** 멱등키 — 주문 시도당 1개(재시도 시 동일 값 재사용). issue #4 */
+  clientOrderId: string;
   stockCode: string;
   market: Market;
   orderType: "AMOUNT"; // 금액 기반
@@ -11,6 +13,8 @@ export interface BuyOrderRequest {
 }
 
 interface SellOrderBase {
+  /** 멱등키 — 주문 시도당 1개(재시도 시 동일 값 재사용). issue #4 */
+  clientOrderId: string;
   stockCode: string;
   market: Market;
 }
