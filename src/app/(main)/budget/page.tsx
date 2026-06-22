@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
@@ -386,6 +386,12 @@ function GoalEditSheet({
   const [budgets, setBudgets] = useState<Record<string, string>>(() =>
     Object.fromEntries(categories.map((c) => [c.category, String(c.budget)])),
   );
+
+  useEffect(() => {
+    if (open) {
+      setBudgets(Object.fromEntries(categories.map((c) => [c.category, String(c.budget)])));
+    }
+  }, [open, categories]);
 
   const handleSave = () => {
     const parsed = categories.map((c) => ({
