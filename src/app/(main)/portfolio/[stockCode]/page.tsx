@@ -19,6 +19,7 @@ import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useOrders } from "@/hooks/queries/useOrders";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
+import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { genClientOrderId } from "@/lib/utils/idempotency";
@@ -43,6 +44,11 @@ export default function StockPuzzlePage() {
   const ordersQ = useOrders();
   const buyOrder = useBuyOrder();
   const sellOrder = useSellOrder();
+  // 실시간 시세(체결) → 현재가 갱신 (issue #10)
+  useStockTradeSocket(stockCode, {
+    overseas: detailQ.data?.currency === "USD",
+    enabled: !!detailQ.data,
+  });
   const [sel, setSel] = useState<Selection | null>(null);
 
   if (holdingsQ.isLoading || detailQ.isLoading) {

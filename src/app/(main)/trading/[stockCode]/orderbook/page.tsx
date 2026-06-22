@@ -19,6 +19,8 @@ import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useOrderBook } from "@/hooks/queries/useOrderBook";
+import { useStockQuoteSocket } from "@/hooks/useStockQuoteSocket";
+import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { toDecimal } from "@/lib/utils/decimal";
@@ -44,6 +46,13 @@ export default function OrderbookPage() {
 
   const basePrice = detailQ.data?.price.currentPrice ?? 0;
   const obQ = useOrderBook(stockCode);
+  // 실시간 호가: 스냅샷 위에 STOMP 틱으로 사다리·총잔량 갱신 (issue #2)
+  useStockQuoteSocket(stockCode);
+  // 실시간 시세(체결) → 헤더 현재가 갱신 (issue #10)
+  useStockTradeSocket(stockCode, {
+    overseas: detailQ.data?.currency === "USD",
+    enabled: !!detailQ.data,
+  });
 
   if (detailQ.isLoading) {
     return (

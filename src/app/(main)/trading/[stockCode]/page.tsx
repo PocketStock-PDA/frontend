@@ -22,6 +22,7 @@ import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
+import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
@@ -47,6 +48,11 @@ export default function TradePage() {
   const buyOrder = useBuyOrder();
   const sellOrder = useSellOrder();
   const wholeOrder = useWholeOrder();
+  // 실시간 시세(체결) → stockDetail 캐시 갱신 (issue #10)
+  useStockTradeSocket(stockCode, {
+    overseas: detailQ.data?.currency === "USD",
+    enabled: !!detailQ.data,
+  });
 
   const [method, setMethod] = useState<Method>("FRACTION");
   const [inputMode, setInputMode] = useState<InputMode>("QTY");
