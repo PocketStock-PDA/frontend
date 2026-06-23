@@ -53,9 +53,9 @@ export function CmaBalanceCard({
   className,
 }: CmaBalanceCardProps) {
   const [expanded, setExpanded] = useState(false);
-  // 백엔드 숫자 필드 null 가능 → toDecimal로 방어
+  // 백엔드 숫자 필드 null 가능 → toDecimal/formatKRW로 방어
   const ratePct = toDecimal(interestRate).times(100).toDecimalPlaces(2).toNumber();
-  const todayInterestText = toDecimal(todayInterest).toNumber().toLocaleString("ko-KR");
+  const todayInterestText = formatKRW(todayInterest); // "1,234원"
 
   return (
     <div
@@ -72,7 +72,7 @@ export function CmaBalanceCard({
         className="mt-1 text-white"
       />
       <p className="mt-1 text-sm text-white/80">
-        연 {ratePct}% · 오늘 이자 +{todayInterestText}원
+        연 {ratePct}% · 오늘 이자 +{todayInterestText}
       </p>
 
       <button

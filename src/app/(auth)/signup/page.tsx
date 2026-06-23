@@ -173,8 +173,12 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
   const score = passed.length;
   const allPwOk = score === PW_RULES.length;
   const match = password.length > 0 && password === confirm;
+  // 중복확인을 거친 경우에만 진행 — 미확인(null)·중복(false)은 차단, 확인불가("error")는 허용
   const canNext =
-    username.trim().length > 0 && allPwOk && match && available !== false;
+    username.trim().length > 0 &&
+    allPwOk &&
+    match &&
+    (available === true || available === "error");
 
   const onSubmit = () => {
     if (!canNext || validate.isPending) return;
@@ -210,6 +214,7 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
               setAvailable(null);
             }}
             placeholder="아이디"
+            aria-label="아이디"
             autoCapitalize="none"
             className="h-12"
           />
@@ -244,6 +249,7 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="비밀번호"
+          aria-label="비밀번호"
           className="h-12"
         />
         {/* 조건 체크리스트 — 상단 진행바와 구분되는 형태 */}
@@ -274,6 +280,7 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           placeholder="비밀번호 확인"
+          aria-label="비밀번호 확인"
           className="h-12"
         />
         {confirm.length > 0 && !match && (
@@ -330,7 +337,8 @@ function VerifyStep({ onNext }: { onNext: (p: Person) => void }) {
         setSent(true);
         setCode("");
         setRemain(res.expiresIn);
-        if (res.code) toast.message(`개발용 인증번호: ${res.code}`);
+        if (process.env.NODE_ENV === "development" && res.code)
+          toast.message(`개발용 인증번호: ${res.code}`);
       },
       onError: (e) => toast.error(errMsg(e)),
     });
@@ -521,6 +529,7 @@ function TermsStep({ onNext }: { onNext: (terms: TermItem[]) => void }) {
       <section className="space-y-1">
         <button
           type="button"
+          aria-pressed={allOn}
           onClick={toggleAll}
           className="flex w-full items-center gap-2 rounded-xl bg-muted/60 px-4 py-3 text-left"
         >
@@ -531,6 +540,7 @@ function TermsStep({ onNext }: { onNext: (terms: TermItem[]) => void }) {
           <button
             key={t.key}
             type="button"
+            aria-pressed={agreed.has(t.key)}
             onClick={() => toggle(t.key)}
             className="flex w-full items-center gap-2 px-4 py-2.5 text-left"
           >

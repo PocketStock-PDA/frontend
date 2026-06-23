@@ -79,6 +79,7 @@ function PasswordLogin({ onSimple }: { onSimple: () => void }) {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           placeholder="아이디"
+          aria-label="아이디"
           autoCapitalize="none"
           className="h-12"
         />
@@ -88,6 +89,7 @@ function PasswordLogin({ onSimple }: { onSimple: () => void }) {
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onSubmit()}
           placeholder="비밀번호"
+          aria-label="비밀번호"
           className="h-12"
         />
         <Button
