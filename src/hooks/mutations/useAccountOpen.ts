@@ -1,5 +1,6 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
+import { queryKeys } from "@/lib/utils/queryKeys";
 import type {
   CmaAccountResult,
   OpenAccountResult,
@@ -32,7 +33,11 @@ export function useOpenAccount() {
 
 /** CMA 계좌 개설 (POST /api/cma/account) — 바디 없음 */
 export function useOpenCmaAccount() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api.post<CmaAccountResult>("/api/cma/account", {}),
+    // 개설 직후 홈/네비바가 새 계좌 상태를 즉시 반영하도록 CMA 캐시 무효화.
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.cma.all }),
   });
 }

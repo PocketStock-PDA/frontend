@@ -353,7 +353,12 @@ function InfoStep({
       <div className="space-y-4">
         <label className="block space-y-1.5">
           <span className="text-sm font-medium text-foreground">이름</span>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="이름" />
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="이름"
+            className="h-12"
+          />
         </label>
         <label className="block space-y-1.5">
           <span className="text-sm font-medium text-foreground">휴대폰번호</span>
@@ -362,6 +367,7 @@ function InfoStep({
             onChange={(e) => setPhone(e.target.value)}
             inputMode="tel"
             placeholder="010-0000-0000"
+            className="h-12"
           />
         </label>
       </div>
@@ -510,7 +516,7 @@ function VerifyStep({
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 3))}
           inputMode="numeric"
           placeholder="3자리 숫자"
-          className="text-center text-2xl font-bold tracking-[0.5em]"
+          className="h-12 text-center text-2xl font-bold tracking-[0.5em]"
         />
         <div className="flex justify-between text-xs">
           <span className={cn(expired ? "text-destructive" : "text-muted-foreground")}>

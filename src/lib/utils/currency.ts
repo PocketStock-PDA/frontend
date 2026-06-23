@@ -1,14 +1,15 @@
 import Decimal from "decimal.js";
+import { toDecimal } from "@/lib/utils/decimal";
 
 Decimal.set({ precision: 20, rounding: Decimal.ROUND_DOWN });
 
-// 1234567 → "1,234,567원"
-export const formatKRW = (amount: number | string): string =>
-  new Decimal(amount).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
+// 1234567 → "1,234,567원" (백엔드 숫자 필드 null 가능 → toDecimal이 0으로 방어)
+export const formatKRW = (amount: number | string | null | undefined): string =>
+  toDecimal(amount).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "원";
 
 // 1234.5 → "$1,234.50"
-export const formatUSD = (amount: number | string): string =>
-  "$" + new Decimal(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+export const formatUSD = (amount: number | string | null | undefined): string =>
+  "$" + toDecimal(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
 // 0.1 + 0.2 = 0.3 (정확)
 export const addAmount = (a: number | string, b: number | string): number =>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
+import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
 
 export interface CmaBalanceCardProps {
@@ -52,7 +53,9 @@ export function CmaBalanceCard({
   className,
 }: CmaBalanceCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const ratePct = Number((interestRate * 100).toFixed(2));
+  // 백엔드 숫자 필드 null 가능 → toDecimal/formatKRW로 방어
+  const ratePct = toDecimal(interestRate).times(100).toDecimalPlaces(2).toNumber();
+  const todayInterestText = formatKRW(todayInterest); // "1,234원"
 
   return (
     <div
@@ -69,7 +72,7 @@ export function CmaBalanceCard({
         className="mt-1 text-white"
       />
       <p className="mt-1 text-sm text-white/80">
-        연 {ratePct}% · 오늘 이자 +{todayInterest.toLocaleString("ko-KR")}원
+        연 {ratePct}% · 오늘 이자 +{todayInterestText}
       </p>
 
       <button
