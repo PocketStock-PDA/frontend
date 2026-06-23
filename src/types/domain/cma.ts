@@ -17,8 +17,8 @@ export interface CmaHome {
   interestRate: number;
   /** 오늘 발생 이자 */
   todayInterest: number;
-  /** 오늘까지 수집한 잔돈 합계 */
-  collectedToday: number;
+  /** 이번 달 수집한 잔돈의 소스별 내역 (수집액>0만) — 디자인의 "카드 사용 잔돈" 행 */
+  collectedSources: CollectSource[];
   /** 수집 가능한 잔돈 소스 목록 */
   collectSources: CollectSource[];
   /** 수집 가능한 잔돈 총액 (모으기 버튼 금액) */
