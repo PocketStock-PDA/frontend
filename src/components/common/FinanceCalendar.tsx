@@ -13,6 +13,7 @@ import {
   startOfWeek,
   subMonths,
 } from "date-fns";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -22,26 +23,35 @@ export interface FinanceCalendarProps {
   onMonthChange?: (month: Date) => void;
   selectedDate?: Date;
   onSelectDate?: (date: Date) => void;
-  /** 각 날짜 셀 커스텀 (가계부 히트맵 / 증권 배지 등). 미지정 시 기본 날짜 표시 */
+  /** true면 selectedDate가 속한 주만 표시 */
+  collapsed?: boolean;
   renderDay?: (date: Date, isCurrentMonth: boolean) => React.ReactNode;
-  /** 우측 상단 범례 */
   legend?: React.ReactNode;
   className?: string;
 }
 
-/** 월 그리드 캘린더. 흰 배경, 날짜 셀은 renderDay로 커스텀 */
 export function FinanceCalendar({
   month,
   onMonthChange,
   selectedDate,
   onSelectDate,
+  collapsed = false,
   renderDay,
   legend,
   className,
 }: FinanceCalendarProps) {
   const gridStart = startOfWeek(startOfMonth(month), { weekStartsOn: 0 });
   const gridEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 0 });
-  const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+  const allDays = eachDayOfInterval({ start: gridStart, end: gridEnd });
+
+  const weeks: Date[][] = [];
+  for (let i = 0; i < allDays.length; i += 7) {
+    weeks.push(allDays.slice(i, i + 7));
+  }
+
+  const selectedWeekIdx = selectedDate
+    ? weeks.findIndex((w) => w.some((d) => isSameDay(d, selectedDate)))
+    : -1;
 
   return (
     <div className={cn("bg-background", className)}>
@@ -76,34 +86,52 @@ export function FinanceCalendar({
         ))}
       </div>
 
-      <div className="grid grid-cols-7">
-        {days.map((d) => {
-          const inMonth = isSameMonth(d, month);
-          const selected = selectedDate && isSameDay(d, selectedDate);
+      <div>
+        {weeks.map((week, wi) => {
+          const isSelectedWeek = wi === selectedWeekIdx;
+          const visible = !collapsed || isSelectedWeek;
+
           return (
-            <button
-              key={d.toISOString()}
-              type="button"
-              onClick={() => onSelectDate?.(d)}
-              aria-label={format(d, "M월 d일")}
-              className={cn(
-                "aspect-square bg-background p-1",
-                !inMonth && "opacity-40",
-              )}
+            <motion.div
+              key={wi}
+              className="grid grid-cols-7 overflow-hidden"
+              animate={{
+                height: visible ? "auto" : 0,
+                opacity: visible ? 1 : 0,
+              }}
+              transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+              style={{ willChange: "height, opacity" }}
             >
-              {renderDay ? (
-                renderDay(d, inMonth)
-              ) : (
-                <span
-                  className={cn(
-                    "flex h-full w-full items-center justify-center rounded-lg text-sm text-foreground",
-                    selected && "ring-2 ring-primary",
-                  )}
-                >
-                  {d.getDate()}
-                </span>
-              )}
-            </button>
+              {week.map((d) => {
+                const inMonth = isSameMonth(d, month);
+                const selected = selectedDate && isSameDay(d, selectedDate);
+                return (
+                  <button
+                    key={d.toISOString()}
+                    type="button"
+                    onClick={() => onSelectDate?.(d)}
+                    aria-label={format(d, "M월 d일")}
+                    className={cn(
+                      "aspect-square bg-background p-1",
+                      !inMonth && "opacity-40",
+                    )}
+                  >
+                    {renderDay ? (
+                      renderDay(d, inMonth)
+                    ) : (
+                      <span
+                        className={cn(
+                          "flex h-full w-full items-center justify-center rounded-lg text-sm text-foreground",
+                          selected && "ring-2 ring-primary",
+                        )}
+                      >
+                        {d.getDate()}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </motion.div>
           );
         })}
       </div>

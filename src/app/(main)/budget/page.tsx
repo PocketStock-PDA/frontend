@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
-import { RefreshCcw, ChevronRight } from "lucide-react";
+import { RefreshCcw, ChevronRight, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { AppHeader } from "@/components/common/AppHeader";
 import { FinanceCalendar } from "@/components/common/FinanceCalendar";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -20,15 +21,16 @@ import {
 import {
   useBudgetGoals,
   useBudgetCalendar,
+  useBudgetTransactions,
   useBudgetSavings,
 } from "@/hooks/queries/useBudget";
+import { getCategoryIcon } from "./_utils/categoryIcon";
 import { useSpendingAnalysis } from "@/hooks/queries/useSpendingAnalysis";
 import { useAutoBudgetGoals } from "@/hooks/mutations/useAutoBudgetGoals";
 import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import { StockCalendarTab } from "./StockCalendarTab";
-import { getCategoryIcon } from "./_utils/categoryIcon";
 import type { BudgetGoalCategoryItem, BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
 
 // ── 페이지 진입점 ──────────────────────────────────────────────────────────────
@@ -193,9 +195,13 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   const [tab, setTab] = useState<TabValue>("budget");
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<"month" | "day">("month");
   const [showGoalSheet, setShowGoalSheet] = useState(false);
+  const calendarAreaRef = useRef<HTMLDivElement>(null);
+  const [calendarAreaHeight, setCalendarAreaHeight] = useState<number | undefined>();
 
   const handleMonthChange = (newMonth: Date) => {
+    setViewMode("month");
     setCalendarMonth(newMonth);
     const lastDay = new Date(
       newMonth.getFullYear(),
@@ -211,16 +217,34 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
     );
   };
 
+  useLayoutEffect(() => {
+    if (calendarAreaRef.current && !calendarAreaHeight) {
+      setCalendarAreaHeight(calendarAreaRef.current.offsetHeight);
+    }
+  });
+
   const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
-    router.push(
-      `/budget/${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`,
-    );
+    if (viewMode === "day" && isSameDay(date, selectedDate)) {
+      setViewMode("month");
+    } else {
+      setSelectedDate(date);
+      setViewMode("day");
+    }
   };
 
   const calendarQ = useBudgetCalendar(
     calendarMonth.getFullYear(),
     calendarMonth.getMonth() + 1,
+  );
+  const txQ = useBudgetTransactions(
+    viewMode === "day"
+      ? {
+          type: "DAILY",
+          year: selectedDate.getFullYear(),
+          month: selectedDate.getMonth() + 1,
+          day: selectedDate.getDate(),
+        }
+      : {},
   );
   const savingsQ = useBudgetSavings();
 
@@ -275,12 +299,21 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
 
       {tab === "budget" ? (
         <div>
-          {/* 파도 캘린더 */}
+          {/* ── 캘린더 + 일별 내역 (고정 높이 컨테이너) ── */}
+          <div
+            ref={calendarAreaRef}
+            style={
+              calendarAreaHeight
+                ? { height: calendarAreaHeight, overflow: "hidden" }
+                : undefined
+            }
+          >
           <FinanceCalendar
             month={calendarMonth}
             onMonthChange={handleMonthChange}
             selectedDate={selectedDate}
             onSelectDate={handleDateSelect}
+            collapsed={viewMode === "day"}
             className="pt-4"
             renderDay={(date, isCurrentMonth) => {
               if (!isCurrentMonth) return <span />;
@@ -333,9 +366,82 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             }
           />
 
-          <div className="-mx-5 mt-4 h-2 bg-muted" />
+          {/* ── 일별 거래내역 (day 모드, 최대 3개) ── */}
+          <AnimatePresence>
+            {viewMode === "day" && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+                className="mt-3"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-foreground">
+                    {format(selectedDate, "M월 d일 (eee)", { locale: ko })} 소비
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("month")}
+                    className="flex items-center gap-0.5 text-xs text-muted-foreground"
+                  >
+                    <X className="size-3.5" />
+                    닫기
+                  </button>
+                </div>
+                {txQ.isLoading ? (
+                  <SkeletonCard lines={3} />
+                ) : !txQ.data?.transactions.length ? (
+                  <EmptyState title="이 날 소비 내역이 없어요" />
+                ) : (
+                  <>
+                    <div className="divide-y divide-border rounded-2xl border border-border">
+                      {txQ.data.transactions.slice(0, 3).map((tx) => {
+                        const Icon = getCategoryIcon(tx.category);
+                        return (
+                          <div
+                            key={tx.transactionId}
+                            className="flex items-center gap-3 px-4 py-3"
+                          >
+                            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent">
+                              <Icon className="size-[15px] text-primary" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-foreground">
+                                {tx.description}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {tx.category} · {formatTxTime(tx.transactedAt)}
+                              </p>
+                            </div>
+                            <span className="font-numeric shrink-0 text-sm font-bold text-foreground">
+                              -{formatKRW(tx.amount)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {txQ.data.transactions.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(
+                            `/budget/${selectedDate.getFullYear()}/${selectedDate.getMonth() + 1}/${selectedDate.getDate()}`,
+                          )
+                        }
+                        className="mt-2 w-full rounded-xl border border-border py-2.5 text-xs font-semibold text-muted-foreground"
+                      >
+                        더보기 ({txQ.data.transactions.length - 3}개 더)
+                      </button>
+                    )}
+                  </>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          </div>{/* end calendarArea */}
 
-          {/* 지출 요약 카드 + 목표 설정 버튼 */}
+          {/* ── 월별 요약 카드 ── */}
           <button
             type="button"
             onClick={() =>
@@ -394,7 +500,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             </div>
           </button>
 
-          {/* 이번 달 절약금 */}
+          {/* ── 이번 달 절약금 ── */}
           <div className="-mx-5 mt-4 h-2 bg-muted" />
           <div className="flex items-center justify-between pb-3 pt-[14px]">
             <span className="text-sm font-medium text-foreground">
@@ -526,6 +632,11 @@ function GoalEditForm({
       )}
     </>
   );
+}
+
+function formatTxTime(isoStr: string) {
+  const d = new Date(isoStr);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 // ── 첫 진입 카테고리 바 ───────────────────────────────────────────────────────
