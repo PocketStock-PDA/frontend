@@ -3,18 +3,8 @@
 import { useState } from "react";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
-import {
-  RefreshCcw,
-  UtensilsCrossed,
-  BookOpen,
-  Heart,
-  ShoppingBag,
-  Car,
-  Home,
-  Zap,
-  Music,
-  Receipt,
-} from "lucide-react";
+import { RefreshCcw, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/common/AppHeader";
 import { FinanceCalendar } from "@/components/common/FinanceCalendar";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -30,7 +20,6 @@ import {
 import {
   useBudgetGoals,
   useBudgetCalendar,
-  useBudgetTransactions,
   useBudgetSavings,
 } from "@/hooks/queries/useBudget";
 import { useSpendingAnalysis } from "@/hooks/queries/useSpendingAnalysis";
@@ -39,6 +28,7 @@ import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import { StockCalendarTab } from "./StockCalendarTab";
+import { getCategoryIcon } from "./_utils/categoryIcon";
 import type { BudgetGoalCategoryItem, BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
 
 // ── 페이지 진입점 ──────────────────────────────────────────────────────────────
@@ -199,6 +189,7 @@ const TABS: { label: string; value: TabValue }[] = [
 ];
 
 function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
+  const router = useRouter();
   const [tab, setTab] = useState<TabValue>("budget");
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -220,16 +211,17 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
     );
   };
 
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+    router.push(
+      `/budget/${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`,
+    );
+  };
+
   const calendarQ = useBudgetCalendar(
     calendarMonth.getFullYear(),
     calendarMonth.getMonth() + 1,
   );
-  const txQ = useBudgetTransactions({
-    type: "DAILY",
-    year: selectedDate.getFullYear(),
-    month: selectedDate.getMonth() + 1,
-    day: selectedDate.getDate(),
-  });
   const savingsQ = useBudgetSavings();
 
   const dayMap = new Map<string, CalendarDayItem>();
@@ -288,7 +280,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             month={calendarMonth}
             onMonthChange={handleMonthChange}
             selectedDate={selectedDate}
-            onSelectDate={setSelectedDate}
+            onSelectDate={handleDateSelect}
             className="pt-4"
             renderDay={(date, isCurrentMonth) => {
               if (!isCurrentMonth) return <span />;
@@ -344,20 +336,41 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
           <div className="-mx-5 mt-4 h-2 bg-muted" />
 
           {/* 지출 요약 카드 + 목표 설정 버튼 */}
-          <div className="mt-4 rounded-2xl bg-accent px-4 py-[14px]">
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                `/budget/${calendarMonth.getFullYear()}/${calendarMonth.getMonth() + 1}`,
+              )
+            }
+            className="mt-4 w-full rounded-2xl bg-accent px-4 py-[14px] text-left"
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-[#555555]">
                 {format(calendarMonth, "M월")} 지출
               </span>
-              {isCurrentMonth && (
-                <button
-                  type="button"
-                  onClick={() => setShowGoalSheet(true)}
-                  className="rounded-full border border-primary bg-white px-3 py-1 text-xs font-semibold text-primary"
-                >
-                  목표 설정
-                </button>
-              )}
+              <div className="flex items-center gap-1">
+                {isCurrentMonth && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowGoalSheet(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.stopPropagation();
+                        setShowGoalSheet(true);
+                      }
+                    }}
+                    className="rounded-full border border-primary bg-white px-3 py-1 text-xs font-semibold text-primary"
+                  >
+                    목표 설정
+                  </span>
+                )}
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </div>
             </div>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="font-numeric text-[22px] font-bold text-primary">
@@ -379,52 +392,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                 남은 예산 {formatKRW(calendarMonthlyBudget - calendarSpent)}
               </span>
             </div>
-          </div>
-
-          {/* 날짜별 소비 내역 */}
-          <div className="-mx-5 mt-4 h-2 bg-muted" />
-          <p className="pb-2 pt-[15px] text-xs font-medium text-muted-foreground">
-            {format(selectedDate, "M월 d일 소비 내역", { locale: ko })}
-          </p>
-          {txQ.isLoading ? (
-            <SkeletonCard lines={3} />
-          ) : txQ.isError ? (
-            <EmptyState title="내역을 불러오지 못했어요" />
-          ) : !txQ.data?.transactions.length ? (
-            <EmptyState title="이 날 소비 내역이 없어요" />
-          ) : (
-            <div className="divide-y divide-border">
-              {txQ.data.transactions.map((tx) => (
-                <div
-                  key={tx.transactionId}
-                  className="flex items-center justify-between py-3"
-                >
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-bold text-foreground">
-                      {tx.description}
-                    </p>
-                    <p className="text-[11px] text-[#AAAAAA]">
-                      {tx.category} · {formatTime(tx.transactedAt)}
-                    </p>
-                  </div>
-                  <span className="font-numeric text-sm font-bold text-foreground">
-                    -{formatKRW(tx.amount)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* 카테고리별 지출 */}
-          <div className="-mx-5 mt-4 h-2 bg-muted" />
-          <p className="pb-3 pt-[15px] text-xs font-medium text-muted-foreground">
-            카테고리별 지출
-          </p>
-          <div className="space-y-[10px]">
-            {goals.categories.map((cat) => (
-              <CategoryGoalRow key={cat.category} {...cat} />
-            ))}
-          </div>
+          </button>
 
           {/* 이번 달 절약금 */}
           <div className="-mx-5 mt-4 h-2 bg-muted" />
@@ -519,10 +487,10 @@ function GoalEditForm({
         {categories.map((cat) => (
           <div key={cat.category} className="flex items-center gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent">
-              <CategoryIcon
-                name={cat.category}
-                className="size-[14px] text-primary"
-              />
+              {(() => {
+                const Icon = getCategoryIcon(cat.category);
+                return <Icon className="size-[14px] text-primary" />;
+              })()}
             </div>
             <span className="w-20 shrink-0 text-sm font-medium text-foreground">
               {cat.category}
@@ -558,99 +526,6 @@ function GoalEditForm({
       )}
     </>
   );
-}
-
-// ── 카테고리별 지출 행 ────────────────────────────────────────────────────────
-
-function CategoryGoalRow({ category, budget, spent }: BudgetGoalCategoryItem) {
-  const pct =
-    budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
-  const hasSpending = spent > 0;
-
-  return (
-    <div className="space-y-[5px]">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-lg",
-              hasSpending ? "bg-accent" : "bg-muted",
-            )}
-          >
-            <CategoryIcon
-              name={category}
-              className={cn(
-                "size-[14px]",
-                hasSpending ? "text-primary" : "text-[#AAAAAA]",
-              )}
-            />
-          </div>
-          <span
-            className={cn(
-              "text-xs font-medium",
-              hasSpending ? "text-foreground" : "text-[#AAAAAA]",
-            )}
-          >
-            {category}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span
-            className={cn(
-              "text-xs font-medium",
-              hasSpending ? "text-foreground" : "text-[#AAAAAA]",
-            )}
-          >
-            {formatKRW(spent)}
-          </span>
-          <span
-            className={cn(
-              "text-[11px]",
-              hasSpending ? "text-[#888888]" : "text-[#AAAAAA]",
-            )}
-          >
-            / {formatKRW(budget)}
-          </span>
-        </div>
-      </div>
-      <div className="h-[5px] w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn(
-            "h-full rounded-full",
-            hasSpending ? "bg-primary" : "bg-[#E8E8E8]",
-          )}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ── 카테고리 아이콘 ───────────────────────────────────────────────────────────
-
-function CategoryIcon({
-  name,
-  className,
-}: {
-  name: string;
-  className?: string;
-}) {
-  if (name.includes("식") || name.includes("카페") || name.includes("음식"))
-    return <UtensilsCrossed className={className} />;
-  if (name.includes("교육") || name.includes("학원") || name.includes("도서"))
-    return <BookOpen className={className} />;
-  if (name.includes("의료") || name.includes("병원") || name.includes("미용"))
-    return <Heart className={className} />;
-  if (name.includes("쇼핑")) return <ShoppingBag className={className} />;
-  if (name.includes("교통") || name.includes("주유"))
-    return <Car className={className} />;
-  if (name.includes("주거") || name.includes("관리비"))
-    return <Home className={className} />;
-  if (name.includes("공과금") || name.includes("통신"))
-    return <Zap className={className} />;
-  if (name.includes("문화") || name.includes("여가") || name.includes("구독"))
-    return <Music className={className} />;
-  return <Receipt className={className} />;
 }
 
 // ── 첫 진입 카테고리 바 ───────────────────────────────────────────────────────
@@ -707,7 +582,3 @@ function CategoryBar({
   );
 }
 
-function formatTime(isoStr: string) {
-  const d = new Date(isoStr);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
