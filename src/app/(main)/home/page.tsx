@@ -26,7 +26,7 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { WelcomeEventDialog } from "@/components/features/onboarding/WelcomeEventDialog";
-import { useCmaHome } from "@/hooks/queries/useCmaHome";
+import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import { useWelcomeRewards } from "@/hooks/queries/useWelcomeRewards";
 import { useCollectChange } from "@/hooks/mutations/useCollectChange";
 import { formatKRW } from "@/lib/utils/currency";
@@ -72,8 +72,13 @@ const WELCOME_DISMISS_KEY = "ps.welcomeEvent.dismissed";
 export default function HomePage() {
   const router = useRouter();
   // TODO: 인사말 이름은 사용자 프로필 API 연동 시 교체 (/home 응답엔 없음)
-  const { data, isLoading, isError, refetch } = useCmaHome();
+  const { data, isLoading, isError, error, refetch } = useCmaHome();
   const collect = useCollectChange();
+
+  // 신규 회원 = CMA 계좌 미개설(/home 404). 첫 가입 이벤트 팝업을 먼저 띄운다.
+  // (rewards용 localStorage dismiss와 분리 — 계좌 없으면 진입 시 매번 노출)
+  const noCmaAccount = isNoCmaAccount(error);
+  const [eventOpen, setEventOpen] = useState(true);
 
   // 첫 가입 이벤트 팝업: 첫 주식 미수령(rewards 비어있음) + 미닫힘 시 노출 (issue #34)
   const rewardsQ = useWelcomeRewards();
@@ -96,6 +101,35 @@ export default function HomePage() {
         <SkeletonCard lines={2} className="h-32" />
         <SkeletonCard lines={3} className="h-48" />
       </div>
+    );
+  }
+
+  // 신규 회원(계좌 없음): 첫 가입 이벤트 팝업을 먼저 띄우고, "다음으로"에서 계좌개설로.
+  if (noCmaAccount) {
+    return (
+      <>
+        <WelcomeEventDialog
+          open={eventOpen}
+          onOpenChange={setEventOpen}
+          onProceed={() => router.push("/account/open")}
+        />
+        <div className="flex min-h-[75vh] flex-col items-center justify-center gap-3 px-6 text-center">
+          <h2 className="text-2xl font-bold text-foreground">
+            아직 계좌가 없어요
+          </h2>
+          <p className="text-base text-muted-foreground">
+            포켓스톡 계좌를 개설하면
+            <br />
+            투자를 시작할 수 있어요.
+          </p>
+          <Button
+            onClick={() => router.push("/account/open")}
+            className="mt-6 h-14 w-full max-w-xs text-lg font-bold"
+          >
+            계좌 개설하기
+          </Button>
+        </div>
+      </>
     );
   }
 
