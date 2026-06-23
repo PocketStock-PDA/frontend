@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Decimal from "decimal.js";
 import { DonutChart } from "@/components/common/DonutChart";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
@@ -87,7 +88,7 @@ export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
                 <>
                   <p className="text-[10px] text-muted-foreground">순자산</p>
                   <p className="text-sm font-bold text-foreground">
-                    {(totalAmount / 10000).toFixed(0)}만원
+                    {new Decimal(totalAmount).dividedBy(10000).toFixed(0)}만원
                   </p>
                 </>
               )}
