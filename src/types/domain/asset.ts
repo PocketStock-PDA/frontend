@@ -1,3 +1,55 @@
+// ── 자산 연동(마이데이터) ──────────────────────────────────────────────────────
+export type InstitutionCategory = "BANK" | "SECURITIES" | "CARD" | "POINT";
+export type LinkStatus = "LINKED" | "AVAILABLE";
+
+/** 연동 가능 기관 (GET /api/assets/institutions) */
+export interface Institution {
+  category: InstitutionCategory;
+  companyCode: string;
+  companyName: string;
+  logoUrl: string | null;
+  linkStatus: LinkStatus;
+}
+
+export type ScanSourceType = "ACCOUNT" | "CARD" | "POINT" | "FX";
+
+export interface ScanSource {
+  sourceType: ScanSourceType;
+  name: string;
+  amount: number;
+}
+
+/** 잠자는 잔돈 스캔 결과 (GET /api/assets/scan) */
+export interface ScanResult {
+  totalAmount: number;
+  sources: ScanSource[];
+}
+
+/** 휴면 은행 계좌 (GET /api/assets/dormant) */
+export interface DormantAccount {
+  accountId: number;
+  bankName: string;
+  accountName: string;
+  balance: number;
+  currency: string;
+}
+
+/** 휴면계좌 해지 결과 (POST /api/assets/dormant/close) */
+export interface DormantCloseResultItem {
+  accountId: number;
+  amount: number;
+  currency: string;
+  /** COMPLETED(이체 완료) | ALREADY_CLOSED(해지 완료) | FAILED(실패) */
+  status: string;
+}
+
+export interface DormantCloseResult {
+  closedCount: number;
+  transferredAmount: number;
+  allCompleted: boolean;
+  results: DormantCloseResultItem[];
+}
+
 export interface CategorySpending {
   category: string;
   amount: number;
