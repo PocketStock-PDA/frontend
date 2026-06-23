@@ -6,13 +6,16 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { AssetPortfolioCard } from "@/components/features/asset/AssetPortfolioCard";
+import { MaturityAlertCard } from "@/components/features/asset/MaturityAlertCard";
 import { Button } from "@/components/ui/button";
 import { useAssetSummary } from "@/hooks/queries/useAssetSummary";
+import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 
 export default function AssetPage() {
   const { data, isLoading, isError, refetch } = useAssetSummary();
+  const { data: maturityData } = useMaturityRecommendation();
 
   if (isLoading) {
     return (
@@ -72,6 +75,11 @@ export default function AssetPage() {
             </div>
           )}
         </section>
+
+        {/* 만기 알림 */}
+        {maturityData?.triggerAccount && (
+          <MaturityAlertCard account={maturityData.triggerAccount} />
+        )}
 
         {/* 자산 구성 */}
         <section>

@@ -9,6 +9,19 @@ export interface SpendingResponse {
   categories: CategorySpending[];
 }
 
+export interface MaturityTriggerAccount {
+  accountName: string;
+  maturityDate: string;
+  principalAmount: number;
+  daysUntilMaturity: number;
+  interestRate: number;
+}
+
+export interface MaturityRecommendationResponse {
+  triggerAccount: MaturityTriggerAccount | null;
+  recommendations: unknown[];
+}
+
 export interface AssetPortfolioItem {
   category: string;
   amount: number;

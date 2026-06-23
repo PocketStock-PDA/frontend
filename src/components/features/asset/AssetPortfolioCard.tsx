@@ -8,7 +8,7 @@ import type { AssetPortfolioItem } from "@/types/domain/asset";
 
 const CATEGORY_COLORS: Record<string, string> = {
   예금: "#3b82f6",
-  적금: "#3b82f6",
+  적금: "#60a5fa",
   증권: "#8b5cf6",
   부동산: "#f97316",
   보험: "#14b8a6",
@@ -17,11 +17,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 function getCategoryColor(category: string): string {
-  return (
-    Object.entries(CATEGORY_COLORS).find(([key]) =>
-      category.includes(key),
-    )?.[1] ?? "#6b7280"
-  );
+  return CATEGORY_COLORS[category] ?? "#6b7280";
 }
 
 interface AssetPortfolioCardProps {
