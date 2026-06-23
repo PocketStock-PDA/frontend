@@ -33,6 +33,7 @@ import { useCollectSource } from "@/hooks/mutations/useCollectSource";
 import { useCollectChange } from "@/hooks/mutations/useCollectChange";
 import { useSaveCollectSettings } from "@/hooks/mutations/useSaveCollectSettings";
 import { formatKRW } from "@/lib/utils/currency";
+import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
 import type { BankAccount } from "@/types/domain/account";
 import type {
@@ -120,7 +121,7 @@ export default function AssetLinkPage() {
   // 소액 이체 대상 후보: 비휴면 + KRW 원화 계좌 + 잔액 보유.
   // SOL트래블(외화/FX)은 앞에서 따로 연동·적립하므로 계좌 잔액에서 제외(KRW만).
   const bankEligible = (bank.data ?? []).filter(
-    (a) => !a.isDormant && a.currency === "KRW" && Number(a.balance) > 0,
+    (a) => !a.isDormant && a.currency === "KRW" && toDecimal(a.balance).greaterThan(0),
   );
 
   const busy =
@@ -582,7 +583,7 @@ function ScanningView({
   // 금액형(FX·포인트·카드, 금액>0) + 은행 계좌(끝전, 확인 필요)는 항상 마지막에
   const list = useMemo(() => {
     const amountSources = sources.filter(
-      (s) => s.sourceType !== "ACCOUNT" && Number(s.amount) > 0,
+      (s) => s.sourceType !== "ACCOUNT" && toDecimal(s.amount).greaterThan(0),
     );
     const account = sources.find((s) => s.sourceType === "ACCOUNT");
     return account ? [...amountSources, account] : amountSources;
@@ -747,7 +748,7 @@ function ResultView({
 }) {
   // 금액형(FX·포인트·카드)은 금액 표시, 은행 계좌(끝전)는 확인 필요 → "확인하기"
   const amountSources = sources.filter(
-    (s) => s.sourceType !== "ACCOUNT" && Number(s.amount) > 0,
+    (s) => s.sourceType !== "ACCOUNT" && toDecimal(s.amount).greaterThan(0),
   );
   const accountSource = sources.find((s) => s.sourceType === "ACCOUNT");
   const sourceCount = amountSources.length + (accountSource ? 1 : 0);
@@ -1360,7 +1361,7 @@ function BankSelectView({
 }) {
   const [threshold, setThreshold] = useState(5000);
   const eligibleFor = (t: number) =>
-    accounts.filter((a) => Number(a.balance) < t);
+    accounts.filter((a) => toDecimal(a.balance).lessThan(t));
   const [selected, setSelected] = useState<Set<number>>(
     () => new Set(eligibleFor(5000).map((a) => a.accountId)),
   );
