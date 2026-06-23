@@ -17,18 +17,33 @@ export interface WeekdayPickerProps {
   value: Weekday[];
   onChange: (value: Weekday[]) => void;
   disabled?: boolean;
+  /** 단일 선택(주1회): 항상 1개만 선택 */
+  single?: boolean;
   className?: string;
 }
 
-/** 요일(월~일) 다중 선택. 활성 = 브랜드 블루 */
+/** 요일(월~일) 선택. 최소 1개는 항상 유지. single이면 1개만. 활성 = 브랜드 블루 */
 export function WeekdayPicker({
   value,
   onChange,
   disabled = false,
+  single = false,
   className,
 }: WeekdayPickerProps) {
-  const toggle = (d: Weekday) =>
-    onChange(value.includes(d) ? value.filter((v) => v !== d) : [...value, d]);
+  const select = (d: Weekday) => {
+    // 단일 선택: 항상 1개만(같은 날 다시 눌러도 유지)
+    if (single) {
+      onChange([d]);
+      return;
+    }
+    // 다중 선택: 토글하되 마지막 1개는 해제 불가(최소 1개 유지)
+    if (value.includes(d)) {
+      if (value.length <= 1) return;
+      onChange(value.filter((v) => v !== d));
+    } else {
+      onChange([...value, d]);
+    }
+  };
 
   return (
     <div className={cn("flex gap-2", className)}>
@@ -40,7 +55,7 @@ export function WeekdayPicker({
             type="button"
             disabled={disabled}
             aria-pressed={active}
-            onClick={() => toggle(d.value)}
+            onClick={() => select(d.value)}
             className={cn(
               "flex h-10 flex-1 items-center justify-center rounded-lg text-sm font-bold transition-colors disabled:opacity-40",
               active

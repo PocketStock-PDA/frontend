@@ -1,6 +1,13 @@
 // 자동모으기(정기 적립식) 통합 설정 — T5
 // ⚠️ 백엔드 CRUD 엔드포인트 미구현(2026-06 기준) — 문서 스펙 기준 틀. 구현 시 동작.
 
+/**
+ * 백엔드 자동모으기 API(GET/PUT /api/trading/stocks/{code}/auto-invest) 준비 여부.
+ * 현재 백엔드 미구현 → false(프론트 스텁으로 동작, 실제 저장 안 함).
+ * 백엔드 완성되면 이 값만 true로 바꾸면 실연동된다. (useAutoInvest·useSaveAutoInvest)
+ */
+export const AUTO_INVEST_API_READY = false;
+
 export type AutoInvestFrequency = "DAILY" | "WEEKLY" | "MONTHLY";
 export type Weekday = "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT" | "SUN";
 

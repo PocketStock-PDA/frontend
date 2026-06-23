@@ -15,13 +15,13 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 
 // TODO: 라우트는 사용자 지정 대기 중 (현재 임시 "#")
 const MENU: { label: string; href: string }[] = [
-  { label: "주식모으기", href: "#" },
-  { label: "환전", href: "#" },
-  { label: "가계부", href: "#" },
-  { label: "포트폴리오", href: "#" },
-  { label: "자동모으기 적립식 설정", href: "#" },
+  { label: "주식모으기", href: "/trading" },
+  { label: "환전", href: "/exchange" },
+  { label: "가계부", href: "/budget" },
+  { label: "포트폴리오", href: "/portfolio" },
+  { label: "주식 자동모으기 설정", href: "/trading/auto" },
   { label: "거래 내역", href: "#" },
-  { label: "자산 리밸런싱", href: "#" },
+  { label: "내 자산", href: "/asset" },
   { label: "포인트", href: "#" },
   { label: "마이페이지", href: "#" },
 ];
@@ -72,7 +72,9 @@ export function Sidebar() {
         </SheetHeader>
 
         <div className="mt-4 flex-1 overflow-y-auto">
-          <h2 className="mb-2 text-sm font-bold text-foreground">최근/MY 메뉴</h2>
+          <h2 className="mb-2 text-sm font-bold text-foreground">
+            최근/MY 메뉴
+          </h2>
           <div className="mb-6 flex h-28 items-center justify-center rounded-2xl bg-brand-surface text-sm text-muted-foreground">
             최근 메뉴가 없습니다
           </div>

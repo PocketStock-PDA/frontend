@@ -19,15 +19,18 @@ export interface WelcomeEventDialogProps {
   open: boolean;
   /** X·오버레이·Esc·"나중에" → 닫기 */
   onOpenChange: (open: boolean) => void;
-  /** "다음으로" → 계좌 개설로 진입 */
+  /** CTA → 진입(계좌 개설 또는 종목 선택) */
   onProceed: () => void;
+  /** 메인 버튼 라벨 (기본: 종목 선택하러 가기) */
+  ctaLabel?: string;
 }
 
-/** 첫 가입 기념 — 소수점 주식 무료 지급 이벤트 팝업 (issue #34) */
+/** 첫 가입 기념 — 소수점 주식 무료 지급 이벤트 팝업 (issue #34·#36) */
 export function WelcomeEventDialog({
   open,
   onOpenChange,
   onProceed,
+  ctaLabel = "종목 선택하러 가기",
 }: WelcomeEventDialogProps) {
   // 예상 지급 금액용 대표 종목 (삼성전자 우선, 없으면 1순위)
   const candidatesQ = useWelcomeRewardCandidates(open);
@@ -46,33 +49,37 @@ export function WelcomeEventDialog({
         <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
           <Plus className="size-7" />
         </div>
-        <p className="text-sm font-bold text-primary">첫 가입 기념 이벤트</p>
+        <p className="text-sm font-bold text-primary">첫 가입 이벤트</p>
         <DialogTitle className="mt-1 text-xl font-bold leading-snug text-foreground">
-          소수점 주식 {REWARD_QTY}주를
+          포켓스톡으로
           <br />
-          무료로 드려요
+          주식을 모아보세요!
         </DialogTitle>
         <DialogDescription className="mt-2 text-sm text-muted-foreground">
-          종목을 고르면 바로 지급돼요
+          잔돈이 쌓일 때마다 자동으로
           <br />
-          다음 화면에서 선택하세요
+          내가 고른 주식을 조금씩 담아드려요
+          <br />
+          지금 종목을 골라보세요
         </DialogDescription>
 
-        {estimate && rep && (
-          <div className="mt-5 rounded-xl bg-primary/5 px-4 py-3 text-left">
-            <p className="text-xs text-muted-foreground">예상 지급 금액</p>
-            <p className="font-numeric text-sm font-bold text-primary">
+        <div className="mt-5 rounded-xl bg-primary/5 px-4 py-3">
+          <p className="text-sm font-bold text-primary">
+            가입 기념 · 첫 주식 {REWARD_QTY}주 무료 지급
+          </p>
+          {estimate && rep && (
+            <p className="font-numeric mt-0.5 text-xs text-muted-foreground">
               {rep.stockName} 기준 약{" "}
               {formatKRW(estimate.toDecimalPlaces(0).toString())} 상당
             </p>
-          </div>
-        )}
+          )}
+        </div>
 
         <Button
           onClick={onProceed}
           className="mt-5 h-12 w-full text-base font-bold"
         >
-          다음으로
+          {ctaLabel}
         </Button>
         <button
           type="button"

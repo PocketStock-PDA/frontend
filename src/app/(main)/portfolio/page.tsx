@@ -13,6 +13,7 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { HoldingCard } from "@/components/features/portfolio/HoldingCard";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
+import { useAutoInvestList } from "@/hooks/queries/useAutoInvest";
 import { formatKRW } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { queryKeys } from "@/lib/utils/queryKeys";
@@ -26,6 +27,9 @@ export default function PortfolioPage() {
   const holdings = holdingsQ.data ?? [];
   const codes = holdings.map((h) => h.stockCode);
   const details = useStockDetails(codes);
+  const autoSettings = useAutoInvestList(codes);
+  // 실제 자동모으기 활성 종목 수 (백엔드 미구현 동안은 0)
+  const autoActiveCount = autoSettings.filter((s) => s.data?.enabled).length;
 
   const detailsLoading = codes.length > 0 && details.some((d) => d.isLoading);
   const detailsError = codes.length > 0 && details.some((d) => d.isError);
@@ -52,7 +56,9 @@ export default function PortfolioPage() {
               variant="outline"
               size="sm"
               onClick={() =>
-                queryClient.invalidateQueries({ queryKey: queryKeys.trading.all })
+                queryClient.invalidateQueries({
+                  queryKey: queryKeys.trading.all,
+                })
               }
             >
               다시 시도
@@ -108,69 +114,88 @@ export default function PortfolioPage() {
         }
       />
       <div className="space-y-5">
-      {/* 히어로: 총 평가/손익/투자 */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #0046FF 0%, #6B3FF5 100%)",
-        }}
-        className="rounded-xl p-5 text-white"
-      >
-        <p className="text-sm text-white/90">총 평가금액</p>
-        <AmountDisplay
-          value={totalEval.toString()}
-          size="xl"
-          className="mt-1 text-white"
-        />
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-white/15 px-2.5 py-0.5 font-numeric text-sm font-semibold">
-            {sign}
-            {formatKRW(totalProfit.abs().toString())} ({sign}
-            {totalRate.abs().toFixed(2)}%)
-          </span>
-          <span className="text-sm text-white/80">
-            총 투자 {formatKRW(totalInvested.toString())}
-          </span>
-        </div>
-        <div className="my-3 h-px bg-white/20" />
-        <div className="flex items-center justify-between text-sm text-white/85">
-          {/* TODO: "다음 적립일 · 월요일 09:00" — 적립식 설정 API 연동 후 */}
-          <span>정기 적립식 진행 중</span>
-          <span>{holdings.length}종목 모으는 중</span>
-        </div>
-      </div>
-
-      {/* 종목별 현황 */}
-      <section>
-        <SectionHeader
-          title="종목별 현황"
-          action={
-            // TODO: 모으기 관리 화면 연결
-            <button type="button" className="text-sm text-muted-foreground">
-              모으기 관리
-            </button>
-          }
-        />
-        {rows.length === 0 ? (
-          <EmptyState title="보유 종목이 없어요" />
-        ) : (
-          <div className="space-y-3">
-            {rows.map(({ h, detail, evalAmount, profit, rate, pieces }) => (
-              <HoldingCard
-                key={h.stockCode}
-                name={detail?.stockName ?? h.stockCode}
-                ticker={h.stockCode}
-                logoUrl={detail?.logoUrl ?? null}
-                pieces={pieces}
-                quantity={h.quantity}
-                evalAmount={evalAmount.toNumber()}
-                profit={profit.toNumber()}
-                rate={rate.toNumber()}
-                onClick={() => router.push(`/portfolio/${h.stockCode}`)}
-              />
-            ))}
+        {/* 히어로: 총 평가/손익/투자 */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #0046FF 0%, #6B3FF5 100%)",
+          }}
+          className="rounded-xl p-5 text-white"
+        >
+          <p className="text-sm text-white/90">총 평가금액</p>
+          <AmountDisplay
+            value={totalEval.toString()}
+            size="xl"
+            className="mt-1 text-white"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-white/15 px-2.5 py-0.5 font-numeric text-sm font-semibold">
+              {sign}
+              {formatKRW(totalProfit.abs().toString())} ({sign}
+              {totalRate.abs().toFixed(2)}%)
+            </span>
+            <span className="text-sm text-white/80">
+              총 투자 {formatKRW(totalInvested.toString())}
+            </span>
           </div>
-        )}
-      </section>
+          <div className="my-3 h-px bg-white/20" />
+          <div className="flex items-center justify-between text-sm text-white/85">
+            {/* TODO: "다음 적립일 · 월요일 09:00" — 적립식 설정 API 연동 후 */}
+            {autoActiveCount > 0 ? (
+              <>
+                <span>정기 적립식 진행 중</span>
+                <span>{autoActiveCount}종목 모으는 중</span>
+              </>
+            ) : (
+              <>
+                <span>자동 모으기 미설정</span>
+                <button
+                  type="button"
+                  onClick={() => router.push("/trading/auto")}
+                  className="font-semibold underline"
+                >
+                  설정하기
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* 종목별 현황 */}
+        <section>
+          <SectionHeader
+            title="종목별 현황"
+            action={
+              <button
+                type="button"
+                onClick={() => router.push("/trading/auto")}
+                className="text-sm text-muted-foreground underline"
+              >
+                자동 모으기 관리
+              </button>
+            }
+          />
+          {rows.length === 0 ? (
+            <EmptyState title="보유 종목이 없어요" />
+          ) : (
+            <div className="space-y-3">
+              {rows.map(({ h, detail, evalAmount, profit, rate, pieces }) => (
+                <HoldingCard
+                  key={h.stockCode}
+                  name={detail?.stockName ?? h.stockCode}
+                  ticker={h.stockCode}
+                  logoUrl={detail?.logoUrl ?? null}
+                  pieces={pieces}
+                  quantity={h.quantity}
+                  evalAmount={evalAmount.toNumber()}
+                  profit={profit.toNumber()}
+                  rate={rate.toNumber()}
+                  onClick={() => router.push(`/portfolio/${h.stockCode}`)}
+                  onSettings={() => router.push(`/trading/${h.stockCode}/auto`)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </>
   );
