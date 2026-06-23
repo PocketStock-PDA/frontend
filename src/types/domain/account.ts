@@ -21,7 +21,7 @@ export interface AccountVerifyRequestResult {
   /** 입금자명 (예: 포켓스톡087) */
   depositorName: string;
   /** 인증 코드 3자리 — 운영에선 미노출, dev 편의로 내려옴 */
-  code: string;
+  code?: string;
   /** 만료(초) */
   expiresIn: number;
 }

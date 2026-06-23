@@ -59,7 +59,7 @@ export default function AccountOpenPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("TERMS");
   const [kind, setKind] = useState<AccountKind>("FULL");
-  const [agreed, setAgreed] = useState<Set<number>>(new Set([1, 2, 3]));
+  const [agreed, setAgreed] = useState<Set<number>>(new Set());
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -127,7 +127,7 @@ export default function AccountOpenPage() {
             setSelectedId={setSelectedId}
             pending={reqVerify.isPending}
             onNext={() => {
-              if (selectedId === null) return;
+              if (selectedId === null || reqVerify.isPending) return;
               reqVerify.mutate(selectedId, {
                 onSuccess: (data) => {
                   setVerify(data);
@@ -145,8 +145,9 @@ export default function AccountOpenPage() {
             verify={verify}
             bank={bankQ.data?.find((a) => a.accountId === selectedId)}
             pending={confirmVerify.isPending}
+            resending={reqVerify.isPending}
             onResend={() => {
-              if (selectedId === null) return;
+              if (selectedId === null || reqVerify.isPending) return;
               reqVerify.mutate(selectedId, {
                 onSuccess: (data) => setVerify(data),
                 onError: (e) => toast.error(errMsg(e)),
@@ -256,6 +257,7 @@ function TermsStep({
           <button
             key={o.value}
             type="button"
+            aria-pressed={kind === o.value}
             onClick={() => setKind(o.value)}
             className={cn(
               "flex w-full items-center justify-between rounded-xl border px-4 py-3.5 text-left",
@@ -385,8 +387,23 @@ function BankStep({
   onNext: () => void;
 }) {
   if (query.isLoading) return <SkeletonCard lines={4} className="mt-2 h-44" />;
+  if (query.isError) {
+    return (
+      <div className="pt-6">
+        <EmptyState
+          title="계좌를 불러오지 못했어요"
+          description="잠시 후 다시 시도해 주세요."
+          action={
+            <Button variant="outline" size="sm" onClick={() => query.refetch()}>
+              다시 시도
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
   const accounts = (query.data ?? []).filter((a) => !a.isDormant);
-  if (query.isError || accounts.length === 0) {
+  if (accounts.length === 0) {
     return (
       <div className="pt-6">
         <EmptyState
@@ -447,12 +464,14 @@ function VerifyStep({
   verify,
   bank,
   pending,
+  resending,
   onResend,
   onConfirm,
 }: {
   verify: AccountVerifyRequestResult;
   bank: BankAccount | undefined;
   pending: boolean;
+  resending: boolean;
   onResend: () => void;
   onConfirm: (code: string) => void;
 }) {
@@ -497,8 +516,13 @@ function VerifyStep({
           <span className={cn(expired ? "text-destructive" : "text-muted-foreground")}>
             남은 시간 {mm}:{ss}
           </span>
-          <button type="button" onClick={onResend} className="font-medium text-primary">
-            다시 받기
+          <button
+            type="button"
+            onClick={onResend}
+            disabled={resending}
+            className="font-medium text-primary disabled:opacity-50"
+          >
+            {resending ? "보내는 중..." : "다시 받기"}
           </button>
         </div>
         {process.env.NODE_ENV === "development" && (
@@ -555,7 +579,7 @@ function PasswordStep({
           ? "계좌 비밀번호 4자리를 입력해 주세요"
           : "한 번 더 입력해 주세요"}
       </p>
-      <PinKeypad value={pin} onChange={handleChange} length={4} />
+      <PinKeypad value={pin} onChange={handleChange} length={4} disabled={pending} />
       {pending && (
         <p className="text-center text-sm text-muted-foreground">계좌 개설 중...</p>
       )}

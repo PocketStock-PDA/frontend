@@ -8,6 +8,8 @@ export interface PinKeypadProps {
   onChange: (value: string) => void;
   /** 자리수, 기본 6 */
   length?: number;
+  /** 입력 잠금 (제출 진행 중 등) */
+  disabled?: boolean;
   className?: string;
 }
 
@@ -16,12 +18,17 @@ export function PinKeypad({
   value,
   onChange,
   length = 6,
+  disabled = false,
   className,
 }: PinKeypadProps) {
   const press = (d: string) => {
+    if (disabled) return;
     if (value.length < length) onChange(value + d);
   };
-  const back = () => onChange(value.slice(0, -1));
+  const back = () => {
+    if (disabled) return;
+    onChange(value.slice(0, -1));
+  };
 
   return (
     <div className={cn("space-y-10", className)}>
@@ -37,6 +44,10 @@ export function PinKeypad({
           />
         ))}
       </div>
+      {/* 스크린리더용 입력 진행 안내 (PIN 값은 노출하지 않음) */}
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {value.length} / {length}자리 입력됨
+      </span>
 
       {/* 키패드 */}
       <div className="grid grid-cols-3 gap-x-8 gap-y-5">
@@ -45,7 +56,8 @@ export function PinKeypad({
             key={d}
             type="button"
             onClick={() => press(d)}
-            className="py-2 text-2xl font-semibold text-foreground transition-colors active:text-primary"
+            disabled={disabled}
+            className="py-2 text-2xl font-semibold text-foreground transition-colors active:text-primary disabled:opacity-40"
           >
             {d}
           </button>
@@ -54,15 +66,17 @@ export function PinKeypad({
         <button
           type="button"
           onClick={() => press("0")}
-          className="py-2 text-2xl font-semibold text-foreground transition-colors active:text-primary"
+          disabled={disabled}
+          className="py-2 text-2xl font-semibold text-foreground transition-colors active:text-primary disabled:opacity-40"
         >
           0
         </button>
         <button
           type="button"
           onClick={back}
+          disabled={disabled}
           aria-label="지우기"
-          className="flex items-center justify-center py-2 text-muted-foreground"
+          className="flex items-center justify-center py-2 text-muted-foreground disabled:opacity-40"
         >
           <Delete className="size-6" />
         </button>
