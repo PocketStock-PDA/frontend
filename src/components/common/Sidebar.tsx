@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import {
   Sheet,
@@ -9,6 +10,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useUiStore } from "@/store/uiStore";
+import { useLogout } from "@/hooks/mutations/useAuth";
+import { useAuth } from "@/lib/auth/AuthProvider";
 
 // TODO: 라우트는 사용자 지정 대기 중 (현재 임시 "#")
 const MENU: { label: string; href: string }[] = [
@@ -25,8 +28,23 @@ const MENU: { label: string; href: string }[] = [
 
 /** 우측 슬라이드 전체메뉴 사이드바. uiStore로 제어. */
 export function Sidebar() {
+  const router = useRouter();
   const isOpen = useUiStore((s) => s.isSidebarOpen);
   const closeSidebar = useUiStore((s) => s.closeSidebar);
+  const { setGuest } = useAuth();
+  const logout = useLogout();
+
+  const handleLogout = () => {
+    if (logout.isPending) return;
+    closeSidebar();
+    // 성공/실패와 무관하게(useLogout onSettled가 세션·캐시 정리) 게스트 전환 후 로그인으로
+    logout.mutate(undefined, {
+      onSettled: () => {
+        setGuest();
+        router.replace("/login");
+      },
+    });
+  };
 
   return (
     <Sheet
@@ -43,9 +61,11 @@ export function Sidebar() {
         <SheetHeader className="p-0">
           <button
             type="button"
-            className="flex w-fit items-center gap-0.5 text-sm text-muted-foreground"
+            onClick={handleLogout}
+            disabled={logout.isPending}
+            className="flex w-fit items-center gap-0.5 text-sm text-muted-foreground disabled:opacity-50"
           >
-            로그아웃
+            {logout.isPending ? "로그아웃 중..." : "로그아웃"}
             <ChevronRight className="size-4" />
           </button>
           <SheetTitle className="sr-only">전체 메뉴</SheetTitle>

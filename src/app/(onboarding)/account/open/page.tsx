@@ -87,7 +87,7 @@ export default function AccountOpenPage() {
         variant="sub"
         title={STEP_TITLE[step]}
         showMenu={false}
-        {...(step === "DONE" ? {} : { onBack: back })}
+        {...(step === "DONE" ? { showBack: false } : { onBack: back })}
       />
       <div className="pb-6">
         {step === "TERMS" && (
@@ -207,7 +207,8 @@ export default function AccountOpenPage() {
         {step === "DONE" && (
           <DoneStep
             accountNo={accountNo}
-            onStart={() => router.replace("/home")}
+            kind={kind}
+            onStart={() => router.replace("/asset-link")}
           />
         )}
       </div>
@@ -596,26 +597,41 @@ function PasswordStep({
 // ── 6. 개설 완료 ───────────────────────────────────────────────────────────────
 function DoneStep({
   accountNo,
+  kind,
   onStart,
 }: {
   accountNo: string | null;
+  kind: AccountKind;
   onStart: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-4 pt-16 text-center">
-      <span className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
-        <Check className="size-8" />
-      </span>
-      <h2 className="text-xl font-bold text-foreground">계좌 개설 완료!</h2>
-      <p className="text-sm text-muted-foreground">
-        이제 포켓스톡으로 투자를 시작할 수 있어요.
-      </p>
-      {accountNo && (
-        <p className="rounded-lg bg-muted px-4 py-2 font-numeric text-sm font-bold text-foreground">
-          {accountNo}
+    <div className="flex min-h-[calc(100vh-8rem)] flex-col">
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <span className="flex size-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+          <Check className="size-10" />
+        </span>
+        <h2 className="mt-5 text-2xl font-bold text-foreground">계좌 개설 완료!</h2>
+        <p className="mt-2 text-base font-medium leading-relaxed text-muted-foreground">
+          {kind === "FULL" ? (
+            <>
+              신한 CMA + 국내/해외주식 계좌가
+              <br />
+              개설되었습니다
+            </>
+          ) : (
+            "신한 CMA 계좌가 개설되었습니다"
+          )}
         </p>
-      )}
-      <Button onClick={onStart} className="mt-6 h-12 w-full text-base font-bold">
+        {accountNo && (
+          <div className="mt-6 w-full rounded-xl bg-brand-surface py-6 text-center">
+            <p className="text-sm font-medium text-muted-foreground">계좌번호</p>
+            <p className="mt-1.5 font-numeric text-lg font-bold text-primary">
+              {accountNo}
+            </p>
+          </div>
+        )}
+      </div>
+      <Button onClick={onStart} className="h-12 w-full text-base font-bold">
         시작하기
       </Button>
     </div>

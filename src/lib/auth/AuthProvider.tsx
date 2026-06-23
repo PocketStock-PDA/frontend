@@ -101,18 +101,34 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 /**
- * 로그인/회원가입 페이지용. 이미 로그인 상태면 슈퍼쏠/홈으로 보낸다(역주행 방지).
+ * 온보딩 화면((onboarding): 슈퍼쏠·계좌개설·자산연동)용. 로그인만 요구하고
+ * 이벤트(슈퍼쏠) 게이트는 적용하지 않는다 — 슈퍼쏠 자기 자신으로의 리다이렉트 루프 방지.
+ * 하단 네비바는 (onboarding) 레이아웃에 BottomTabBar가 없어 구조적으로 비노출.
  */
-export function RedirectIfAuthed({ children }: { children: ReactNode }) {
+export function RequireAuthOnly({ children }: { children: ReactNode }) {
   const { status } = useAuth();
-  const seen = useSeenEvent();
   const router = useRouter();
 
   useEffect(() => {
-    if (status === "authed") {
-      router.replace(seen ? "/home" : "/superSol");
-    }
-  }, [status, seen, router]);
+    if (status === "guest") router.replace("/login");
+  }, [status, router]);
+
+  if (status === "authed") return <>{children}</>;
+  return <AuthSplash />;
+}
+
+/**
+ * 로그인/회원가입 페이지용. 이미 로그인 상태면 슈퍼쏠로 보낸다(역주행 방지).
+ * 로그인 직후 항상 슈퍼쏠을 거치도록 /home이 아닌 /superSol로 통일한다 — 슈퍼쏠에서
+ * "포켓스톡으로 이동하기"를 누르면 markEventSeen 후 /home으로 진입.
+ */
+export function RedirectIfAuthed({ children }: { children: ReactNode }) {
+  const { status } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === "authed") router.replace("/superSol");
+  }, [status, router]);
 
   if (status === "guest") return <>{children}</>;
   return <AuthSplash />;

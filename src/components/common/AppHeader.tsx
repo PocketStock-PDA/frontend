@@ -17,6 +17,8 @@ export interface AppHeaderProps {
   right?: React.ReactNode;
   /** 우측 햄버거(사이드바 토글). 기본 sub에서만 노출 */
   showMenu?: boolean;
+  /** 좌측 뒤로가기 버튼 노출(sub 변형 기본 true). 전진형 온보딩 등에서 false로 숨김 */
+  showBack?: boolean;
   sticky?: boolean;
   className?: string;
 }
@@ -30,6 +32,7 @@ export function AppHeader({
   left,
   right,
   showMenu,
+  showBack = true,
   sticky = false,
   className,
 }: AppHeaderProps) {
@@ -38,6 +41,7 @@ export function AppHeader({
   const handleBack = onBack ?? (() => router.back());
   const handleClose = onClose ?? (() => router.back());
   const menuVisible = showMenu ?? variant === "sub";
+  const backVisible = variant === "sub" && showBack;
 
   return (
     <header
@@ -49,8 +53,14 @@ export function AppHeader({
         className,
       )}
     >
-      <div className="-ml-2 flex min-w-0 flex-1 items-center gap-1">
-        {variant === "sub" && (
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-1",
+          // 뒤로가기 버튼이 있을 때만 아이콘 패딩만큼 보정(없으면 타이틀이 본문과 정렬)
+          backVisible && "-ml-2",
+        )}
+      >
+        {backVisible && (
           <Button
             variant="ghost"
             size="icon"
