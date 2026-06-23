@@ -1,6 +1,7 @@
 export const queryKeys = {
   asset: {
     all: ["asset"] as const,
+    summary: ["asset", "summary"] as const,
     spending: (period: { year: number; month: number }) =>
       ["asset", "spending", period] as const,
     bankAccounts: ["asset", "bank-accounts"] as const,
