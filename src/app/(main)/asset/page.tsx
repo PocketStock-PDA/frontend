@@ -49,7 +49,6 @@ export default function AssetPage() {
 
   const momDiff = data.momDiff ?? 0;
   const isPositive = momDiff >= 0;
-  const totalExpenses = data.fixedExpenses + data.variableExpenses;
 
   return (
     <>
@@ -91,32 +90,6 @@ export default function AssetPage() {
           )}
         </section>
 
-        {/* 이번 달 지출 */}
-        <section>
-          <SectionHeader title="이번 달 지출" />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground">고정 지출</p>
-              <p className="mt-1.5 text-lg font-bold text-foreground">
-                {formatKRW(data.fixedExpenses)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground">변동 지출</p>
-              <p className="mt-1.5 text-lg font-bold text-foreground">
-                {formatKRW(data.variableExpenses)}
-              </p>
-            </div>
-          </div>
-          {totalExpenses > 0 && (
-            <p className="mt-3 text-right text-sm text-muted-foreground">
-              합계{" "}
-              <span className="font-bold text-foreground">
-                {formatKRW(totalExpenses)}
-              </span>
-            </p>
-          )}
-        </section>
       </div>
     </>
   );
