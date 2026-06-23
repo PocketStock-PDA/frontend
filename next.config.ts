@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
             { source: "/api/budget/:path*", destination: `${coreTarget}/api/budget/:path*` },
             { source: "/api/assets/:path*", destination: `${coreTarget}/api/assets/:path*` },
             { source: "/api/trading/calendar/:path*", destination: `${coreTarget}/api/trading/calendar/:path*` },
+            // 인증·회원(계좌개설·1원인증·약관·비밀번호)도 core-api
+            { source: "/api/auth/:path*", destination: `${coreTarget}/api/auth/:path*` },
+            { source: "/api/users/:path*", destination: `${coreTarget}/api/users/:path*` },
           ]
         : []),
       { source: "/api/:path*", destination: `${target}/api/:path*` },
