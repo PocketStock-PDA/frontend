@@ -141,21 +141,28 @@ export default function HomePage() {
 
         {/* 수집 잔돈 통합 블록 */}
         <div className="rounded-2xl bg-brand-surface p-4">
-          <SectionHeader
-            className="mb-2"
-            title="수집한 잔돈"
-            action={
-              <span className="inline-flex items-center gap-1 text-[13px] font-medium text-muted-foreground">
-                총
-                <AmountDisplay
-                  value={data.collectedToday}
-                  size="sm"
-                  className="font-bold text-primary"
-                />
-              </span>
-            }
-          />
-          {/* TODO: 카드 사용 잔돈 등 수집 내역 상세 — /home 응답에 없음, 백엔드 확정 후 추가 */}
+          <SectionHeader className="mb-2" title="수집한 잔돈" />
+          {data.collectedSources.some((s) => s.sourceType === "CARD") && (
+            <div className="space-y-2">
+              {data.collectedSources
+                .filter((s) => s.sourceType === "CARD")
+                .map((s) => {
+                const Icon = SOURCE_ICON[s.sourceType];
+                return (
+                  <StatCard
+                    key={`collected-${s.sourceType}-${s.name}`}
+                    orientation="row"
+                    icon={<Icon className="size-4" />}
+                    title={s.name}
+                    subtitle={SOURCE_LABEL[s.sourceType]}
+                    value={
+                      <AmountDisplay value={s.amount} size="md" className="font-bold" />
+                    }
+                  />
+                );
+              })}
+            </div>
+          )}
 
           <p className="mb-2 mt-4 text-[13px] font-medium text-muted-foreground">
             수집 가능한 잔돈

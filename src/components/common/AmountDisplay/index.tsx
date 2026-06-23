@@ -13,7 +13,7 @@ const sizeMap: Record<Size, string> = {
 };
 
 export interface AmountDisplayProps {
-  value: number | string;
+  value: number | string | null | undefined;
   currency?: Currency;
   size?: Size;
   /** 입출금 ± 표기 (양수 +, 음수 -) */
@@ -32,7 +32,14 @@ export function AmountDisplay({
   className,
 }: AmountDisplayProps) {
   // Decimal로 절댓값/부호 계산 (Number 사전 변환 시 정밀도 손실 방지)
-  const d = new Decimal(value);
+  // 응답 누락/이상치(null·undefined·NaN 등)는 0으로 방어 — 렌더 경로 크래시 방지
+  let d: Decimal;
+  try {
+    d = new Decimal(value ?? 0);
+    if (!d.isFinite()) d = new Decimal(0);
+  } catch {
+    d = new Decimal(0);
+  }
   const abs = d.abs().toString();
   const formatted = currency === "USD" ? formatUSD(abs) : formatKRW(abs);
   const sign = signed ? (d.gt(0) ? "+" : d.lt(0) ? "-" : "") : "";
