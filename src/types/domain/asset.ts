@@ -17,9 +17,19 @@ export interface MaturityTriggerAccount {
   interestRate: number;
 }
 
+export interface DividendStockItem {
+  stockCode: string;
+  stockName: string;
+  category: string;
+  dividendYield: number;
+  tags: string[];
+  exDividendDate: string | null;
+  reason: string;
+}
+
 export interface MaturityRecommendationResponse {
   triggerAccount: MaturityTriggerAccount | null;
-  recommendations: unknown[];
+  recommendations: DividendStockItem[];
 }
 
 export interface AssetPortfolioItem {
