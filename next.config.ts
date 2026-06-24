@@ -4,6 +4,12 @@ import withPWA from "@ducanh2912/next-pwa";
 const nextConfig: NextConfig = {
   reactCompiler: true,
   turbopack: {},
+  // iCloud(~/Desktop·Documents 동기화)가 빠르게 변하는 .next를 동기화/회수하면서
+  // routes-manifest 등을 치워버려 dev에서 ENOENT 500이 반복되는 문제 회피.
+  // dev 빌드 산출물을 ".nosync" 접미사 폴더로 빼 iCloud 동기화 대상에서 제외한다.
+  // (prod 빌드/배포는 기존 .next 그대로 사용)
+  distDir:
+    process.env.NODE_ENV === "development" ? ".next-dev.nosync" : ".next",
   // 개발용 same-origin 프록시: 브라우저 /api/* → 백엔드로 포워딩 (CORS 회피).
   // afterFiles 단계라 로컬 라우트(/api/push/*)가 우선 매칭되어 보존됨.
   // 운영(S3+CloudFront)은 이 rewrite가 아니라 CloudFront 경로 라우팅이 담당.

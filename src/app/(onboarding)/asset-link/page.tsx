@@ -51,6 +51,7 @@ type Step =
   | "CLEANUP"
   | "CLEANUP_DONE"
   | "BANK_SELECT"
+  | "BANK_LOADING"
   | "BANK_DONE"
   | "CARD"
   | "AUTO_AGREE";
@@ -114,6 +115,13 @@ export default function AssetLinkPage() {
   const [transferred, setTransferred] = useState<BankAccount[]>([]);
 
   const dormantList = dormant.data ?? [];
+  // "총 잠자는 돈"에 휴면계좌 잔액도 포함한다. 발견 시 합산되고, 해지하면 잔액이 CMA로 옮겨가며
+  // 목록(closed_at IS NULL)에서 빠져 총액에서 자동 제외 → 해지한 금액이 총액에 반영된다.
+  const dormantTotal = dormantList.reduce(
+    (sum, d) => sum.plus(toDecimal(d.balance)),
+    toDecimal(0),
+  );
+  const sleepingTotal = toDecimal(scan.data?.totalAmount ?? 0).plus(dormantTotal);
   // 소액 이체 대상 후보: 비휴면 + KRW 원화 계좌 + 잔액 보유.
   // SOL트래블(외화/FX)은 앞에서 따로 연동·적립하므로 계좌 잔액에서 제외(KRW만).
   const bankEligible = (bank.data ?? []).filter(
@@ -153,7 +161,7 @@ export default function AssetLinkPage() {
       return;
     }
     setTransferred(accounts);
-    setStep("CLEANUP");
+    setStep("BANK_LOADING");
     saveSettings.mutate(
       accounts.map((a) => ({
         sourceType: "ACCOUNT" as const,
@@ -208,7 +216,7 @@ export default function AssetLinkPage() {
       {step === "RESULT" && (
         <ResultView
           sources={scan.data?.sources ?? []}
-          total={scan.data?.totalAmount ?? 0}
+          total={sleepingTotal.toNumber()}
           dormantCount={dormantList.length}
           // 은행 계좌 잔돈 → 소액 이체(17, 505), 휴면계좌 → 휴면 발견(14)
           onCheckAccount={() => setStep("BANK_SELECT")}
@@ -249,6 +257,8 @@ export default function AssetLinkPage() {
         ))}
 
       {step === "CLEANUP" && <CleanupLoadingView />}
+
+      {step === "BANK_LOADING" && <CleanupLoadingView variant="bank" />}
 
       {step === "CLEANUP_DONE" && (
         <CleanupDoneView
@@ -998,35 +1008,47 @@ function DormantSelectView({
 }
 
 // ── 6. 정리 중 (로딩, 19) ──────────────────────────────────────────────────────
-const CLEANUP_STEPS = [
-  "해지 가능한지 확인 중",
-  "잔액 옮김 계좌 확인 중",
-  "예상 금액 확인 중",
-];
+// 휴면계좌 해지(dormant)와 은행계좌 잔돈 이전(bank)이 같은 로딩 레이아웃을 공유하되
+// 진행 문구는 플로우별로 구분한다.
+const LOADING_COPY = {
+  dormant: {
+    title: ["정리할 수 있는", "계좌인지 알아볼게요"],
+    steps: ["해지 가능한지 확인 중", "잔액 옮김 계좌 확인 중", "예상 금액 확인 중"],
+  },
+  bank: {
+    title: ["은행계좌 잔돈을", "모을 준비를 하고 있어요"],
+    steps: ["계좌 잔돈 확인 중", "이체 가능 여부 확인 중", "모으기 설정 적용 중"],
+  },
+} as const;
 
-function CleanupLoadingView() {
+function CleanupLoadingView({
+  variant = "dormant",
+}: {
+  variant?: keyof typeof LOADING_COPY;
+}) {
+  const { title, steps } = LOADING_COPY[variant];
   const [active, setActive] = useState(0);
   useEffect(() => {
     const t = setInterval(
-      () => setActive((a) => (a + 1) % CLEANUP_STEPS.length),
+      () => setActive((a) => (a + 1) % steps.length),
       700,
     );
     return () => clearInterval(t);
-  }, []);
+  }, [steps.length]);
 
   return (
     <div className="flex min-h-[calc(100vh-5rem)] flex-col items-center justify-center text-center">
       <h2 className="text-xl font-bold leading-snug text-foreground">
-        정리할 수 있는
+        {title[0]}
         <br />
-        계좌인지 알아볼게요
+        {title[1]}
       </h2>
       <p className="mt-2 text-sm text-muted-foreground">
         화면을 나가면 처음부터 시작해요
       </p>
 
       <div className="mt-8 w-full max-w-xs space-y-3 text-left">
-        {CLEANUP_STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const on = i <= active;
           return (
             <div key={s} className="flex items-center gap-2">

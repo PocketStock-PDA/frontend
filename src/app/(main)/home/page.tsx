@@ -48,6 +48,10 @@ const SOURCE_LABEL: Record<CollectSourceType, string> = {
   POINT: "포인트",
 };
 
+// 잔돈 대시보드 표시 타이틀 — ACCOUNT/POINT는 백엔드 name(기관명) 대신 고정 라벨로 노출.
+const sourceTitle = (sourceType: CollectSourceType, name: string) =>
+  sourceType === "ACCOUNT" ? "은행 잔돈" : sourceType === "POINT" ? "포인트" : name;
+
 interface QuickLink {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -188,10 +192,14 @@ export default function HomePage() {
                     key={`collected-${s.sourceType}-${s.name}`}
                     orientation="row"
                     icon={<Icon className="size-4" />}
-                    title={s.name}
+                    title={sourceTitle(s.sourceType, s.name)}
                     subtitle={SOURCE_LABEL[s.sourceType]}
                     value={
-                      <AmountDisplay value={s.amount} size="md" className="font-bold" />
+                      <AmountDisplay
+                        value={s.amount}
+                        size="md"
+                        className="font-bold"
+                      />
                     }
                   />
                 );
@@ -213,10 +221,14 @@ export default function HomePage() {
                     key={`${s.sourceType}-${s.name}`}
                     orientation="tile"
                     icon={<Icon className="size-4" />}
-                    title={s.name}
+                    title={sourceTitle(s.sourceType, s.name)}
                     subtitle={SOURCE_LABEL[s.sourceType]}
                     value={
-                      <AmountDisplay value={s.amount} size="sm" className="font-bold" />
+                      <AmountDisplay
+                        value={s.amount}
+                        size="sm"
+                        className="font-bold"
+                      />
                     }
                   />
                 );
