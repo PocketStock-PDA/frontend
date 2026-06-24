@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
 import { Button } from "@/components/ui/button";
 
@@ -38,6 +39,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         variant="outline"
         size="sm"
         className="shrink-0 border-primary/30 text-xs text-primary"
+        onClick={() => toast.info("준비 중이에요")}
       >
         {item.buttonLabel}
       </Button>
