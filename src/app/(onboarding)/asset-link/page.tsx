@@ -29,8 +29,6 @@ import { useDormantAccounts } from "@/hooks/queries/useDormantAccounts";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useLinkAssets } from "@/hooks/mutations/useLinkAssets";
 import { useCloseDormant } from "@/hooks/mutations/useCloseDormant";
-import { useCollectSource } from "@/hooks/mutations/useCollectSource";
-import { useCollectChange } from "@/hooks/mutations/useCollectChange";
 import { useSaveCollectSettings } from "@/hooks/mutations/useSaveCollectSettings";
 import { formatKRW } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
@@ -106,8 +104,6 @@ export default function AssetLinkPage() {
   const dormant = useDormantAccounts(dormantActive);
   const bank = useBankAccounts(step === "RESULT" || step === "BANK_SELECT");
   const close = useCloseDormant();
-  const collectSource = useCollectSource();
-  const collectAll = useCollectChange();
   const saveSettings = useSaveCollectSettings();
 
   const [selectedDormant, setSelectedDormant] = useState<Set<number>>(new Set());
@@ -124,8 +120,7 @@ export default function AssetLinkPage() {
     (a) => !a.isDormant && a.currency === "KRW" && toDecimal(a.balance).greaterThan(0),
   );
 
-  const busy =
-    collectSource.isPending || collectAll.isPending || saveSettings.isPending;
+  const busy = saveSettings.isPending;
 
   // 계좌 선택(17, 휴면) 진입: 휴면 목록 전체 선택 기본값
   const enterDormantSelect = () => {
@@ -149,10 +144,10 @@ export default function AssetLinkPage() {
     });
   };
 
-  // 은행 계좌 소액 이체(17) "확인" → 설정 반영(ACCOUNT·기준금액) → collect/account → 완료(20)
+  // 은행 계좌 소액 이체(17) "확인" → 설정 반영(ACCOUNT·기준금액)만 저장(수집은 홈에서) → 완료(20)
   const runBankTransfer = (accounts: BankAccount[], threshold: number) => {
     if (busy) return;
-    // 계좌가 없거나 선택 안 했으면 이체 없이 결과로 복귀
+    // 계좌가 없거나 선택 안 했으면 결과로 복귀
     if (accounts.length === 0) {
       setStep("RESULT");
       return;
@@ -167,14 +162,8 @@ export default function AssetLinkPage() {
         threshold,
       })),
       {
-        onSuccess: () =>
-          collectSource.mutate("account", {
-            onSuccess: () => setStep("BANK_DONE"),
-            onError: (e) => {
-              toast.error(errMsg(e));
-              setStep("BANK_SELECT");
-            },
-          }),
+        // 실제 수집(collect)은 하지 않음 — 홈 대시보드에서 잔돈으로 보이고, 홈 버튼으로만 수집
+        onSuccess: () => setStep("BANK_DONE"),
         onError: (e) => {
           toast.error(errMsg(e));
           setStep("BANK_SELECT");
@@ -183,22 +172,11 @@ export default function AssetLinkPage() {
     );
   };
 
-  // 자동 적립 동의(16) "동의하고 시작" → 발견한 잔돈 전체 수집(account·card·point·fx) → 홈.
-  // POST /cma/collect는 소스별로 돌며 수집할 게 없는 소스는 건너뜀(FX는 CMA 달러 잔액에 반영).
+  // 자동 적립 동의(16) "동의하고 시작" → 수집은 하지 않고 홈으로.
+  // 발견한 잔돈은 홈 대시보드에 자원별로 표시되고, 실제 수집은 홈의 "CMA로 모으기" 버튼에서만 실행한다.
   // TODO: 소수점 주식 선택(선물) 화면을 16과 홈 사이에 넣을 예정.
   const finishAndGoHome = () => {
-    if (busy) return;
-    collectAll.mutate(undefined, {
-      onSuccess: () => router.replace("/home"),
-      onError: (e) => {
-        // 수집할 잔돈이 전혀 없으면(INVALID_INPUT, 400) 정상 — 토스트 없이 홈으로.
-        if (e instanceof ApiError && e.status === 400) {
-          router.replace("/home");
-          return;
-        }
-        toast.error(errMsg(e));
-      },
-    });
+    router.replace("/home");
   };
 
   return (
@@ -1383,20 +1361,20 @@ function BankSelectView({
   return (
     <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
       <h2 className="text-xl font-bold leading-snug text-foreground">
-        선택한 계좌의 잔액을
+        선택한 계좌의 잔돈을
         <br />
-        포켓스톡으로 이전할게요
+        CMA로 모을 준비를 할게요
       </h2>
       <p className="mt-2 text-sm text-muted-foreground">
         원하지 않으면 선택을 해제해주세요
       </p>
 
-      {/* 이체 기준 금액 */}
+      {/* 수집 기준 금액 */}
       <div className="mt-5 flex items-center justify-between">
         <span className="text-[13px] font-medium text-muted-foreground">
-          이체 기준 금액
+          수집 기준 금액
         </span>
-        <span className="text-[11px] text-muted-foreground">미만 잔액만 이체</span>
+        <span className="text-[11px] text-muted-foreground">미만 잔액만 수집</span>
       </div>
       <div className="mt-2 grid grid-cols-3 gap-2">
         {TRANSFER_THRESHOLDS.map((t) => {
@@ -1468,9 +1446,9 @@ function BankSelectView({
       <div className="mt-4 rounded-xl bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
         <p className="font-bold text-foreground">확인해주세요</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4">
-          <li>기준 금액 미만 잔액만 포켓스톡 CMA로 이체해요</li>
-          <li>처리 완료된 이체는 취소할 수 없어요</li>
-          <li>잔액을 옮길 때 이체수수료가 발생할 수 있어요</li>
+          <li>기준 금액 미만 잔액만 모으기 대상에 담겨요</li>
+          <li>실제 모으기는 홈에서 CMA로 모으기 버튼을 누를 때 실행돼요</li>
+          <li>잔액을 모을 때 이체수수료가 발생할 수 있어요</li>
         </ul>
       </div>
 
@@ -1496,9 +1474,14 @@ function BankDoneView({
 }) {
   return (
     <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
-      <h2 className="text-2xl font-bold text-foreground">
-        잔액 이전을 완료했어요
+      <h2 className="text-2xl font-bold leading-snug text-foreground">
+        모으기 설정을
+        <br />
+        완료했어요
       </h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        홈에서 CMA로 모으기 버튼을 누르면 한 번에 모여요
+      </p>
 
       <div className="mt-6 space-y-2">
         {accounts.map((a) => (
@@ -1520,7 +1503,7 @@ function BankDoneView({
               </p>
             </div>
             <span className="shrink-0 text-sm font-bold text-primary">
-              이체 완료
+              설정 완료
             </span>
           </div>
         ))}

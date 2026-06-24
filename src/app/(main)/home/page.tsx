@@ -178,11 +178,10 @@ export default function HomePage() {
         {/* 수집 잔돈 통합 블록 */}
         <div className="rounded-2xl bg-brand-surface p-4">
           <SectionHeader className="mb-2" title="수집한 잔돈" />
-          {data.collectedSources.some((s) => s.sourceType === "CARD") && (
+          {/* 이번 달 수집한 잔돈 — 은행(신한은행)·카드·포인트 모두 각 소스 행으로 표시 */}
+          {data.collectedSources.length > 0 && (
             <div className="space-y-2">
-              {data.collectedSources
-                .filter((s) => s.sourceType === "CARD")
-                .map((s) => {
+              {data.collectedSources.map((s) => {
                 const Icon = SOURCE_ICON[s.sourceType];
                 return (
                   <StatCard
