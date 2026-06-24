@@ -22,8 +22,8 @@ const MENU: { label: string; href: string }[] = [
   { label: "주식 자동모으기 설정", href: "/trading/auto" },
   { label: "거래 내역", href: "#" },
   { label: "내 자산", href: "/asset" },
-  { label: "포인트", href: "#" },
-  { label: "마이페이지", href: "#" },
+  { label: "포인트", href: "/points" },
+  { label: "마이페이지", href: "/my" },
 ];
 
 /** 우측 슬라이드 전체메뉴 사이드바. uiStore로 제어. */

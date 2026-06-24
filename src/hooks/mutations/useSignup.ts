@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
+import { deviceHeader } from "@/hooks/mutations/useAuth";
 import type { TermItem } from "@/types/domain/account";
 import type {
   AuthMethodType,
@@ -86,10 +87,15 @@ export function useCompleteSignup() {
         phone: person.phone,
       });
 
-      const login = await api.post<LoginResult>("/api/auth/login", {
-        username: account.username,
-        password: account.password,
-      });
+      // 간편 로그인은 기기 바인딩(X-Device-Id)이라, 등록도 로그인과 동일한 기기로 묶어야
+      // 이후 login/pin 이 같은 기기 자격증명을 찾는다. (등록 누락 시 401 PIN 불일치)
+      const device = deviceHeader();
+
+      const login = await api.post<LoginResult>(
+        "/api/auth/login",
+        { username: account.username, password: account.password },
+        { headers: device },
+      );
 
       const auth = {
         headers: { Authorization: `Bearer ${login.accessToken}` },
@@ -101,7 +107,7 @@ export function useCompleteSignup() {
       await api.post(
         "/api/users/auth-method",
         { type: authMethod.type, value: authMethod.value },
-        auth,
+        { headers: { ...auth.headers, ...device } },
       );
 
       return login;
