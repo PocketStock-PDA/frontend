@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { z } from "zod";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -302,6 +303,42 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
 // ── 2. 휴대폰 본인확인 (SMS) ───────────────────────────────────────────────────
 const CARRIERS = ["SKT", "KT", "LGU+", "알뜰폰(SKT)", "알뜰폰(KT)", "알뜰폰(LG)"];
 
+// ── 입력 검증 (zod) ────────────────────────────────────────────────────────────
+/** 입력 중 자동 하이픈: 숫자만 추려 010-0000-0000 형태로 (최대 11자리). 포맷 전용 — 검증은 zod 담당. */
+function formatPhone(raw: string): string {
+  const d = raw.replace(/\D/g, "").slice(0, 11);
+  if (d.length < 4) return d;
+  if (d.length < 8) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}
+
+/** 010으로 시작하는 휴대폰 11자리(숫자만) */
+const phoneSchema = z
+  .string()
+  .regex(/^010\d{8}$/, "010으로 시작하는 휴대폰 번호 11자리를 입력해 주세요.");
+
+/** 주민번호 뒷 첫자리 — 내국인 1~4만 허용 */
+const residentBackSchema = z
+  .string()
+  .regex(/^[1-4]$/, "뒷자리 첫 숫자는 1~4만 입력할 수 있어요.");
+
+/**
+ * 주민번호 앞 6자리(YYMMDD) 생년월일 유효성.
+ * 달력상 실제 날짜인지는 zod 내장 규칙이 없어 refine으로 검사.
+ * 세기는 뒷 첫자리로 판별(1·2→19xx, 3·4→20xx). 미입력 시 2000년대 가정(2월 윤일은 뒷자리 입력 후 확정).
+ */
+const residentFrontSchema = (backFirst?: string) =>
+  z.string().refine((front) => {
+    if (!/^\d{6}$/.test(front)) return false;
+    const yy = Number(front.slice(0, 2));
+    const mm = Number(front.slice(2, 4));
+    const dd = Number(front.slice(4, 6));
+    if (mm < 1 || mm > 12) return false;
+    const century = backFirst === "1" || backFirst === "2" ? 1900 : 2000;
+    const lastDay = new Date(century + yy, mm, 0).getDate(); // mm은 1-based → 해당 월 마지막 날
+    return dd >= 1 && dd <= lastDay;
+  }, "생년월일(앞 6자리)이 올바르지 않아요.");
+
 function VerifyStep({ onNext }: { onNext: (p: Person) => void }) {
   const [name, setName] = useState("");
   const [front, setFront] = useState("");
@@ -321,11 +358,29 @@ function VerifyStep({ onNext }: { onNext: (p: Person) => void }) {
   }, []);
 
   const phoneDigits = phone.replace(/\D/g, "");
+  const phoneCheck = phoneSchema.safeParse(phoneDigits);
+  const backCheck = residentBackSchema.safeParse(back);
+  const frontCheck = residentFrontSchema(back).safeParse(front);
+
+  // 인라인 메시지 — 사용자가 해당 칸을 충분히 입력했을 때만 노출(입력 도중엔 침묵)
+  const phoneError =
+    phoneDigits.length > 0 && !phoneCheck.success
+      ? phoneCheck.error.issues[0]?.message
+      : null;
+  const frontError =
+    front.length === 6 && !frontCheck.success
+      ? frontCheck.error.issues[0]?.message
+      : null;
+  const backError =
+    back.length === 1 && !backCheck.success
+      ? backCheck.error.issues[0]?.message
+      : null;
+
   const infoOk =
     name.trim().length > 0 &&
-    front.length === 6 &&
-    back.length === 1 &&
-    phoneDigits.length >= 10;
+    frontCheck.success &&
+    backCheck.success &&
+    phoneCheck.success;
   const expired = sent && remain <= 0;
   const mm = String(Math.floor(remain / 60)).padStart(2, "0");
   const ss = String(remain % 60).padStart(2, "0");
@@ -404,9 +459,13 @@ function VerifyStep({ onNext }: { onNext: (p: Person) => void }) {
             <span className="text-lg tracking-widest text-muted-foreground">●●●●●●</span>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          주민등록번호 뒷자리는 첫 숫자만 입력합니다.
-        </p>
+        {frontError || backError ? (
+          <p className="text-xs text-destructive">{frontError ?? backError}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            주민등록번호 뒷자리는 첫 숫자만 입력합니다.
+          </p>
+        )}
       </div>
 
       <div className="space-y-1.5">
@@ -435,11 +494,14 @@ function VerifyStep({ onNext }: { onNext: (p: Person) => void }) {
         <span className="text-sm font-medium text-foreground">휴대폰 번호</span>
         <Input
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => setPhone(formatPhone(e.target.value))}
           inputMode="tel"
           placeholder="010-0000-0000"
           className="h-12"
         />
+        {phoneError && (
+          <p className="text-xs text-destructive">{phoneError}</p>
+        )}
       </div>
 
       {!sent ? (
