@@ -46,6 +46,7 @@ function generateSubColors(hex: string, n: number): string[] {
 // ── 듀얼 차트 레이아웃 상수 ──────────────────────────────────────────────────
 const S = 88;
 const ST = 14;
+const SMALL_POP = 4; // 작은 차트 선택 세그먼트 pop 거리
 const L = 148;
 const LT = 20;
 const GAP = 28;
@@ -72,9 +73,10 @@ function calcConnectPoints(data: { value: number }[], idx: number) {
   const r = S / 2;
   const t1 = Math.PI / 2 - half;
   const t2 = Math.PI / 2 + half;
+  // 세그먼트가 항상 우측(+x)으로 pop되므로 x에 SMALL_POP 더함
   return {
-    p1: { x: SCX + r * Math.sin(t1), y: SCY - r * Math.cos(t1) },
-    p2: { x: SCX + r * Math.sin(t2), y: SCY - r * Math.cos(t2) },
+    p1: { x: SCX + r * Math.sin(t1) + SMALL_POP, y: SCY - r * Math.cos(t1) },
+    p2: { x: SCX + r * Math.sin(t2) + SMALL_POP, y: SCY - r * Math.cos(t2) },
   };
 }
 
@@ -235,7 +237,7 @@ export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
                     thickness={ST}
                     selectedIndex={selectedIdx ?? undefined}
                     onSegmentClick={handleSelect}
-                    popDistance={4}
+                    popDistance={SMALL_POP}
                     rotate={smallChartRotation}
                     centerLabel={
                       <div className="text-center">
@@ -305,26 +307,27 @@ export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
                         <circle cx={LCX} cy={LCY} r={LR} fill="black" />
                       </mask>
                     </defs>
-                    <polygon
-                      points={`${connectPts.p1.x},${connectPts.p1.y} ${connectPts.p2.x},${connectPts.p2.y} ${RP2.x},${RP2.y} ${RP1.x},${RP1.y}`}
-                      fill={`${catColor}18`}
-                      stroke="none"
-                      mask={`url(#${maskId})`}
-                    />
-                    <line
-                      x1={connectPts.p1.x} y1={connectPts.p1.y}
-                      x2={RP1.x} y2={RP1.y}
-                      stroke={`${catColor}55`}
-                      strokeWidth={1}
-                      strokeDasharray="3 2"
-                    />
-                    <line
-                      x1={connectPts.p2.x} y1={connectPts.p2.y}
-                      x2={RP2.x} y2={RP2.y}
-                      stroke={`${catColor}55`}
-                      strokeWidth={1}
-                      strokeDasharray="3 2"
-                    />
+                    <g mask={`url(#${maskId})`}>
+                      <polygon
+                        points={`${connectPts.p1.x},${connectPts.p1.y} ${connectPts.p2.x},${connectPts.p2.y} ${RP2.x},${RP2.y} ${RP1.x},${RP1.y}`}
+                        fill={`${catColor}18`}
+                        stroke="none"
+                      />
+                      <line
+                        x1={connectPts.p1.x} y1={connectPts.p1.y}
+                        x2={RP1.x} y2={RP1.y}
+                        stroke={`${catColor}55`}
+                        strokeWidth={1}
+                        strokeDasharray="3 2"
+                      />
+                      <line
+                        x1={connectPts.p2.x} y1={connectPts.p2.y}
+                        x2={RP2.x} y2={RP2.y}
+                        stroke={`${catColor}55`}
+                        strokeWidth={1}
+                        strokeDasharray="3 2"
+                      />
+                    </g>
                   </svg>
                 )}
               </div>
