@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Decimal from "decimal.js";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown } from "lucide-react";
 import { DonutChart } from "@/components/common/DonutChart";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
@@ -45,8 +44,8 @@ function generateSubColors(hex: string, n: number): string[] {
 }
 
 // ── 듀얼 차트 레이아웃 상수 ──────────────────────────────────────────────────
-const S = 108;
-const ST = 16;
+const S = 88;
+const ST = 14;
 const L = 148;
 const LT = 20;
 const GAP = 28;
@@ -60,14 +59,9 @@ const LCX = S + GAP + L / 2;
 const LCY = DH / 2;
 const LR = L / 2;
 
-const RP1 = {
-  x: LCX + LR * Math.sin(-Math.PI / 3),
-  y: LCY - LR * Math.cos(-Math.PI / 3),
-};
-const RP2 = {
-  x: LCX + LR * Math.sin((4 * Math.PI) / 3),
-  y: LCY - LR * Math.cos((4 * Math.PI) / 3),
-};
+// 오른쪽 차트 최상단·최하단
+const RP1 = { x: LCX, y: LCY - LR };
+const RP2 = { x: LCX, y: LCY + LR };
 
 function calcConnectPoints(data: { value: number }[], idx: number) {
   const total = data.reduce((s, d) => s + d.value, 0);
@@ -103,6 +97,7 @@ interface AssetPortfolioCardProps { portfolio: AssetPortfolioItem[] }
 export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const maskId = useId();
 
   const isDrillDown = selectedIdx !== null;
   const selectedCategory =
@@ -302,10 +297,19 @@ export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
                     height={DH}
                     overflow="visible"
                   >
+                    <defs>
+                      <mask id={maskId}>
+                        <rect x="0" y="0" width={DW} height={DH} fill="white" />
+                        {/* 왼쪽·오른쪽 차트 원 내부 제외 */}
+                        <circle cx={SCX} cy={SCY} r={S / 2} fill="black" />
+                        <circle cx={LCX} cy={LCY} r={LR} fill="black" />
+                      </mask>
+                    </defs>
                     <polygon
                       points={`${connectPts.p1.x},${connectPts.p1.y} ${connectPts.p2.x},${connectPts.p2.y} ${RP2.x},${RP2.y} ${RP1.x},${RP1.y}`}
                       fill={`${catColor}18`}
                       stroke="none"
+                      mask={`url(#${maskId})`}
                     />
                     <line
                       x1={connectPts.p1.x} y1={connectPts.p1.y}
@@ -329,82 +333,95 @@ export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
         </AnimatePresence>
       </div>
 
-      {/* ── 카테고리 아코디언 리스트 ── */}
-      <div className="mt-3 space-y-0.5">
+      {/* ── 카테고리 칩 선택 ── */}
+      <div className="mt-3 grid grid-cols-4 gap-2">
         {portfolio.map((item, idx) => {
           const color = getCategoryColor(item.category);
           const isSelected = selectedIdx === idx;
           return (
-            <div key={item.category} className="overflow-hidden rounded-xl">
-              <button
-                type="button"
-                onClick={(e) => handleSelect(idx, e)}
-                className={cn(
-                  "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors duration-200",
-                  isSelected ? "bg-muted/80" : "hover:bg-muted/40",
-                )}
-              >
-                <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                <span className="flex-1 text-sm font-medium text-foreground">{item.category}</span>
-                <span className="text-sm font-bold text-foreground">{formatKRW(item.amount)}</span>
-                <span className="w-10 shrink-0 text-right text-xs text-muted-foreground">
-                  {item.ratio.toFixed(1)}%
+            <button
+              key={item.category}
+              type="button"
+              onClick={(e) => handleSelect(idx, e)}
+              className={cn(
+                "flex flex-col items-center gap-0.5 rounded-xl py-2 text-center transition-all duration-200",
+                isSelected ? "" : "bg-muted/60 text-muted-foreground",
+              )}
+              style={
+                isSelected
+                  ? { backgroundColor: `${color}18`, border: `1.5px solid ${color}` }
+                  : undefined
+              }
+            >
+              <div className="flex items-center gap-1">
+                <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} />
+                <span className="text-xs font-medium" style={isSelected ? { color } : undefined}>
+                  {item.category}
                 </span>
-                <ChevronDown
-                  className={cn(
-                    "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                    isSelected && "rotate-180",
-                  )}
-                />
-              </button>
-
-              <AnimatePresence>
-                {isSelected && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
-                    className="overflow-hidden"
-                  >
-                    <div className="space-y-1 px-3 pb-2.5 pt-1">
-                      {subLoading ? (
-                        <p className="py-2 text-center text-xs text-muted-foreground">로딩 중…</p>
-                      ) : subItems.length === 0 ? (
-                        <p className="py-2 text-center text-xs text-muted-foreground">내역 없음</p>
-                      ) : (
-                        subItems.map((subItem, i) => {
-                          const ratio = subTotal > 0 ? (subItem.amount / subTotal) * 100 : 0;
-                          return (
-                            <div
-                              key={subItem.name}
-                              className="flex items-center gap-2.5 rounded-lg bg-background/60 px-2.5 py-2"
-                            >
-                              <span
-                                className="size-1.5 shrink-0 rounded-full"
-                                style={{ backgroundColor: subColors[i] }}
-                              />
-                              <span className="min-w-0 flex-1 truncate text-xs text-foreground">
-                                {subItem.name}
-                              </span>
-                              <span className="shrink-0 text-xs font-semibold text-foreground">
-                                {formatKRW(subItem.amount)}
-                              </span>
-                              <span className="w-9 shrink-0 text-right text-[10px] text-muted-foreground">
-                                {ratio.toFixed(1)}%
-                              </span>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+              </div>
+              <span className="text-[11px] font-semibold" style={isSelected ? { color } : undefined}>
+                {item.ratio.toFixed(1)}%
+              </span>
+            </button>
           );
         })}
       </div>
+
+      {/* ── 선택 카테고리 상세 ── */}
+      <AnimatePresence>
+        {isDrillDown && (
+          <motion.div
+            key="detail"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="mt-3"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full" style={{ backgroundColor: catColor }} />
+                <span className="text-sm font-semibold text-foreground">{selectedCategory}</span>
+              </div>
+              <span className="text-sm font-bold text-foreground">
+                {formatKRW(selected?.amount ?? 0)}
+              </span>
+            </div>
+
+            {subLoading ? (
+              <p className="py-3 text-center text-xs text-muted-foreground">로딩 중…</p>
+            ) : subItems.length === 0 ? (
+              <p className="py-3 text-center text-xs text-muted-foreground">내역 없음</p>
+            ) : (
+              <div className="space-y-1">
+                {subItems.map((subItem, i) => {
+                  const ratio = subTotal > 0 ? (subItem.amount / subTotal) * 100 : 0;
+                  return (
+                    <div
+                      key={subItem.name}
+                      className="flex items-center gap-2.5 rounded-xl bg-muted/50 px-3 py-2.5"
+                    >
+                      <span
+                        className="size-1.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: subColors[i] }}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                        {subItem.name}
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-foreground">
+                        {formatKRW(subItem.amount)}
+                      </span>
+                      <span className="w-9 shrink-0 text-right text-[10px] text-muted-foreground">
+                        {ratio.toFixed(1)}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
