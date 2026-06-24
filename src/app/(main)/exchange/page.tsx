@@ -1,24 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDown, ChevronRight, RefreshCw, Settings2 } from "lucide-react";
+import { ArrowUp, ArrowDown, ChevronRight, RefreshCw, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Switch } from "@/components/ui/switch";
-import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
-import { useExchangeHistory } from "@/hooks/queries/useExchangeHistory";
-import { useUpdateAutoSettings } from "@/hooks/mutations/useUpdateAutoSettings";
-import type { FxHistoryItem } from "@/types/domain/exchange";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { PinKeypad } from "@/components/common/PinKeypad";
 import { ApiError } from "@/lib/api/client";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
+import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
+import { useExchangeHistory } from "@/hooks/queries/useExchangeHistory";
 import { useKrwToUsd } from "@/hooks/mutations/useKrwToUsd";
 import { useUsdToKrw } from "@/hooks/mutations/useUsdToKrw";
 import { useTxnAuth } from "@/hooks/mutations/useTxnAuth";
+import { useUpdateAutoSettings } from "@/hooks/mutations/useUpdateAutoSettings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
+import type { FxHistoryItem } from "@/types/domain/exchange";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,9 +41,17 @@ function parseTime(updatedAt: string) {
     return updatedAt;
   }
 }
+function fmtDate(dateStr: string) {
+  try {
+    const d = new Date(dateStr);
+    return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, "0")}`;
+  } catch {
+    return dateStr.slice(5, 10).replace("-", ".");
+  }
+}
 
 type Direction = "krw-to-usd" | "usd-to-krw";
-type View = "main" | Direction | "pin";
+type View = "main" | "input" | "pin";
 
 // ── 자동환전 카드 ─────────────────────────────────────────────────────────────
 
@@ -96,15 +104,6 @@ function AutoSettingCard() {
 
 // ── 거래내역 섹션 ─────────────────────────────────────────────────────────────
 
-function fmtDate(dateStr: string) {
-  try {
-    const d = new Date(dateStr);
-    return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, "0")}`;
-  } catch {
-    return dateStr.slice(5, 10).replace("-", ".");
-  }
-}
-
 function HistoryRow({ item }: { item: FxHistoryItem }) {
   const isBuy = item.type === "KRW_TO_USD";
   return (
@@ -112,7 +111,7 @@ function HistoryRow({ item }: { item: FxHistoryItem }) {
       <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-base">
         {isBuy ? "🇺🇸" : "🇰🇷"}
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[13px] font-semibold text-foreground">
           {isBuy ? "외화사기" : "외화팔기"}
           {item.triggerType === "AUTO" && (
@@ -126,7 +125,7 @@ function HistoryRow({ item }: { item: FxHistoryItem }) {
           {fmtDate(item.exchangedAt)} · {fmtRate(item.rate)}원
         </p>
       </div>
-      <div className="text-right shrink-0">
+      <div className="shrink-0 text-right">
         {isBuy ? (
           <>
             <p className="text-[13px] font-bold text-primary">+{fmtUSD(item.usdAmount)}</p>
@@ -160,7 +159,6 @@ function HistorySection() {
           전체보기 <ChevronRight className="size-3.5" />
         </button>
       </div>
-
       {isLoading ? (
         <div className="space-y-3 pb-4">
           {[0, 1, 2].map((i) => (
@@ -211,13 +209,10 @@ function MainView({
 
   return (
     <div className="flex flex-col gap-4 pb-8">
-      {/* 환율 카드 */}
       <div className="rounded-3xl px-5 py-6" style={{ background: "linear-gradient(135deg, #0046FF 0%, #6B3FF5 100%)" }}>
         <div className="mb-3 flex items-center gap-2">
           <span className="text-[11px] font-medium text-white/50">USD/KRW</span>
-          {updatedAt && (
-            <span className="text-[11px] text-white/30">· {parseTime(updatedAt)} 기준</span>
-          )}
+          {updatedAt && <span className="text-[11px] text-white/30">· {parseTime(updatedAt)} 기준</span>}
         </div>
         {isLoading ? (
           <div className="h-9 w-40 animate-pulse rounded-xl bg-white/20" />
@@ -227,15 +222,11 @@ function MainView({
               {fmtRate(buyRate)}
             </span>
             <span className="text-sm font-medium text-white/50">원</span>
-            <span
-              className={`ml-1 text-sm font-bold ${changePositive ? "text-red-300" : "text-blue-300"}`}
-            >
+            <span className={`ml-1 text-sm font-bold ${changePositive ? "text-red-300" : "text-blue-300"}`}>
               {changePositive ? "+" : "-"}{Math.abs(change).toFixed(2)}
             </span>
           </div>
         )}
-
-        {/* 보유 잔액 */}
         <div className="mt-5 grid grid-cols-2 gap-2">
           <div className="rounded-2xl bg-white/10 px-4 py-3">
             <p className="text-[10px] font-medium text-white/40">보유 원화</p>
@@ -248,7 +239,6 @@ function MainView({
         </div>
       </div>
 
-      {/* 살 때 / 팔 때 */}
       <div className="rounded-2xl bg-white px-5 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
@@ -263,46 +253,14 @@ function MainView({
         </div>
       </div>
 
-      {/* 방향 선택 */}
-      <div className="flex flex-col gap-2.5">
-        <button
-          type="button"
-          onClick={() => onSelect("krw-to-usd")}
-          className="flex items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm transition-shadow active:shadow-none"
-        >
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-            <span className="text-xl">🇺🇸</span>
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-[15px] font-bold text-foreground">외화사기</p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">
-              원화로 달러 구매 · 살 때 {fmtRate(buyRate)}원
-            </p>
-          </div>
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-            <ArrowDown className="size-3.5 -rotate-90 text-muted-foreground" />
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSelect("usd-to-krw")}
-          className="flex items-center gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm transition-shadow active:shadow-none"
-        >
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-50">
-            <span className="text-xl">🇰🇷</span>
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-[15px] font-bold text-foreground">외화팔기</p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">
-              달러를 원화로 전환 · 팔 때 {fmtRate(sellRate)}원
-            </p>
-          </div>
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-            <ArrowDown className="size-3.5 -rotate-90 text-muted-foreground" />
-          </div>
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => onSelect("krw-to-usd")}
+        className="h-14 w-full rounded-2xl text-base font-bold"
+        style={{ background: "linear-gradient(135deg, #0046FF 0%, #6B3FF5 100%)", color: "white" }}
+      >
+        환전하기
+      </button>
 
       <AutoSettingCard />
       <HistorySection />
@@ -310,195 +268,158 @@ function MainView({
   );
 }
 
-// ── 원화→달러 입력 화면 ───────────────────────────────────────────────────────
+// ── 환전 입력 화면 ────────────────────────────────────────────────────────────
 
-function KrwToUsdView({
+function ExchangeInputView({
+  direction,
   buyRate,
-  krwBalance,
-  onConfirm,
-}: {
-  buyRate: number;
-  krwBalance: number;
-  onBack: () => void;
-  onConfirm: (amount: number) => void;
-}) {
-  const [inputRaw, setInputRaw] = useState("");
-  const inputAmount = Number(inputRaw.replace(/,/g, "")) || 0;
-  const estimatedUsd = inputAmount > 0 ? inputAmount / buyRate : null;
-  const isOver = inputAmount > krwBalance;
-
-  function setAmount(v: number) {
-    setInputRaw(v > 0 ? v.toLocaleString("ko-KR") : "");
-  }
-  function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.value.replace(/,/g, "").replace(/[^0-9]/g, "");
-    const n = Number(raw);
-    setInputRaw(n > 0 ? n.toLocaleString("ko-KR") : "");
-  }
-
-  return (
-    <div className="flex flex-col gap-4 pb-8">
-      {/* 재원 */}
-      <div className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm">
-        <div>
-          <p className="text-[11px] text-muted-foreground">보유 원화 (재원)</p>
-          <p className="mt-1 text-[17px] font-bold text-foreground">{fmtKRW(krwBalance)}원</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[11px] text-muted-foreground">적용 환율</p>
-          <p className="mt-1 text-[13px] font-semibold text-primary">{fmtRate(buyRate)}원</p>
-        </div>
-      </div>
-
-      {/* 금액 입력 — 중앙 큰 숫자 */}
-      <div className="rounded-2xl bg-white px-5 py-6 shadow-sm">
-        <p className="mb-4 text-[11px] font-medium text-muted-foreground">원화 금액 입력</p>
-        <div className="flex items-baseline gap-2">
-          <Input
-            inputMode="numeric"
-            placeholder="0"
-            value={inputRaw}
-            onChange={handleInput}
-            className={`h-auto border-0 bg-transparent p-0 text-[38px] font-bold leading-none shadow-none focus-visible:ring-0 ${
-              isOver ? "text-destructive" : "text-foreground"
-            }`}
-          />
-          <span className={`shrink-0 text-2xl font-bold ${isOver ? "text-destructive" : "text-muted-foreground"}`}>
-            원
-          </span>
-        </div>
-        {isOver && (
-          <p className="mt-2 text-[11px] font-medium text-destructive">보유 원화를 초과했어요</p>
-        )}
-
-        {/* 빠른 금액 */}
-        <div className="mt-5 flex gap-2">
-          {[10_000, 50_000, 100_000].map((amt) => (
-            <button
-              key={amt}
-              type="button"
-              onClick={() => setAmount(Math.min(amt, krwBalance))}
-              className="flex-1 rounded-xl bg-muted py-2 text-[12px] font-bold text-foreground transition-colors active:bg-muted/70"
-            >
-              {amt / 10_000}만원
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setAmount(krwBalance)}
-            className="flex-1 rounded-xl bg-primary/10 py-2 text-[12px] font-bold text-primary transition-colors active:bg-primary/20"
-          >
-            전액
-          </button>
-        </div>
-      </div>
-
-      {/* 받을 금액 */}
-      <div className="rounded-2xl bg-white px-5 py-4 shadow-sm">
-        <p className="mb-3 text-[11px] text-muted-foreground">예상 수령액</p>
-        <p className={`text-[26px] font-bold ${estimatedUsd !== null ? "text-primary" : "text-muted-foreground/30"}`}>
-          {estimatedUsd !== null ? fmtUSD(estimatedUsd) : "$0.00"}
-        </p>
-      </div>
-
-      <Button
-        className="h-14 w-full rounded-2xl text-base font-bold"
-        disabled={inputAmount <= 0 || isOver}
-        onClick={() => onConfirm(inputAmount)}
-      >
-        환전하기
-      </Button>
-    </div>
-  );
-}
-
-// ── 달러→원화 입력 화면 ───────────────────────────────────────────────────────
-
-function UsdToKrwView({
   sellRate,
+  krwBalance,
   usdBalance,
+  onSwap,
   onConfirm,
 }: {
+  direction: Direction;
+  buyRate: number;
   sellRate: number;
+  krwBalance: number;
   usdBalance: number;
-  onBack: () => void;
+  onSwap: () => void;
   onConfirm: (amount: number) => void;
 }) {
   const [inputRaw, setInputRaw] = useState("");
-  const inputAmount = Number(inputRaw.replace(/[^0-9.]/g, "")) || 0;
-  const estimatedKrw = inputAmount > 0 ? inputAmount * sellRate : null;
-  const isOver = inputAmount > usdBalance;
 
-  function setAmount(v: number) {
-    setInputRaw(v > 0 ? v.toFixed(2) : "");
+  const isBuy = direction === "krw-to-usd";
+  const rate = isBuy ? buyRate : sellRate;
+  const fromBalance = isBuy ? krwBalance : usdBalance;
+  const inputAmount = isBuy
+    ? Number(inputRaw.replace(/,/g, "")) || 0
+    : Number(inputRaw.replace(/[^0-9.]/g, "")) || 0;
+  const isOver = inputAmount > fromBalance;
+
+  const estimated =
+    inputAmount > 0 ? (isBuy ? inputAmount / buyRate : inputAmount * sellRate) : null;
+
+  function handleFullAmount() {
+    if (isBuy) setInputRaw(fmtKRW(krwBalance));
+    else setInputRaw(usdBalance.toFixed(2));
   }
+
   function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
-    setInputRaw(e.target.value.replace(/[^0-9.]/g, ""));
+    if (isBuy) {
+      const raw = e.target.value.replace(/,/g, "").replace(/[^0-9]/g, "");
+      const n = Number(raw);
+      setInputRaw(n > 0 ? fmtKRW(n) : "");
+    } else {
+      setInputRaw(e.target.value.replace(/[^0-9.]/g, ""));
+    }
   }
+
+  const fromFlag = isBuy ? "🇰🇷" : "🇺🇸";
+  const fromCountry = isBuy ? "한국" : "미국";
+  const fromCurrency = isBuy ? "KRW" : "USD";
+  const fromBalanceStr = isBuy ? `${fmtKRW(krwBalance)}원` : fmtUSD(usdBalance);
+  const fromUnit = isBuy ? "원" : "달러";
+  const fromPlaceholder = isBuy ? "환전할 KRW 금액을 입력해주세요" : "환전할 USD 금액을 입력해주세요";
+
+  const toFlag = isBuy ? "🇺🇸" : "🇰🇷";
+  const toCountry = isBuy ? "미국" : "한국";
+  const toCurrency = isBuy ? "USD" : "KRW";
+  const toBalanceStr = isBuy ? fmtUSD(usdBalance) : `${fmtKRW(krwBalance)}원`;
+  const toUnit = isBuy ? "달러" : "원";
+  const estimatedStr =
+    estimated !== null
+      ? isBuy
+        ? fmtUSD(estimated)
+        : fmtKRW(Math.round(estimated))
+      : null;
 
   return (
-    <div className="flex flex-col gap-4 pb-8">
-      {/* 재원 */}
-      <div className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm">
-        <div>
-          <p className="text-[11px] text-muted-foreground">보유 달러 (재원)</p>
-          <p className="mt-1 text-[17px] font-bold text-foreground">{fmtUSD(usdBalance)}</p>
+    <div className="flex flex-col pb-8">
+      {/* FROM */}
+      <div className="py-6">
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl">{fromFlag}</span>
+            <span className="text-[20px] font-bold">{fromCountry} {fromCurrency}</span>
+          </div>
+          <span className="text-[14px] text-muted-foreground">을</span>
         </div>
-        <div className="text-right">
-          <p className="text-[11px] text-muted-foreground">적용 환율</p>
-          <p className="mt-1 text-[13px] font-semibold text-primary">{fmtRate(sellRate)}원</p>
-        </div>
-      </div>
 
-      {/* 금액 입력 */}
-      <div className="rounded-2xl bg-white px-5 py-6 shadow-sm">
-        <p className="mb-4 text-[11px] font-medium text-muted-foreground">달러 금액 입력</p>
-        <div className="flex items-baseline gap-2">
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-[13px] text-muted-foreground">
+            환전가능금액 {fromBalanceStr}
+          </span>
+          <button
+            type="button"
+            onClick={handleFullAmount}
+            className="text-[13px] font-bold text-primary"
+          >
+            전액입력
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 border-b border-border pb-4">
           <Input
-            inputMode="decimal"
-            placeholder="0.00"
+            autoFocus
+            inputMode={isBuy ? "numeric" : "decimal"}
+            placeholder={fromPlaceholder}
             value={inputRaw}
             onChange={handleInput}
-            className={`h-auto border-0 bg-transparent p-0 text-[38px] font-bold leading-none shadow-none focus-visible:ring-0 ${
+            className={`h-auto flex-1 border-0 bg-transparent p-0 text-[17px] shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-0 ${
               isOver ? "text-destructive" : "text-foreground"
             }`}
           />
-          <span className={`shrink-0 text-2xl font-bold ${isOver ? "text-destructive" : "text-muted-foreground"}`}>
-            USD
+          <span className={`shrink-0 text-[15px] ${isOver ? "text-destructive" : "text-muted-foreground"}`}>
+            {fromUnit}
           </span>
         </div>
-        {isOver && (
-          <p className="mt-2 text-[11px] font-medium text-destructive">보유 달러를 초과했어요</p>
-        )}
 
-        {/* 빠른 금액 */}
-        <div className="mt-5 flex gap-2">
-          {[10, 50, 100].map((amt) => (
-            <button
-              key={amt}
-              type="button"
-              onClick={() => setAmount(Math.min(amt, usdBalance))}
-              className="flex-1 rounded-xl bg-muted py-2 text-[12px] font-bold text-foreground transition-colors active:bg-muted/70"
-            >
-              ${amt}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setAmount(usdBalance)}
-            className="flex-1 rounded-xl bg-primary/10 py-2 text-[12px] font-bold text-primary transition-colors active:bg-primary/20"
-          >
-            전액
-          </button>
-        </div>
+        {isOver && (
+          <p className="mt-2 text-[11px] text-destructive">환전 가능 금액을 초과했어요</p>
+        )}
       </div>
 
-      {/* 받을 금액 */}
-      <div className="rounded-2xl bg-white px-5 py-4 shadow-sm">
-        <p className="mb-3 text-[11px] text-muted-foreground">예상 수령액</p>
-        <p className={`text-[26px] font-bold ${estimatedKrw !== null ? "text-primary" : "text-muted-foreground/30"}`}>
-          {estimatedKrw !== null ? `${fmtKRW(Math.round(estimatedKrw))}원` : "0원"}
-        </p>
+      {/* 스왑 버튼 */}
+      <div className="flex justify-center py-1">
+        <button
+          type="button"
+          onClick={onSwap}
+          className="flex items-center gap-0.5 rounded-2xl bg-muted px-6 py-3.5 transition-colors active:bg-muted/70"
+        >
+          <ArrowUp className="size-4 text-foreground" />
+          <ArrowDown className="size-4 text-foreground" />
+        </button>
+      </div>
+
+      {/* TO */}
+      <div className="py-6">
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl">{toFlag}</span>
+            <span className="text-[20px] font-bold">{toCountry} {toCurrency}</span>
+          </div>
+          <span className="text-[14px] text-muted-foreground">로 바꿀게요</span>
+        </div>
+
+        <p className="mb-4 text-[13px] text-muted-foreground">잔고 {toBalanceStr}</p>
+
+        <div className="flex items-center gap-3 border-b border-border pb-4">
+          <span className="shrink-0 text-[17px] text-muted-foreground">≒</span>
+          <span
+            className={`flex-1 text-[17px] font-bold ${
+              estimatedStr ? "text-foreground" : "text-muted-foreground/30"
+            }`}
+          >
+            {estimatedStr ?? "0"}
+          </span>
+          <span className="shrink-0 text-[15px] text-muted-foreground">{toUnit}</span>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-[12px] font-semibold text-primary">우대환율 적용</span>
+          <span className="text-[12px] text-muted-foreground">적용환율: {fmtRate(rate)}원</span>
+        </div>
       </div>
 
       <Button
@@ -543,7 +464,7 @@ function PinView({ onVerified }: { onBack: () => void; onVerified: () => void })
 
 export default function ExchangePage() {
   const [view, setView] = useState<View>("main");
-  const [pendingDir, setPendingDir] = useState<Direction>("krw-to-usd");
+  const [direction, setDirection] = useState<Direction>("krw-to-usd");
   const [pendingAmount, setPendingAmount] = useState(0);
 
   const { data: rate, isLoading } = useExchangeRate();
@@ -554,12 +475,7 @@ export default function ExchangePage() {
   const usdBalance = cma?.cmaBalance.USD ?? 0;
   const krwBalance = cma?.cmaBalance.KRW ?? 0;
 
-  const viewTitle: Record<View, string> = {
-    main: "환전",
-    "krw-to-usd": "외화사기",
-    "usd-to-krw": "외화팔기",
-    pin: "계좌 비밀번호",
-  };
+  const headerTitle = view === "pin" ? "계좌 비밀번호" : "환전";
 
   async function executeExchange(dir: Direction, amount: number) {
     try {
@@ -586,26 +502,27 @@ export default function ExchangePage() {
     }
   }
 
-  function handleConfirm(dir: Direction, amount: number) {
-    setPendingDir(dir);
+  function handleConfirm(amount: number) {
     setPendingAmount(amount);
-    executeExchange(dir, amount);
+    executeExchange(direction, amount);
   }
 
-  const backTarget: Record<View, View> = {
-    main: "main",
-    "krw-to-usd": "main",
-    "usd-to-krw": "main",
-    pin: pendingDir,
-  };
+  function handleSwap() {
+    setDirection((d) => (d === "krw-to-usd" ? "usd-to-krw" : "krw-to-usd"));
+  }
+
+  function handleSelect(dir: Direction) {
+    setDirection(dir);
+    setView("input");
+  }
 
   return (
     <>
       <AppHeader
         variant="sub"
-        title={viewTitle[view]}
+        title={headerTitle}
         {...(view !== "main" && {
-          onBack: () => setView(backTarget[view]),
+          onBack: () => setView(view === "pin" ? "input" : "main"),
         })}
       />
 
@@ -618,32 +535,27 @@ export default function ExchangePage() {
           change={rate?.change ?? 0}
           updatedAt={rate?.updatedAt}
           isLoading={isLoading}
-          onSelect={(dir) => setView(dir)}
+          onSelect={handleSelect}
         />
       )}
 
-      {view === "krw-to-usd" && rate && (
-        <KrwToUsdView
+      {view === "input" && rate && (
+        <ExchangeInputView
+          key={direction}
+          direction={direction}
           buyRate={rate.buyRate}
-          krwBalance={krwBalance}
-          onBack={() => setView("main")}
-          onConfirm={(amount) => handleConfirm("krw-to-usd", amount)}
-        />
-      )}
-
-      {view === "usd-to-krw" && rate && (
-        <UsdToKrwView
           sellRate={rate.sellRate}
+          krwBalance={krwBalance}
           usdBalance={usdBalance}
-          onBack={() => setView("main")}
-          onConfirm={(amount) => handleConfirm("usd-to-krw", amount)}
+          onSwap={handleSwap}
+          onConfirm={handleConfirm}
         />
       )}
 
       {view === "pin" && (
         <PinView
-          onBack={() => setView(pendingDir)}
-          onVerified={() => executeExchange(pendingDir, pendingAmount)}
+          onBack={() => setView("input")}
+          onVerified={() => executeExchange(direction, pendingAmount)}
         />
       )}
     </>
