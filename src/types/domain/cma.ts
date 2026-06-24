@@ -2,12 +2,14 @@
 
 export type Currency = "KRW" | "USD";
 
-export type CollectSourceType = "ACCOUNT" | "CARD" | "POINT";
+export type CollectSourceType = "ACCOUNT" | "CARD" | "POINT" | "FX";
 
 export interface CollectSource {
   sourceType: CollectSourceType;
   name: string;
   amount: number;
+  /** 금액 통화 — 표기 분기 기준 (FX는 USD) */
+  currency: Currency;
 }
 
 export interface CmaHome {
@@ -21,8 +23,10 @@ export interface CmaHome {
   collectedSources: CollectSource[];
   /** 수집 가능한 잔돈 소스 목록 */
   collectSources: CollectSource[];
-  /** 수집 가능한 잔돈 총액 (모으기 버튼 금액) */
+  /** 수집 가능한 KRW 총액 (POINT + ACCOUNT) — 모으기 버튼 금액 */
   totalCollectable: number;
+  /** 수집 가능한 USD 총액 (FX) — totalCollectable과 합산하지 않고 별도 표시 */
+  totalCollectableUsd: number;
 }
 
 // 잔돈 모으기 실행 (POST /api/cma/collect) — 구현됨
