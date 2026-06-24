@@ -64,7 +64,7 @@ const QUICK_LINKS: QuickLink[] = [
   { label: "자산", icon: Wallet, href: "/asset" },
   { label: "모으기 설정", icon: Settings, href: "/trading/auto" },
   { label: "거래 내역", icon: Receipt, href: "#" },
-  { label: "포인트", icon: Coins, href: "#" },
+  { label: "포인트", icon: Coins, href: "/points" },
 ];
 
 const WELCOME_DISMISS_KEY = "ps.welcomeEvent.dismissed";
