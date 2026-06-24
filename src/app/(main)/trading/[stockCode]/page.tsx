@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
@@ -198,13 +199,23 @@ export default function TradePage() {
       <AppHeader
         variant="sub"
         title={
-          <span className="flex flex-col leading-tight">
-            <span className="text-xs text-muted-foreground">
-              {detail.stockName}
-            </span>
-            <span className="flex items-baseline gap-1.5">
-              <AmountDisplay value={price.toString()} size="md" className="font-bold" />
-              <ChangeIndicator value={detail.price.changeRate} percent size="sm" />
+          <span className="flex items-center gap-2">
+            <Avatar className="size-7">
+              {detail.logoUrl && (
+                <AvatarImage src={detail.logoUrl} alt={detail.stockName} />
+              )}
+              <AvatarFallback className="text-[10px]">
+                {(detail.stockCode ?? detail.stockName).trim().charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="flex flex-col leading-tight">
+              <span className="text-xs text-muted-foreground">
+                {detail.stockName}
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <AmountDisplay value={price.toString()} size="md" className="font-bold" />
+                <ChangeIndicator value={detail.price.changeRate} percent size="sm" />
+              </span>
             </span>
           </span>
         }
