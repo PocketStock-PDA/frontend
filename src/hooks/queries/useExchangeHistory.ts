@@ -5,7 +5,7 @@ import type { FxHistory } from "@/types/domain/exchange";
 
 export function useExchangeHistory(page = 0, size = 5) {
   return useQuery({
-    queryKey: queryKeys.exchange.history(page),
+    queryKey: queryKeys.exchange.history(page, size),
     queryFn: () =>
       api.get<FxHistory>("/api/exchange/history", {
         params: { page: String(page), size: String(size) },
