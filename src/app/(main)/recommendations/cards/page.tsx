@@ -175,7 +175,7 @@ function CardItem({ card, rank }: { card: CardRecommendationItem; rank: number }
         <Button
           className="h-9 w-full text-sm"
           onClick={() => {
-            if (card.applyUrl) window.open(card.applyUrl, "_blank", "noopener,noreferrer");
+            if (card.applyUrl?.startsWith("https://")) window.open(card.applyUrl, "_blank", "noopener,noreferrer");
           }}
           disabled={!card.applyUrl}
         >
