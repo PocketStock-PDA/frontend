@@ -157,10 +157,16 @@ export default function HomePage() {
     );
   }
 
-  // 모으기 버튼 금액: KRW·USD 별도 합계를 함께 표기 (각 0 초과만 노출, 둘 다 0이면 0원)
+  // 모으기 버튼 금액: KRW·USD 별도 합계를 함께 표기.
+  // 임계 판단은 표시 단위(원/센트)와 동일 기준 — 포매터(ROUND_DOWN) 출력이 0이면 노출/활성 제외
+  // (예: 0<USD<0.01은 "$0.00"으로 찍히므로 "0인데 활성" 모순 방지)
+  const krwLabel = formatKRW(data.totalCollectable);
+  const usdLabel = formatUSD(data.totalCollectableUsd);
+  const hasKrw = krwLabel !== formatKRW(0);
+  const hasUsd = usdLabel !== formatUSD(0);
   const collectAmounts = [
-    data.totalCollectable > 0 ? formatKRW(data.totalCollectable) : null,
-    data.totalCollectableUsd > 0 ? formatUSD(data.totalCollectableUsd) : null,
+    hasKrw ? krwLabel : null,
+    hasUsd ? usdLabel : null,
   ].filter(Boolean);
   const collectLabel =
     collectAmounts.length > 0 ? collectAmounts.join(" · ") : formatKRW(0);
@@ -254,10 +260,7 @@ export default function HomePage() {
           <Button
             variant="outline"
             onClick={() => collect.mutate()}
-            disabled={
-              (data.totalCollectable <= 0 && data.totalCollectableUsd <= 0) ||
-              collect.isPending
-            }
+            disabled={(!hasKrw && !hasUsd) || collect.isPending}
             className="h-12 w-full border-primary text-base font-bold text-primary hover:bg-brand-surface"
           >
             <ArrowUp />
