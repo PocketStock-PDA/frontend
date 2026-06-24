@@ -276,6 +276,7 @@ function ExchangeInputView({
   sellRate,
   krwBalance,
   usdBalance,
+  isPending,
   onSwap,
   onConfirm,
 }: {
@@ -284,6 +285,7 @@ function ExchangeInputView({
   sellRate: number;
   krwBalance: number;
   usdBalance: number;
+  isPending: boolean;
   onSwap: () => void;
   onConfirm: (amount: number) => void;
 }) {
@@ -424,10 +426,10 @@ function ExchangeInputView({
 
       <Button
         className="h-14 w-full rounded-2xl text-base font-bold"
-        disabled={inputAmount <= 0 || isOver}
+        disabled={inputAmount <= 0 || isOver || isPending}
         onClick={() => onConfirm(inputAmount)}
       >
-        환전하기
+        {isPending ? "처리 중..." : "환전하기"}
       </Button>
     </div>
   );
@@ -466,6 +468,7 @@ export default function ExchangePage() {
   const [view, setView] = useState<View>("main");
   const [direction, setDirection] = useState<Direction>("krw-to-usd");
   const [pendingAmount, setPendingAmount] = useState(0);
+  const [pendingKey, setPendingKey] = useState("");
 
   const { data: rate, isLoading } = useExchangeRate();
   const { data: cma } = useCmaHome();
@@ -477,19 +480,15 @@ export default function ExchangePage() {
 
   const headerTitle = view === "pin" ? "계좌 비밀번호" : "환전";
 
-  async function executeExchange(dir: Direction, amount: number) {
+  const isPending = krwToUsd.isPending || usdToKrw.isPending;
+
+  async function executeExchange(dir: Direction, amount: number, idempotencyKey: string) {
     try {
       if (dir === "krw-to-usd") {
-        const result = await krwToUsd.mutateAsync({
-          krwAmount: amount,
-          idempotencyKey: crypto.randomUUID(),
-        });
+        const result = await krwToUsd.mutateAsync({ krwAmount: amount, idempotencyKey });
         toast.success(`환전 완료! ${fmtUSD(result.exchangedUsd)} 받았어요`);
       } else {
-        const result = await usdToKrw.mutateAsync({
-          usdAmount: amount,
-          idempotencyKey: crypto.randomUUID(),
-        });
+        const result = await usdToKrw.mutateAsync({ usdAmount: amount, idempotencyKey });
         toast.success(`환전 완료! ${fmtKRW(Math.round(result.exchangedKrw))}원 받았어요`);
       }
       setView("main");
@@ -503,8 +502,10 @@ export default function ExchangePage() {
   }
 
   function handleConfirm(amount: number) {
+    const key = crypto.randomUUID();
     setPendingAmount(amount);
-    executeExchange(direction, amount);
+    setPendingKey(key);
+    executeExchange(direction, amount, key);
   }
 
   function handleSwap() {
@@ -547,6 +548,7 @@ export default function ExchangePage() {
           sellRate={rate.sellRate}
           krwBalance={krwBalance}
           usdBalance={usdBalance}
+          isPending={isPending}
           onSwap={handleSwap}
           onConfirm={handleConfirm}
         />
@@ -555,7 +557,7 @@ export default function ExchangePage() {
       {view === "pin" && (
         <PinView
           onBack={() => setView("input")}
-          onVerified={() => executeExchange(direction, pendingAmount)}
+          onVerified={() => executeExchange(direction, pendingAmount, pendingKey)}
         />
       )}
     </>
