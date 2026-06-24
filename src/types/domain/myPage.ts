@@ -26,8 +26,8 @@ export interface MyPageSettings {
 export interface MyProfile {
   /** 회원 이름 (아바타 이니셜은 첫 글자에서 파생) */
   name: string;
-  /** 마스킹된 이메일 */
-  email: string;
+  /** 회원 아이디(username) — 이름 아래 보조 식별자로 노출 */
+  username: string;
   /** 포켓스톡 CMA 잔액 */
   cmaBalance: number;
   /** 퍼즐판 총 평가금액 */

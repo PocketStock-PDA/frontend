@@ -2,10 +2,10 @@ import type { MyProfile } from "@/types/domain/myPage";
 
 // ⚠️ 임시 mock — 사용자 프로필/설정 API 미구현.
 // 백엔드 연결 시 이 파일과 useMyProfile 의 mock queryFn 을 제거하면 됨.
-// test1 유저가 마이페이지(화면 25)를 그대로 확인할 수 있도록 Figma 값으로 채움.
+// 화면 확인용 더미 값 — 이름/아이디는 실제 회원으로 오인되지 않도록 가상값 사용.
 export const MOCK_MY_PROFILE: MyProfile = {
-  name: "김준형",
-  email: "kim****han@shinhan.com",
+  name: "홍길동",
+  username: "test1",
   cmaBalance: 37840,
   puzzleValuation: 71516,
   linkedAccounts: [

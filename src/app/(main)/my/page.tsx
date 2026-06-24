@@ -93,12 +93,13 @@ export default function MyPage() {
   const [cardChangeCollect, setCardChangeCollect] = useState(false);
   const [monthlySavingCollect, setMonthlySavingCollect] = useState(false);
 
-  // mock 로드 후 토글 초기값 동기화 (한 번)
-  const [synced, setSynced] = useState(false);
-  if (profile && !synced) {
+  // 프로필이 바뀔 때마다 토글을 서버 설정값으로 재동기화.
+  // effect 대신 렌더 중 이전값 비교 (set-state-in-effect 룰 회피 + React 권장 패턴).
+  const [prevProfile, setPrevProfile] = useState(profile);
+  if (profile && profile !== prevProfile) {
+    setPrevProfile(profile);
     setCardChangeCollect(profile.settings.cardChangeCollect);
     setMonthlySavingCollect(profile.settings.monthlySavingCollect);
-    setSynced(true);
   }
 
   const handleLogout = () => {
@@ -125,7 +126,7 @@ export default function MyPage() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold text-foreground">{profile.name}</p>
-          <p className="text-[11px] text-muted-foreground">{profile.email}</p>
+          <p className="text-[11px] text-muted-foreground">{profile.username}</p>
         </div>
       </div>
 
