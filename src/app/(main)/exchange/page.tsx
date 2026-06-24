@@ -387,7 +387,8 @@ function ExchangeInputView({
         <button
           type="button"
           onClick={onSwap}
-          className="flex items-center gap-0.5 rounded-2xl bg-muted px-6 py-3.5 transition-colors active:bg-muted/70"
+          disabled={isPending}
+          className="flex items-center gap-0.5 rounded-2xl bg-muted px-6 py-3.5 transition-colors active:bg-muted/70 disabled:opacity-40"
         >
           <ArrowUp className="size-4 text-foreground" />
           <ArrowDown className="size-4 text-foreground" />
@@ -469,6 +470,7 @@ export default function ExchangePage() {
   const [direction, setDirection] = useState<Direction>("krw-to-usd");
   const [pendingAmount, setPendingAmount] = useState(0);
   const [pendingKey, setPendingKey] = useState("");
+  const [pendingDir, setPendingDir] = useState<Direction>("krw-to-usd");
 
   const { data: rate, isLoading } = useExchangeRate();
   const { data: cma } = useCmaHome();
@@ -505,6 +507,7 @@ export default function ExchangePage() {
     const key = crypto.randomUUID();
     setPendingAmount(amount);
     setPendingKey(key);
+    setPendingDir(direction);
     executeExchange(direction, amount, key);
   }
 
@@ -557,7 +560,7 @@ export default function ExchangePage() {
       {view === "pin" && (
         <PinView
           onBack={() => setView("input")}
-          onVerified={() => executeExchange(direction, pendingAmount, pendingKey)}
+          onVerified={() => executeExchange(pendingDir, pendingAmount, pendingKey)}
         />
       )}
     </>
