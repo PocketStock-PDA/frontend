@@ -9,6 +9,7 @@ import {
   BookText,
   Coins,
   CreditCard,
+  Globe,
   Landmark,
   PieChart,
   Receipt,
@@ -29,7 +30,7 @@ import { WelcomeEventDialog } from "@/components/features/onboarding/WelcomeEven
 import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import { useWelcomeRewards } from "@/hooks/queries/useWelcomeRewards";
 import { useCollectChange } from "@/hooks/mutations/useCollectChange";
-import { formatKRW } from "@/lib/utils/currency";
+import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import type { CollectSourceType } from "@/types/domain/cma";
 
@@ -40,12 +41,14 @@ const SOURCE_ICON: Record<
   ACCOUNT: Landmark,
   CARD: CreditCard,
   POINT: Coins,
+  FX: Globe,
 };
 
 const SOURCE_LABEL: Record<CollectSourceType, string> = {
   ACCOUNT: "계좌",
   CARD: "카드",
   POINT: "포인트",
+  FX: "외화",
 };
 
 // 잔돈 대시보드 표시 타이틀 — ACCOUNT/POINT는 백엔드 name(기관명) 대신 고정 라벨로 노출.
@@ -154,6 +157,20 @@ export default function HomePage() {
     );
   }
 
+  // 모으기 버튼 금액: KRW·USD 별도 합계를 함께 표기.
+  // 임계 판단은 표시 단위(원/센트)와 동일 기준 — 포매터(ROUND_DOWN) 출력이 0이면 노출/활성 제외
+  // (예: 0<USD<0.01은 "$0.00"으로 찍히므로 "0인데 활성" 모순 방지)
+  const krwLabel = formatKRW(data.totalCollectable);
+  const usdLabel = formatUSD(data.totalCollectableUsd);
+  const hasKrw = krwLabel !== formatKRW(0);
+  const hasUsd = usdLabel !== formatUSD(0);
+  const collectAmounts = [
+    hasKrw ? krwLabel : null,
+    hasUsd ? usdLabel : null,
+  ].filter(Boolean);
+  const collectLabel =
+    collectAmounts.length > 0 ? collectAmounts.join(" · ") : formatKRW(0);
+
   return (
     <>
       {welcomeEligible && (
@@ -197,6 +214,7 @@ export default function HomePage() {
                     value={
                       <AmountDisplay
                         value={s.amount}
+                        currency={s.currency}
                         size="md"
                         className="font-bold"
                       />
@@ -226,6 +244,7 @@ export default function HomePage() {
                     value={
                       <AmountDisplay
                         value={s.amount}
+                        currency={s.currency}
                         size="sm"
                         className="font-bold"
                       />
@@ -241,11 +260,11 @@ export default function HomePage() {
           <Button
             variant="outline"
             onClick={() => collect.mutate()}
-            disabled={data.totalCollectable <= 0 || collect.isPending}
+            disabled={(!hasKrw && !hasUsd) || collect.isPending}
             className="h-12 w-full border-primary text-base font-bold text-primary hover:bg-brand-surface"
           >
             <ArrowUp />
-            {formatKRW(data.totalCollectable)} CMA로 모으기
+            {collectLabel} CMA로 모으기
           </Button>
           {collect.isError && (
             <p className="mt-2 text-center text-xs text-destructive">
