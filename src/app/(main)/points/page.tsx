@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
 import { Button } from "@/components/ui/button";
+import { useCmaHome } from "@/hooks/queries/useCmaHome";
 
 interface ActivityItem {
   emoji: string;
@@ -48,6 +49,12 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 }
 
 export default function PointsPage() {
+  const { data } = useCmaHome();
+
+  const pointBalance = data?.collectSources
+    .filter((s) => s.sourceType === "POINT")
+    .reduce((sum, s) => sum + s.amount, 0) ?? 0;
+
   return (
     <>
       <AppHeader variant="sub" title="포인트" />
@@ -58,19 +65,28 @@ export default function PointsPage() {
             <p className="mb-1 text-[11px] font-medium text-primary-foreground/70">
               마이신한포인트 ⓘ
             </p>
-            <button className="flex items-center gap-0.5 text-2xl font-bold text-primary-foreground">
-              0P <ChevronRight className="size-5" />
+            <button
+              className="flex items-center gap-0.5 text-2xl font-bold text-primary-foreground"
+              onClick={() => toast.info("준비 중이에요")}
+            >
+              {pointBalance.toLocaleString()}P <ChevronRight className="size-5" />
             </button>
           </div>
 
           <div className="relative z-10 mt-4 divide-y divide-white/20 rounded-xl bg-white/20 px-4">
-            <button className="flex w-full items-center justify-between py-3">
+            <button
+              className="flex w-full items-center justify-between py-3"
+              onClick={() => toast.info("준비 중이에요")}
+            >
               <span className="text-[13px] text-primary-foreground/80">내 멤버십</span>
               <span className="flex items-center gap-0.5 text-[13px] font-semibold text-primary-foreground">
                 일반 <ChevronRight className="size-3.5" />
               </span>
             </button>
-            <button className="flex w-full items-center justify-between py-3">
+            <button
+              className="flex w-full items-center justify-between py-3"
+              onClick={() => toast.info("준비 중이에요")}
+            >
               <span className="text-[13px] text-primary-foreground/80">내 쿠폰</span>
               <span className="flex items-center gap-0.5 text-[13px] font-semibold text-primary-foreground">
                 더보기 <ChevronRight className="size-3.5" />
