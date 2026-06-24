@@ -10,6 +10,7 @@ export const queryKeys = {
     institutions: ["asset", "institutions"] as const,
     scan: ["asset", "scan"] as const,
     dormant: ["asset", "dormant"] as const,
+    externalHoldings: ["asset", "external-holdings"] as const,
   },
   portfolio: {
     all: ["portfolio"] as const,

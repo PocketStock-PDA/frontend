@@ -115,6 +115,18 @@ export interface AssetPortfolioItem {
   ratio: number;
 }
 
+export interface ExternalHoldingStock {
+  stockCode: string;
+  stockName: string;
+  quantity: number;
+  evaluated: number;
+}
+
+export interface ExternalHolding {
+  company: string;
+  stocks: ExternalHoldingStock[];
+}
+
 export interface AssetSummaryResponse {
   netAssets: number;
   momDiff: number;

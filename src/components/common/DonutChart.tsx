@@ -14,6 +14,8 @@ export interface DonutChartProps {
   onSegmentClick?: (index: number, e: React.MouseEvent<SVGCircleElement>) => void;
   /** 선택 시 튀어나오는 거리(px), 기본 8 */
   popDistance?: number;
+  /** 추가 회전 각도(deg) — 내부 -90° 기준 회전에 더해져 세그먼트 배치를 회전시킴 */
+  rotate?: number;
 }
 
 /** 의존성 없는 SVG 도넛 차트 (포트폴리오 구성/가계부 카테고리) */
@@ -26,6 +28,7 @@ export function DonutChart({
   selectedIndex,
   onSegmentClick,
   popDistance = 8,
+  rotate = 0,
 }: DonutChartProps) {
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -45,7 +48,15 @@ export function DonutChart({
       className={cn("relative inline-flex shrink-0", className)}
       style={{ width: size, height: size }}
     >
-      <svg width={size} height={size} className="-rotate-90" overflow="visible">
+      <svg
+        width={size}
+        height={size}
+        style={{
+          transform: `rotate(${-90 + rotate}deg)`,
+          transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+        }}
+        overflow="visible"
+      >
         <circle
           cx={size / 2}
           cy={size / 2}
