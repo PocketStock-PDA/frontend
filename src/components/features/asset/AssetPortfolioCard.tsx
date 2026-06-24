@@ -67,8 +67,10 @@ const RP2 = { x: LCX, y: LCY + LR };
 function calcConnectPoints(data: { value: number }[], idx: number) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return null;
+  const item = data[idx];
+  if (!item) return null;
   const C = 2 * Math.PI * ((S - ST) / 2);
-  const len = (data[idx]!.value / total) * C;
+  const len = (item.value / total) * C;
   const half = (len / C) * Math.PI;
   const r = S / 2;
   const t1 = Math.PI / 2 - half;
@@ -83,12 +85,14 @@ function calcConnectPoints(data: { value: number }[], idx: number) {
 function calcRotation(data: { value: number }[], idx: number): number {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return 0;
+  const item = data[idx];
+  if (!item) return 0;
   const C = 2 * Math.PI * ((S - ST) / 2);
   let off = 0;
-  for (let i = 0; i < idx; i++) off += (data[i]!.value / total) * C;
-  const len = (data[idx]!.value / total) * C;
-  const θCenter = ((off + len / 2) / C) * 2 * Math.PI;
-  return (Math.PI / 2 - θCenter) * (180 / Math.PI);
+  for (let i = 0; i < idx; i++) off += (data[i]?.value ?? 0) / total * C;
+  const len = (item.value / total) * C;
+  const thetaCenter = ((off + len / 2) / C) * 2 * Math.PI;
+  return (Math.PI / 2 - thetaCenter) * (180 / Math.PI);
 }
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
