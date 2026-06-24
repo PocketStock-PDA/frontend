@@ -102,7 +102,7 @@ export default function AutoInvestPage() {
     <AutoInvestForm
       stockCode={stockCode}
       stockName={detailQ.data.stockName}
-      currentPrice={detailQ.data.price.currentPrice}
+      currentPrice={detailQ.data.price?.currentPrice ?? 0}
       initial={autoQ.data ?? defaultSetting(stockCode)}
     />
   );
@@ -216,7 +216,13 @@ function AutoInvestForm({
               <button
                 key={o.value}
                 type="button"
-                onClick={() => setFrequency(o.value)}
+                onClick={() => {
+                  setFrequency(o.value);
+                  // 주1회 전환 시 요일을 1개로 정규화(중복 방지)
+                  if (o.value === "WEEKLY" && weekdays.length !== 1) {
+                    setWeekdays([weekdays[0] ?? "MON"]);
+                  }
+                }}
                 className={cn(
                   "h-11 flex-1 rounded-lg text-sm font-bold transition-colors",
                   frequency === o.value
@@ -233,7 +239,7 @@ function AutoInvestForm({
           {frequency === "WEEKLY" && (
             <section className="space-y-2">
               <p className="text-sm text-muted-foreground">요일 선택</p>
-              <WeekdayPicker value={weekdays} onChange={setWeekdays} />
+              <WeekdayPicker value={weekdays} onChange={setWeekdays} single />
             </section>
           )}
 

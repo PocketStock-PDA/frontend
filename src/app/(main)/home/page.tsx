@@ -62,7 +62,7 @@ const QUICK_LINKS: QuickLink[] = [
   { label: "가계부", icon: BookText, href: "/budget" },
   { label: "포트폴리오", icon: PieChart, href: "/portfolio" },
   { label: "자산", icon: Wallet, href: "/asset" },
-  { label: "적립식 설정", icon: Settings, href: "/trading/auto" },
+  { label: "모으기 설정", icon: Settings, href: "/trading/auto" },
   { label: "거래 내역", icon: Receipt, href: "#" },
   { label: "포인트", icon: Coins, href: "#" },
 ];
@@ -112,6 +112,7 @@ export default function HomePage() {
           open={eventOpen}
           onOpenChange={setEventOpen}
           onProceed={() => router.push("/account/open")}
+          ctaLabel="계좌 개설하러 가기"
         />
         <div className="flex min-h-[75vh] flex-col items-center justify-center gap-3 px-6 text-center">
           <h2 className="text-2xl font-bold text-foreground">
@@ -159,8 +160,9 @@ export default function HomePage() {
           }}
           onProceed={() => {
             dismissWelcome();
-            router.push("/account/open");
+            router.push("/reward");
           }}
+          ctaLabel="종목 선택하러 가기"
         />
       )}
       <HomeHeader userName="회원" />
@@ -176,11 +178,10 @@ export default function HomePage() {
         {/* 수집 잔돈 통합 블록 */}
         <div className="rounded-2xl bg-brand-surface p-4">
           <SectionHeader className="mb-2" title="수집한 잔돈" />
-          {data.collectedSources.some((s) => s.sourceType === "CARD") && (
+          {/* 이번 달 수집한 잔돈 — 은행(신한은행)·카드·포인트 모두 각 소스 행으로 표시 */}
+          {data.collectedSources.length > 0 && (
             <div className="space-y-2">
-              {data.collectedSources
-                .filter((s) => s.sourceType === "CARD")
-                .map((s) => {
+              {data.collectedSources.map((s) => {
                 const Icon = SOURCE_ICON[s.sourceType];
                 return (
                   <StatCard
