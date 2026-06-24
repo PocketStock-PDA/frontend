@@ -3,6 +3,7 @@ export const queryKeys = {
     all: ["asset"] as const,
     summary: ["asset", "summary"] as const,
     maturity: ["asset", "maturity"] as const,
+    cardRecommendation: ["asset", "card-recommendation"] as const,
     spending: (period: { year: number; month: number }) =>
       ["asset", "spending", period] as const,
     bankAccounts: ["asset", "bank-accounts"] as const,

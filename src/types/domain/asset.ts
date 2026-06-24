@@ -84,6 +84,31 @@ export interface MaturityRecommendationResponse {
   recommendations: DividendStockItem[];
 }
 
+export interface CardBenefitItem {
+  category: string;
+  description: string;
+}
+
+export interface TopCategory {
+  category: string;
+  percentage: number;
+}
+
+export interface CardRecommendationItem {
+  cardName: string;
+  cardType: string;
+  imageUrl: string | null;
+  applyUrl: string | null;
+  annualFee: number;
+  benefits: CardBenefitItem[];
+  matchRate: number;
+}
+
+export interface CardRecommendationResponse {
+  topCategories: TopCategory[];
+  recommendations: CardRecommendationItem[];
+}
+
 export interface AssetPortfolioItem {
   category: string;
   amount: number;

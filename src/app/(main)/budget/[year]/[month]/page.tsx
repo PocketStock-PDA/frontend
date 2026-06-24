@@ -2,6 +2,8 @@
 
 import { use } from "react";
 import { format } from "date-fns";
+import { ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
@@ -15,6 +17,7 @@ interface Props {
 }
 
 export default function BudgetMonthPage({ params }: Props) {
+  const router = useRouter();
   const { year: yearStr, month: monthStr } = use(params);
   const year = Number(yearStr);
   const month = Number(monthStr);
@@ -99,17 +102,27 @@ export default function BudgetMonthPage({ params }: Props) {
             </div>
           </section>
 
-          {/* 카드 추천 — 추후 연결 */}
+          {/* 카드 추천 */}
           <div className="-mx-5 h-2 bg-muted" />
           <section>
             <p className="pb-3 text-xs font-medium text-muted-foreground">
               카드 추천
             </p>
-            <div className="rounded-2xl border border-border bg-accent px-4 py-5 text-center">
-              <p className="text-sm text-muted-foreground">
-                내 소비 패턴에 맞는 카드를 곧 추천해 드려요
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/recommendations/cards")}
+              className="flex w-full items-center justify-between rounded-2xl border border-border bg-accent px-4 py-[14px] text-left"
+            >
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  소비 패턴 맞춤 카드 추천
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  내 소비 기준 가장 혜택이 큰 카드를 추천해 드려요
+                </p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+            </button>
           </section>
         </div>
       )}
