@@ -586,7 +586,7 @@ function PasswordStep({
           ? "계좌 비밀번호 4자리를 입력해 주세요"
           : "한 번 더 입력해 주세요"}
       </p>
-      <PinKeypad value={pin} onChange={handleChange} length={4} disabled={pending} />
+      <PinKeypad value={pin} onChange={handleChange} length={4} disabled={pending} secure />
       {pending && (
         <p className="text-center text-sm text-muted-foreground">계좌 개설 중...</p>
       )}
