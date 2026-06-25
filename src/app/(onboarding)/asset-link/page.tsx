@@ -189,9 +189,31 @@ export default function AssetLinkPage() {
   // 자동 적립 동의(16) "동의하고 시작" → 선택된 카드 설정 저장 후 홈으로.
   // 발견한 잔돈은 홈 대시보드에 자원별로 표시되고, 실제 수집은 홈의 "CMA로 모으기" 버튼에서만 실행한다.
   // TODO: 소수점 주식 선택(선물) 화면을 16과 홈 사이에 넣을 예정.
+  // 기존 CARD 설정을 전부 비활성화 후 홈으로 — 동의 철회 or 카드 0개 선택 시 공용
+  const disableCardSettings = () => {
+    const existing = (collectSettings.data ?? []).filter(
+      (s) => s.sourceType === "CARD",
+    );
+    if (existing.length === 0) {
+      router.replace("/home");
+      return;
+    }
+    saveSettings.mutate(
+      existing.map((s) => ({
+        sourceType: "CARD" as const,
+        sourceRefId: s.sourceRefId,
+        enabled: false,
+      })),
+      {
+        onSuccess: () => router.replace("/home"),
+        onError: () => router.replace("/home"),
+      },
+    );
+  };
+
   const finishAndGoHome = () => {
     if (selectedCardIds.size === 0) {
-      router.replace("/home");
+      disableCardSettings();
       return;
     }
     const cardSettings = [...selectedCardIds].map((cardId) => ({
@@ -298,7 +320,7 @@ export default function AssetLinkPage() {
         <AutoAgreeView
           pending={busy}
           onAgree={(collectChecked) =>
-            collectChecked ? setStep("CARD") : router.replace("/home")
+            collectChecked ? setStep("CARD") : disableCardSettings()
           }
           onLater={() => router.replace("/home")}
         />
@@ -1271,7 +1293,7 @@ function CardSelectView({
 
       <Button
         onClick={onNext}
-        disabled={selectedIds.size === 0 && cards.length > 0}
+        disabled={false}
         className="h-12 w-full text-base font-bold"
       >
         선택 완료
