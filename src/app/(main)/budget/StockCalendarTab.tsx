@@ -1,11 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import Decimal from "decimal.js";
 import { FinanceCalendar } from "@/components/common/FinanceCalendar";
+import { ChangeIndicator } from "@/components/common/ChangeIndicator";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useStockCalendar } from "@/hooks/queries/useStockCalendar";
+import { useHoldings } from "@/hooks/queries/useHoldings";
+import { useStockDetails } from "@/hooks/queries/useStockDetails";
+import { formatKRW } from "@/lib/utils/currency";
+import { toDecimal } from "@/lib/utils/decimal";
 import type { StockEvent, StockEventType } from "@/types/domain/stockCalendar";
 
 const EVENT_COLORS: Record<
@@ -33,6 +41,7 @@ const EVENT_LABELS: Record<StockEventType, string> = {
 };
 
 export function StockCalendarTab() {
+  const router = useRouter();
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -48,18 +57,114 @@ export function StockCalendarTab() {
     eventMap.set(e.eventDate, list);
   });
 
+  // ── 보유주식 총 수익률 (포트폴리오 페이지와 동일하게 decimal.js 계산) ──
+  const holdingsQ = useHoldings();
+  const holdings = holdingsQ.data ?? [];
+  const codes = holdings.map((h) => h.stockCode);
+  const details = useStockDetails(codes);
+  const detailsLoading = codes.length > 0 && details.some((d) => d.isLoading);
+  const returnLoading = holdingsQ.isLoading || detailsLoading;
+
+  const totals = holdings.reduce(
+    (acc, h, i) => {
+      const qty = toDecimal(h.quantity);
+      const price = toDecimal(details[i]?.data?.price?.currentPrice);
+      acc.eval = acc.eval.plus(qty.times(price));
+      acc.invested = acc.invested.plus(qty.times(toDecimal(h.avgBuyPrice)));
+      return acc;
+    },
+    { eval: new Decimal(0), invested: new Decimal(0) },
+  );
+  const totalProfit = totals.eval.minus(totals.invested);
+  const totalRate = totals.invested.gt(0)
+    ? totalProfit.div(totals.invested).times(100)
+    : new Decimal(0);
+  const hasHoldings = holdings.length > 0;
+
+  const changeMonth = (m: Date) => {
+    setCalendarMonth(m);
+    setSelectedDate(new Date(m.getFullYear(), m.getMonth(), 1));
+  };
+
   const today = startOfDay(new Date());
 
   return (
     <div>
+      {/* ── 상단 요약 (월 네비 + 총 수익률) — 가계부 탭과 동일 레이아웃 ── */}
+      <div className="mt-4">
+        <div className="mb-0.5 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() =>
+                changeMonth(
+                  new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1),
+                )
+              }
+              aria-label="이전 달"
+            >
+              <ChevronLeft className="size-5 text-muted-foreground" />
+            </button>
+            <span className="text-base font-bold text-foreground underline decoration-foreground underline-offset-4">
+              {format(calendarMonth, "yyyy년 M월")}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                changeMonth(
+                  new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1),
+                )
+              }
+              aria-label="다음 달"
+            >
+              <ChevronRight className="size-5 text-muted-foreground" />
+            </button>
+          </div>
+        </div>
+        {/* 총 수익률 — 탭 시 포트폴리오로 이동 */}
+        <button
+          type="button"
+          onClick={() => router.push("/portfolio")}
+          className="w-full text-left"
+        >
+          <div className="flex items-center justify-end">
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-[11px] text-muted-foreground underline underline-offset-2">
+                내 보유주식 수익률
+              </span>
+              {returnLoading ? (
+                <span className="font-numeric text-xs text-muted-foreground">
+                  계산 중...
+                </span>
+              ) : hasHoldings ? (
+                <div className="flex items-baseline gap-1.5">
+                  <ChangeIndicator
+                    value={totalRate.toNumber()}
+                    percent
+                    size="sm"
+                  />
+                  <span className="font-numeric text-[11px] text-muted-foreground">
+                    {totalProfit.gte(0) ? "+" : "-"}
+                    {formatKRW(totalProfit.abs().toString())}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  보유 종목 없음
+                </span>
+              )}
+            </div>
+          </div>
+        </button>
+      </div>
+
+      {/* ── 달력 ── */}
       <FinanceCalendar
         month={calendarMonth}
-        onMonthChange={(m) => {
-          setCalendarMonth(m);
-          setSelectedDate(new Date(m.getFullYear(), m.getMonth(), 1));
-        }}
+        onMonthChange={changeMonth}
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
+        showHeader={false}
         className="pt-4"
         renderDay={(date, isCurrentMonth) => {
           if (!isCurrentMonth) return <span />;
