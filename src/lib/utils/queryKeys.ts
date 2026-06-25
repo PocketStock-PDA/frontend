@@ -22,6 +22,7 @@ export const queryKeys = {
     transactions: (params: { type?: string; year?: number; month?: number; day?: number }) =>
       ["budget", "transactions", params] as const,
     savings: ["budget", "savings"] as const,
+    transferAccount: ["budget", "transfer-account"] as const,
   },
   trading: {
     all: ["trading"] as const,

@@ -213,7 +213,10 @@ export default function MyPage() {
           title="카드 잔돈 모으기 등록 카드 변경"
           onClick={SOON}
         />
-        <SettingLinkCard title="절약금 이체되는 계좌 변경" onClick={SOON} />
+        <SettingLinkCard
+          title="절약금 이체되는 계좌 변경"
+          onClick={() => router.push("/my/savings-transfer")}
+        />
         <SettingLinkCard title="주단위 적립 금액 하한선 설정" onClick={SOON} />
         <SettingLinkCard title="알림 설정" onClick={SOON} />
         <SettingLinkCard

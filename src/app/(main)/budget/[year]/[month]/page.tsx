@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { format } from "date-fns";
 import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -8,9 +8,11 @@ import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useBudgetGoals, useBudgetCalendar } from "@/hooks/queries/useBudget";
+import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "../../_utils/categoryIcon";
+import type { BudgetGoalCategoryItem } from "@/types/domain/budget";
 
 interface Props {
   params: Promise<{ year: string; month: string }>;
@@ -50,6 +52,26 @@ export default function BudgetMonthPage({ params }: Props) {
 
   const isLoading = goalsQ.isLoading || calendarQ.isLoading;
   const isError = goalsQ.isError;
+  const setGoals = useSetManualGoals();
+  const [isEditing, setIsEditing] = useState(false);
+  const [budgets, setBudgets] = useState<Record<string, string>>({});
+
+  const startEditing = () => {
+    setBudgets(
+      Object.fromEntries(
+        (goalsQ.data?.categories ?? []).map((c) => [c.category, String(c.budget)]),
+      ),
+    );
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    const parsed = (goalsQ.data?.categories ?? []).map((c) => ({
+      category: c.category,
+      budget: Number(budgets[c.category]?.replace(/,/g, "") ?? c.budget),
+    }));
+    setGoals.mutate(parsed, { onSuccess: () => setIsEditing(false) });
+  };
 
   return (
     <>
@@ -92,12 +114,51 @@ export default function BudgetMonthPage({ params }: Props) {
 
           {/* 카테고리별 지출 */}
           <section>
-            <p className="pb-3 text-xs font-medium text-muted-foreground">
-              카테고리별 지출
-            </p>
+            <div className="flex items-center justify-between pb-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                카테고리별 지출
+              </p>
+              {isCurrentMonth && (
+                isEditing ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="text-xs text-muted-foreground"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={setGoals.isPending}
+                      className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                    >
+                      {setGoals.isPending ? "저장 중" : "저장"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground"
+                  >
+                    목표 설정
+                  </button>
+                )
+              )}
+            </div>
             <div className="space-y-[10px]">
               {goalsQ.data.categories.map((cat) => (
-                <CategoryGoalRow key={cat.category} {...cat} />
+                <CategoryGoalRow
+                  key={cat.category}
+                  {...cat}
+                  isEditing={isEditing}
+                  editValue={budgets[cat.category] ?? ""}
+                  onEditChange={(raw) =>
+                    setBudgets((prev) => ({ ...prev, [cat.category]: raw }))
+                  }
+                />
               ))}
             </div>
           </section>
@@ -126,6 +187,7 @@ export default function BudgetMonthPage({ params }: Props) {
           </section>
         </div>
       )}
+
     </>
   );
 }
@@ -134,10 +196,16 @@ function CategoryGoalRow({
   category,
   budget,
   spent,
+  isEditing = false,
+  editValue = "",
+  onEditChange,
 }: {
   category: string;
   budget: number;
   spent: number;
+  isEditing?: boolean;
+  editValue?: string;
+  onEditChange?: (raw: string) => void;
 }) {
   const pct =
     budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
@@ -179,14 +247,21 @@ function CategoryGoalRow({
           >
             {formatKRW(spent)}
           </span>
-          <span
-            className={cn(
-              "text-[11px]",
-              hasSpending ? "text-[#888888]" : "text-[#AAAAAA]",
-            )}
-          >
-            / {formatKRW(budget)}
+          <span className={cn("text-[11px]", hasSpending ? "text-[#888888]" : "text-[#AAAAAA]")}>
+            /
           </span>
+          {isEditing ? (
+            <input
+              inputMode="numeric"
+              value={editValue}
+              onChange={(e) => onEditChange?.(e.target.value.replace(/[^0-9]/g, ""))}
+              className="w-20 border-b border-primary bg-transparent text-right text-[11px] font-semibold text-foreground outline-none"
+            />
+          ) : (
+            <span className={cn("text-[11px]", hasSpending ? "text-[#888888]" : "text-[#AAAAAA]")}>
+              {formatKRW(budget)}
+            </span>
+          )}
         </div>
       </div>
       <div className="h-[5px] w-full overflow-hidden rounded-full bg-muted">
