@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState } from "react";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
-import { RefreshCcw, ChevronRight, X } from "lucide-react";
+import { RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { AppHeader } from "@/components/common/AppHeader";
@@ -11,13 +11,7 @@ import { FinanceCalendar } from "@/components/common/FinanceCalendar";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   useBudgetGoals,
   useBudgetCalendar,
@@ -26,12 +20,15 @@ import {
 } from "@/hooks/queries/useBudget";
 import { getCategoryIcon } from "./_utils/categoryIcon";
 import { useSpendingAnalysis } from "@/hooks/queries/useSpendingAnalysis";
+import { useTransferAccount } from "@/hooks/queries/useTransferAccount";
+import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useAutoBudgetGoals } from "@/hooks/mutations/useAutoBudgetGoals";
-import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
+import { useSetTransferAccount } from "@/hooks/mutations/useSetTransferAccount";
+import { useAgreeCollect } from "@/hooks/mutations/useAgreeCollect";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import { StockCalendarTab } from "./StockCalendarTab";
-import type { BudgetGoalCategoryItem, BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
+import type { BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
 
 // ── 페이지 진입점 ──────────────────────────────────────────────────────────────
 
@@ -196,9 +193,25 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"month" | "day">("month");
-  const [showGoalSheet, setShowGoalSheet] = useState(false);
-  const calendarAreaRef = useRef<HTMLDivElement>(null);
-  const [calendarAreaHeight, setCalendarAreaHeight] = useState<number | undefined>();
+  const [showSetupSheet, setShowSetupSheet] = useState(false);
+  const [setupAccountId, setSetupAccountId] = useState<number | null>(null);
+  const bankAccountsQ = useBankAccounts();
+  const setTransferAccount = useSetTransferAccount();
+  const agreeCollect = useAgreeCollect();
+
+  const handleSetupStart = () => {
+    setSetupAccountId(null);
+    setShowSetupSheet(true);
+  };
+
+  const handleSetupSave = () => {
+    if (setupAccountId == null) return;
+    setTransferAccount.mutate(setupAccountId, {
+      onSuccess: () => agreeCollect.mutate(undefined, {
+        onSuccess: () => setShowSetupSheet(false),
+      }),
+    });
+  };
 
   const handleMonthChange = (newMonth: Date) => {
     setViewMode("month");
@@ -217,11 +230,6 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
     );
   };
 
-  useLayoutEffect(() => {
-    if (calendarAreaRef.current && !calendarAreaHeight) {
-      setCalendarAreaHeight(calendarAreaRef.current.offsetHeight);
-    }
-  });
 
   const handleDateSelect = (date: Date) => {
     if (viewMode === "day" && isSameDay(date, selectedDate)) {
@@ -247,6 +255,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
       : {},
   );
   const savingsQ = useBudgetSavings();
+  const transferAccountQ = useTransferAccount();
 
   const dayMap = new Map<string, CalendarDayItem>();
   calendarQ.data?.days.forEach((d) => dayMap.set(d.date, d));
@@ -299,21 +308,69 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
 
       {tab === "budget" ? (
         <div>
-          {/* ── 캘린더 + 일별 내역 (고정 높이 컨테이너) ── */}
-          <div
-            ref={calendarAreaRef}
-            style={
-              calendarAreaHeight
-                ? { height: calendarAreaHeight, overflow: "hidden" }
-                : undefined
-            }
-          >
+          {/* ── 월별 요약 (월 네비 포함) ── */}
+          <div className="mt-4">
+            {/* 월 네비게이션 */}
+            <div className="mb-0.5 flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleMonthChange(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
+                  aria-label="이전 달"
+                >
+                  <ChevronLeft className="size-5 text-muted-foreground" />
+                </button>
+                <span className="text-base font-bold text-foreground underline decoration-foreground underline-offset-4">
+                  {format(calendarMonth, "yyyy년 M월")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleMonthChange(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
+                  aria-label="다음 달"
+                >
+                  <ChevronRight className="size-5 text-muted-foreground" />
+                </button>
+              </div>
+            </div>
+            {/* 지출 요약 — 전체 탭 시 내역 페이지로 이동 */}
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  `/budget/${calendarMonth.getFullYear()}/${calendarMonth.getMonth() + 1}`,
+                )
+              }
+              className="w-full text-left"
+            >
+              <div className="flex items-center justify-end">
+                <div className="flex w-36 flex-col gap-1">
+                  <span className="text-right text-[11px] text-muted-foreground underline underline-offset-2">
+                    이번 달 예산 사용률
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="h-[7px] flex-1 overflow-hidden rounded-full bg-[#E8F0FB]">
+                      <div
+                        className="h-full rounded-full bg-[#C8DFF8] transition-all"
+                        style={{ width: `${usedPct}%` }}
+                      />
+                    </div>
+                    <span className="font-numeric shrink-0 text-xs font-semibold text-primary">
+                      {usedPct}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          {/* ── 달력 ── */}
           <FinanceCalendar
             month={calendarMonth}
             onMonthChange={handleMonthChange}
             selectedDate={selectedDate}
             onSelectDate={handleDateSelect}
             collapsed={viewMode === "day"}
+            showHeader={false}
             className="pt-4"
             renderDay={(date, isCurrentMonth) => {
               if (!isCurrentMonth) return <span />;
@@ -366,7 +423,6 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             }
           />
 
-          {/* ── 일별 거래내역 (day 모드, 최대 3개) ── */}
           <AnimatePresence>
             {viewMode === "day" && (
               <motion.div
@@ -390,249 +446,141 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                   </button>
                 </div>
                 {txQ.isLoading ? (
-                  <SkeletonCard lines={3} />
+                  <SkeletonCard lines={2} />
                 ) : !txQ.data?.transactions.length ? (
                   <EmptyState title="이 날 소비 내역이 없어요" />
                 ) : (
-                  <>
-                    <div className="divide-y divide-border rounded-2xl border border-border">
-                      {txQ.data.transactions.slice(0, 3).map((tx) => {
-                        const Icon = getCategoryIcon(tx.category);
-                        return (
-                          <div
-                            key={tx.transactionId}
-                            className="flex items-center gap-3 px-4 py-3"
-                          >
-                            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent">
-                              <Icon className="size-[15px] text-primary" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-semibold text-foreground">
-                                {tx.description}
-                              </p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {tx.category} · {formatTxTime(tx.transactedAt)}
-                              </p>
-                            </div>
-                            <span className="font-numeric shrink-0 text-sm font-bold text-foreground">
-                              -{formatKRW(tx.amount)}
-                            </span>
+                  <div className="divide-y divide-border rounded-2xl border border-border">
+                    {txQ.data.transactions.map((tx) => {
+                      const Icon = getCategoryIcon(tx.category);
+                      return (
+                        <div
+                          key={tx.transactionId}
+                          className="flex items-center gap-3 px-4 py-3"
+                        >
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent">
+                            <Icon className="size-[15px] text-primary" />
                           </div>
-                        );
-                      })}
-                    </div>
-                    {txQ.data.transactions.length > 3 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          router.push(
-                            `/budget/${selectedDate.getFullYear()}/${selectedDate.getMonth() + 1}/${selectedDate.getDate()}`,
-                          )
-                        }
-                        className="mt-2 w-full rounded-xl border border-border py-2.5 text-xs font-semibold text-muted-foreground"
-                      >
-                        더보기 ({txQ.data.transactions.length - 3}개 더)
-                      </button>
-                    )}
-                  </>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {tx.description}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {tx.category} · {formatTxTime(tx.transactedAt)}
+                            </p>
+                          </div>
+                          <span className="font-numeric shrink-0 text-sm font-bold text-foreground">
+                            -{formatKRW(tx.amount)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </motion.div>
             )}
           </AnimatePresence>
-          </div>{/* end calendarArea */}
 
-          {/* ── 월별 요약 카드 ── */}
-          <button
-            type="button"
-            onClick={() =>
-              router.push(
-                `/budget/${calendarMonth.getFullYear()}/${calendarMonth.getMonth() + 1}`,
-              )
-            }
-            className="mt-4 w-full rounded-2xl bg-accent px-4 py-[14px] text-left"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-[#555555]">
-                {format(calendarMonth, "M월")} 지출
-              </span>
-              <div className="flex items-center gap-1">
-                {isCurrentMonth && (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowGoalSheet(true);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.stopPropagation();
-                        setShowGoalSheet(true);
-                      }
-                    }}
-                    className="rounded-full border border-primary bg-white px-3 py-1 text-xs font-semibold text-primary"
-                  >
-                    목표 설정
-                  </span>
-                )}
-                <ChevronRight className="size-4 text-muted-foreground" />
-              </div>
-            </div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="font-numeric text-[22px] font-bold text-primary">
-                {formatKRW(calendarSpent)}
-              </span>
-              <span className="font-numeric text-xs text-muted-foreground">
-                / {formatKRW(calendarMonthlyBudget)}
-              </span>
-            </div>
-            <div className="mt-3 h-[7px] w-full overflow-hidden rounded-full bg-[#C8DFF8]">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${usedPct}%` }}
-              />
-            </div>
-            <div className="mt-1.5 flex justify-between text-[11px]">
-              <span className="text-muted-foreground">{usedPct}% 사용</span>
-              <span className="text-primary">
-                남은 예산 {formatKRW(calendarMonthlyBudget - calendarSpent)}
-              </span>
-            </div>
-          </button>
-
-          {/* ── 이번 달 절약금 ── */}
+          {/* ── 이번 달 절약금 (월 뷰일 때만) ── */}
+          {viewMode === "month" && <>
           <div className="-mx-5 mt-4 h-2 bg-muted" />
           <div className="flex items-center justify-between pb-3 pt-[14px]">
-            <span className="text-sm font-medium text-foreground">
-              이번 달 절약금
-            </span>
-            <span className="text-xs font-medium text-primary">
-              월말 CMA 이체 예정
-            </span>
+            <span className="text-sm font-medium text-foreground">이번 달 절약금</span>
+            {savingsQ.data?.isCollectAgreed && (
+              <span className="text-xs font-medium text-primary">월말 CMA 이체 예정</span>
+            )}
           </div>
-          {savingsQ.isLoading ? (
+          {savingsQ.isLoading || transferAccountQ.isLoading ? (
             <SkeletonCard lines={2} className="h-20" />
-          ) : savingsQ.data ? (
+          ) : !savingsQ.data?.isCollectAgreed ? (
+            <div className="rounded-2xl border border-border bg-accent px-4 py-[14px]">
+              <p className="text-sm font-medium text-foreground">목표 예산 절약 시 CMA로 자동 이체돼요</p>
+              <p className="mt-1 text-xs text-muted-foreground">매월 말일에 절약한 금액이 CMA 계좌로 이체됩니다.</p>
+              <Button
+                size="sm"
+                className="mt-3 h-9 w-full text-xs font-semibold"
+                onClick={handleSetupStart}
+              >
+                절약금 모으기 시작하기
+              </Button>
+            </div>
+          ) : (
             <div className="rounded-2xl border border-[#D1FAE5] bg-[#F0FDF4] px-4 py-[14px]">
               <p className="font-numeric text-[22px] font-bold text-[#22C55E]">
                 {formatKRW(savingsQ.data.savedAmount)}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                목표 예산 대비 절약한 금액 · {format(calendarMonth, "M월")} 말일
-                이체 예정
+                목표 예산 대비 절약한 금액 · {format(calendarMonth, "M월")} 말일 이체 예정
               </p>
+              {!transferAccountQ.data && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/my/savings-transfer")}
+                  className="mt-3 flex w-full items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-left"
+                >
+                  <span className="text-xs font-medium text-amber-700">이체 계좌가 설정되지 않았어요</span>
+                  <ChevronRight className="size-3.5 shrink-0 text-amber-500" />
+                </button>
+              )}
             </div>
-          ) : null}
+          )}
+          </>}
         </div>
       ) : (
         <StockCalendarTab />
       )}
 
-      {/* 목표 설정 시트 */}
-      <GoalEditSheet
-        open={showGoalSheet}
-        onOpenChange={setShowGoalSheet}
-        categories={goals.categories}
-      />
+      {/* ── 절약금 계좌 설정 시트 ── */}
+      <Sheet open={showSetupSheet} onOpenChange={setShowSetupSheet}>
+        <SheetContent side="bottom" className="rounded-t-2xl px-5 pb-10">
+          <SheetHeader className="pb-4">
+            <SheetTitle className="text-left text-base">이체 계좌 선택</SheetTitle>
+          </SheetHeader>
+          <p className="mb-4 text-sm text-muted-foreground">
+            절약금을 받을 계좌를 선택해 주세요.
+          </p>
+          {bankAccountsQ.isLoading ? (
+            <SkeletonCard lines={3} />
+          ) : (
+            <div className="space-y-2.5">
+              {(bankAccountsQ.data ?? [])
+                .filter((a) => a.currency === "KRW")
+                .map((a) => (
+                  <button
+                    key={a.accountId}
+                    type="button"
+                    onClick={() => setSetupAccountId(a.accountId)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-2xl border p-4 text-left transition-colors",
+                      setupAccountId === a.accountId
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-background",
+                    )}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{a.bankName}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{a.accountName}</p>
+                    </div>
+                    {setupAccountId === a.accountId && (
+                      <CheckCircle2 className="size-5 shrink-0 text-primary" />
+                    )}
+                  </button>
+                ))}
+            </div>
+          )}
+          <Button
+            className="mt-5 h-14 w-full text-base font-bold"
+            disabled={setupAccountId == null || setTransferAccount.isPending || agreeCollect.isPending}
+            onClick={handleSetupSave}
+          >
+            {setTransferAccount.isPending || agreeCollect.isPending ? "처리 중..." : "시작하기"}
+          </Button>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
 
-// ── 목표 설정 시트 ────────────────────────────────────────────────────────────
-
-function GoalEditSheet({
-  open,
-  onOpenChange,
-  categories,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  categories: BudgetGoalCategoryItem[];
-}) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-2xl px-5 pb-10">
-        <SheetHeader className="pb-4">
-          <SheetTitle className="text-left text-base">목표 설정</SheetTitle>
-        </SheetHeader>
-        {/* 열릴 때마다 새로 마운트 → 초기값(현재 목표)으로 useState 초기화 (effect 불필요) */}
-        {open && (
-          <GoalEditForm
-            categories={categories}
-            onClose={() => onOpenChange(false)}
-          />
-        )}
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-function GoalEditForm({
-  categories,
-  onClose,
-}: {
-  categories: BudgetGoalCategoryItem[];
-  onClose: () => void;
-}) {
-  const setGoals = useSetManualGoals();
-  const [budgets, setBudgets] = useState<Record<string, string>>(() =>
-    Object.fromEntries(categories.map((c) => [c.category, String(c.budget)])),
-  );
-
-  const handleSave = () => {
-    const parsed = categories.map((c) => ({
-      category: c.category,
-      budget: Number(budgets[c.category]?.replace(/,/g, "") ?? c.budget),
-    }));
-    setGoals.mutate(parsed, { onSuccess: onClose });
-  };
-
-  return (
-    <>
-      <div className="space-y-4">
-        {categories.map((cat) => (
-          <div key={cat.category} className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent">
-              {(() => {
-                const Icon = getCategoryIcon(cat.category);
-                return <Icon className="size-[14px] text-primary" />;
-              })()}
-            </div>
-            <span className="w-20 shrink-0 text-sm font-medium text-foreground">
-              {cat.category}
-            </span>
-            <div className="relative flex-1">
-              <Input
-                inputMode="numeric"
-                value={budgets[cat.category] ?? ""}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/[^0-9]/g, "");
-                  setBudgets((prev) => ({ ...prev, [cat.category]: raw }));
-                }}
-                className="pr-6 text-right font-semibold"
-              />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                원
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <Button
-        className="mt-6 h-14 w-full text-base font-semibold"
-        disabled={setGoals.isPending}
-        onClick={handleSave}
-      >
-        {setGoals.isPending ? "저장 중..." : "저장하기"}
-      </Button>
-      {setGoals.isError && (
-        <p className="mt-2 text-center text-xs text-destructive">
-          저장에 실패했어요. 다시 시도해 주세요.
-        </p>
-      )}
-    </>
-  );
-}
 
 function formatTxTime(isoStr: string) {
   const d = new Date(isoStr);

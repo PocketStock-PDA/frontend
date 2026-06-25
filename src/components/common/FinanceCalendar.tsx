@@ -27,6 +27,8 @@ export interface FinanceCalendarProps {
   collapsed?: boolean;
   renderDay?: (date: Date, isCurrentMonth: boolean) => React.ReactNode;
   legend?: React.ReactNode;
+  /** false면 월 네비게이션 헤더를 숨김 */
+  showHeader?: boolean;
   className?: string;
 }
 
@@ -38,6 +40,7 @@ export function FinanceCalendar({
   collapsed = false,
   renderDay,
   legend,
+  showHeader = true,
   className,
 }: FinanceCalendarProps) {
   const gridStart = startOfWeek(startOfMonth(month), { weekStartsOn: 0 });
@@ -55,28 +58,33 @@ export function FinanceCalendar({
 
   return (
     <div className={cn("bg-background", className)}>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => onMonthChange?.(subMonths(month, 1))}
-            aria-label="이전 달"
-          >
-            <ChevronLeft className="size-5 text-muted-foreground" />
-          </button>
-          <span className="text-base font-bold text-foreground">
-            {format(month, "yyyy년 M월")}
-          </span>
-          <button
-            type="button"
-            onClick={() => onMonthChange?.(addMonths(month, 1))}
-            aria-label="다음 달"
-          >
-            <ChevronRight className="size-5 text-muted-foreground" />
-          </button>
+      {showHeader ? (
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex flex-1 items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => onMonthChange?.(subMonths(month, 1))}
+              aria-label="이전 달"
+            >
+              <ChevronLeft className="size-5 text-muted-foreground" />
+            </button>
+            <span className="min-w-[3rem] text-center text-base font-bold text-foreground underline decoration-foreground underline-offset-4">
+              {format(month, "M월")}
+            </span>
+            <button
+              type="button"
+              onClick={() => onMonthChange?.(addMonths(month, 1))}
+              aria-label="다음 달"
+            >
+              <ChevronRight className="size-5 text-muted-foreground" />
+            </button>
+          </div>
+          {legend}
         </div>
-        {legend}
-      </div>
+      ) : (
+        // 헤더를 숨겨도 legend는 별도 행으로 렌더링
+        legend && <div className="mb-3 flex justify-end">{legend}</div>
+      )}
 
       <div className="grid grid-cols-7 text-center text-xs text-muted-foreground">
         {WEEKDAYS.map((w) => (
