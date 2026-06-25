@@ -72,8 +72,6 @@ export default function AutoInvestManagePage() {
   const router = useRouter();
   const holdingsQ = useHoldings();
   const holdings = holdingsQ.data ?? [];
-  const codes = holdings.map((h) => h.stockCode);
-  const details = useStockDetails(codes);
   const summaryQ = useAutoInvestSummary();
   const save = useSetAutoInvestStatusList();
 
@@ -83,6 +81,17 @@ export default function AutoInvestManagePage() {
     summaryQ.data?.stocks.forEach((s) => m.set(s.stockCode, s));
     return m;
   }, [summaryQ.data]);
+
+  // 보유 + 모으기 설정 종목 합집합 — 설정만 하고 미보유(첫 매수 전)여도 노출
+  const holdingCodes = holdings.map((h) => h.stockCode);
+  const heldSet = new Set(holdingCodes);
+  const codes = [
+    ...holdingCodes,
+    ...(summaryQ.data?.stocks ?? [])
+      .map((s) => s.stockCode)
+      .filter((c) => !heldSet.has(c)),
+  ];
+  const details = useStockDetails(codes);
 
   // 토글 로컬 오버라이드(코드→enabled)
   const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>({});
@@ -121,13 +130,13 @@ export default function AutoInvestManagePage() {
     );
   }
 
-  const rows: Row[] = holdings.map((h, i) => {
-    const setting = stocksByCode.get(h.stockCode) ?? null;
+  const rows: Row[] = codes.map((code, i) => {
+    const setting = stocksByCode.get(code) ?? null;
     const detail = details[i]?.data;
-    const enabled = enabledMap[h.stockCode] ?? setting?.isActive ?? false;
+    const enabled = enabledMap[code] ?? setting?.isActive ?? false;
     return {
-      code: h.stockCode,
-      name: detail?.stockName ?? h.stockCode,
+      code,
+      name: detail?.stockName ?? setting?.stockName ?? code,
       logoUrl: detail?.logoUrl ?? null,
       setting,
       enabled,
@@ -254,8 +263,8 @@ export default function AutoInvestManagePage() {
 
         {rows.length === 0 && (
           <EmptyState
-            title="보유 종목이 없어요"
-            description="종목을 보유하면 여기서 자동모으기를 관리할 수 있어요."
+            title="모으는 종목이 없어요"
+            description="종목을 보유하거나 모으기를 설정하면 여기서 관리할 수 있어요."
           />
         )}
 
