@@ -18,6 +18,8 @@ export interface HoldingCardProps {
   rate: number;
   /** 자동모으기 진행 중 — 배지 노출 */
   isAuto?: boolean;
+  /** 보조 라인 대체 텍스트 — 모으기 렌즈에서 일정("매일 10,000원씩")을 보유량 대신 노출 */
+  subtitle?: string;
   currency?: "KRW" | "USD";
   onClick?: () => void;
 }
@@ -35,6 +37,7 @@ export function HoldingCard({
   profit,
   rate,
   isAuto = false,
+  subtitle,
   currency = "KRW",
   onClick,
 }: HoldingCardProps) {
@@ -62,9 +65,13 @@ export function HoldingCard({
             </span>
           )}
         </div>
-        <p className="mt-0.5 font-numeric text-xs text-muted-foreground">
-          {formatHoldingShort(quantity)}
-        </p>
+        {subtitle ? (
+          <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+        ) : (
+          <p className="mt-0.5 font-numeric text-xs text-muted-foreground">
+            {formatHoldingShort(quantity)}
+          </p>
+        )}
       </div>
 
       <div className="shrink-0 text-right">
@@ -74,14 +81,13 @@ export function HoldingCard({
           size="md"
           className="block font-bold"
         />
-        <div className="mt-0.5 flex items-center justify-end gap-1.5">
+        <div className="mt-0.5 flex justify-end">
           <ChangeIndicator
             value={profit}
             suffix={currency === "USD" ? "$" : "원"}
+            subPercent={rate}
             size="sm"
-            showArrow={false}
           />
-          <ChangeIndicator value={rate} percent size="sm" />
         </div>
       </div>
     </button>
