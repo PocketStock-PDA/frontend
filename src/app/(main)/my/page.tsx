@@ -24,11 +24,17 @@ const SOON = () => toast.info("준비 중이에요");
 
 // 푸시 알림 켜기 — 권한 요청 → 구독 → 백엔드 토큰 등록
 const handleEnablePush = async () => {
-  const result = await enablePush();
-  if (result === "ok") toast.success("푸시 알림을 켰어요");
-  else if (result === "denied")
-    toast.error("알림 권한이 거부됐어요. 기기 설정에서 허용해 주세요.");
-  else toast.info("이 환경에서는 푸시를 사용할 수 없어요. 앱 설치 후 이용해 주세요.");
+  try {
+    const result = await enablePush();
+    if (result === "ok") toast.success("푸시 알림을 켰어요");
+    else if (result === "denied")
+      toast.error("알림 권한이 거부됐어요. 기기 설정에서 허용해 주세요.");
+    else
+      toast.info("이 환경에서는 푸시를 사용할 수 없어요. 앱 설치 후 이용해 주세요.");
+  } catch {
+    // 구독/토큰 등록 중 네트워크·API 실패
+    toast.error("푸시 알림 설정에 실패했어요. 잠시 후 다시 시도해 주세요.");
+  }
 };
 
 /** 우측 화살표가 있는 설정 카드 (탭 시 이동) */
