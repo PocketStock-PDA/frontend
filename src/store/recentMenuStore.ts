@@ -6,7 +6,7 @@ export interface RecentMenu {
   label: string;
 }
 
-const MAX_RECENT = 6;
+const MAX_RECENT = 5;
 
 interface RecentMenuState {
   /** 최근 사용한 메뉴(최신순). */

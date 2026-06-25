@@ -66,10 +66,10 @@ export function Sidebar() {
     >
       <SheetContent
         side="right"
-        className="w-[80%] gap-0 px-5 pb-6 pt-[calc(env(safe-area-inset-top)+1.5rem)] sm:max-w-sm"
+        className="w-[80%] gap-0 px-5 pb-6 pt-[calc(env(safe-area-inset-top)+2rem)] sm:max-w-sm"
         aria-describedby={undefined}
       >
-        <SheetHeader className="p-0">
+        <SheetHeader className="p-0 mb-4">
           {/* 프로필 */}
           <div className="flex items-center gap-3">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
@@ -91,7 +91,7 @@ export function Sidebar() {
             type="button"
             onClick={handleLogout}
             disabled={logout.isPending}
-            className="mt-2 flex w-fit items-center gap-0.5 text-sm text-muted-foreground disabled:opacity-50"
+            className="mt-2 flex w-fit items-center gap-0.5 text-xs text-muted-foreground disabled:opacity-50"
           >
             {logout.isPending ? "로그아웃 중..." : "로그아웃"}
             <ChevronRight className="size-4" />
@@ -108,7 +108,7 @@ export function Sidebar() {
               최근 메뉴가 없습니다
             </div>
           ) : (
-            <div className="mb-6 flex flex-wrap gap-2">
+            <div className="mb-8 flex flex-wrap gap-2">
               {recent.map((m) => (
                 <Link
                   key={m.href}
@@ -122,7 +122,9 @@ export function Sidebar() {
             </div>
           )}
 
-          <h2 className="mb-1 text-sm font-bold text-foreground">전체 메뉴</h2>
+          <h2 className="mb-1 text-sm font-semibold text-foreground">
+            전체 메뉴
+          </h2>
           <nav className="flex flex-col">
             {MENU.map((m) => (
               <Link

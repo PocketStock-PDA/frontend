@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowUp, Coins, CreditCard, Globe, Landmark } from "lucide-react";
 import { HomeHeader } from "@/components/common/HomeHeader";
 import { CmaBalanceCard } from "@/components/features/cma/CmaBalanceCard";
+import { CollectCoinsOverlay } from "@/components/features/cma/CollectCoinsOverlay";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
@@ -61,6 +62,26 @@ export default function HomePage() {
   const { data: profile } = useMyProfile();
   const { data: notifications } = useNotifications();
   const collect = useCollectChange();
+
+  // "CMA로 모으기" 코인 모이기 연출 — 출발(수집 잔돈 블록)·도착(모으기 버튼) 영역 측정용 ref.
+  const sourcesRef = useRef<HTMLDivElement>(null);
+  const collectBtnRef = useRef<HTMLDivElement>(null);
+
+  const [collectAnim, setCollectAnim] = useState<{
+    id: number;
+    origin: DOMRect;
+    target: DOMRect;
+  } | null>(null);
+
+  const handleCollect = () => {
+    collect.mutate();
+    const origin = sourcesRef.current?.getBoundingClientRect();
+    const target = collectBtnRef.current?.getBoundingClientRect();
+    if (origin && target) {
+      setCollectAnim({ id: Date.now(), origin, target });
+    }
+  };
+
   const linkOrder = useHomeLayoutStore((s) => s.order);
   const hiddenLinks = useHomeLayoutStore((s) => s.hidden);
   useHydrateHomeLayout();
@@ -154,6 +175,15 @@ export default function HomePage() {
 
   return (
     <>
+      {collectAnim && (
+        <CollectCoinsOverlay
+          key={collectAnim.id}
+          active
+          origin={collectAnim.origin}
+          target={collectAnim.target}
+          onComplete={() => setCollectAnim(null)}
+        />
+      )}
       {welcomeEligible && (
         <WelcomeEventDialog
           open={!welcomeDismissed}
@@ -182,7 +212,7 @@ export default function HomePage() {
         />
 
         {/* 수집 잔돈 통합 블록 */}
-        <div className="rounded-2xl bg-brand-surface p-4">
+        <div ref={sourcesRef} className="rounded-2xl bg-brand-surface p-4">
           <SectionHeader className="mb-2" title="수집한 잔돈" />
           {/* 이번 달 수집한 잔돈 — 은행(신한은행)·카드·포인트 모두 각 소스 행으로 표시 */}
           {data.collectedSources.length > 0 && (
@@ -242,15 +272,17 @@ export default function HomePage() {
         </div>
 
         <div>
-          <Button
-            variant="outline"
-            onClick={() => collect.mutate()}
-            disabled={(!hasKrw && !hasUsd) || collect.isPending}
-            className="h-12 w-full border-primary text-base font-bold text-primary hover:bg-brand-surface"
-          >
-            <ArrowUp />
-            {collectLabel} CMA로 모으기
-          </Button>
+          <div ref={collectBtnRef}>
+            <Button
+              variant="outline"
+              onClick={handleCollect}
+              disabled={(!hasKrw && !hasUsd) || collect.isPending}
+              className="h-12 w-full border-primary text-base font-bold text-primary hover:bg-brand-surface"
+            >
+              <ArrowUp />
+              {collectLabel} CMA로 모으기
+            </Button>
+          </div>
           {collect.isError && (
             <p className="mt-2 text-center text-xs text-destructive">
               모으기에 실패했어요. 잠시 후 다시 시도해 주세요.
