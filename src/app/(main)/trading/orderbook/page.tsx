@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
@@ -35,7 +35,8 @@ type Side = "BUY" | "SELL";
 const RATIO_CHIPS = [10, 25, 50, 100];
 
 export default function OrderbookPage() {
-  const { stockCode } = useParams<{ stockCode: string }>();
+  const searchParams = useSearchParams();
+  const stockCode = searchParams.get("stockCode") ?? "";
   const detailQ = useStockDetail(stockCode);
   const holdingsQ = useHoldings();
   const cmaQ = useCmaHome();
@@ -54,7 +55,7 @@ export default function OrderbookPage() {
   const basePrice = detailQ.data?.price?.currentPrice ?? 0;
   const obQ = useOrderBook(stockCode);
   // 실시간 호가: 스냅샷 위에 STOMP 틱으로 사다리·총잔량 갱신 (issue #2)
-  useStockQuoteSocket(stockCode);
+  useStockQuoteSocket(stockCode, !!stockCode);
   // 실시간 시세(체결) → 헤더 현재가 갱신 (issue #10)
   useStockTradeSocket(stockCode, {
     overseas: detailQ.data?.currency === "USD",

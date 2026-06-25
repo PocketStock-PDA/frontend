@@ -15,6 +15,10 @@ import { useStockRankings } from "@/hooks/queries/useStockRankings";
 import { useStockTradesLive, type LiveQuote } from "@/hooks/useStockTradesLive";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
+import {
+  tradingAutoDetailPath,
+  tradingDetailPath,
+} from "@/lib/navigation/routes";
 import type {
   RankingSort,
   StockMarket,
@@ -35,7 +39,7 @@ const SORT_TABS: { label: string; value: RankingSort }[] = [
 export default function TradingExplorePage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const goStock = (code: string) => router.push(`/trading/${code}`);
+  const goStock = (code: string) => router.push(tradingDetailPath(code));
 
   return (
     <>
@@ -252,7 +256,7 @@ function RankingRow({
       </button>
       <button
         type="button"
-        onClick={() => router.push(`/trading/${item.stockCode}/auto`)}
+        onClick={() => router.push(tradingAutoDetailPath(item.stockCode))}
         aria-label={`${item.stockName} 모으기 설정`}
         className="shrink-0 rounded-full bg-brand-surface px-3.5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-brand-surface/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >

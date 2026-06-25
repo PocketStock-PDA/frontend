@@ -16,6 +16,7 @@ import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
 import { useSetAutoInvestStatusList } from "@/hooks/mutations/useSaveAutoInvest";
 import { formatKRW } from "@/lib/utils/currency";
+import { tradingAutoDetailPath } from "@/lib/navigation/routes";
 import { cn } from "@/lib/utils";
 import {
   intToWeekday,
@@ -66,7 +67,7 @@ interface Row {
 
 /**
  * 주식 모으기 종합 설정 (시안 270-7107) — 보유 종목을 모으기 중/안 함으로 나눠 관리.
- * 개별 구성·저장은 /trading/{code}/auto에서. 여기선 on/off 토글(PATCH status) + 진입.
+ * 개별 구성·저장은 /trading/auto/detail?stockCode=...에서. 여기선 on/off 토글(PATCH status) + 진입.
  */
 export default function AutoInvestManagePage() {
   const router = useRouter();
@@ -136,7 +137,7 @@ export default function AutoInvestManagePage() {
   const onRows = rows.filter((r) => r.enabled);
   const offRows = rows.filter((r) => !r.enabled);
 
-  const goConfigure = (code: string) => router.push(`/trading/${code}/auto`);
+  const goConfigure = (code: string) => router.push(tradingAutoDetailPath(code));
 
   const toggle = (r: Row, next: boolean) => {
     // 설정이 없는 종목을 켜려면 먼저 개별 설정에서 구성해야 함

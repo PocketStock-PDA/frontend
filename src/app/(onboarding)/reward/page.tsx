@@ -25,6 +25,7 @@ import { useClaimWelcomeReward } from "@/hooks/mutations/useClaimWelcomeReward";
 import { toDecimal } from "@/lib/utils/decimal";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
+import { tradingAutoDetailPath } from "@/lib/navigation/routes";
 import type { WelcomeReward } from "@/types/domain/reward";
 
 /** 지급 예산(원) — 백엔드 BUDGET_KRW와 동일 */
@@ -268,7 +269,7 @@ export default function RewardPage() {
 
           <Button
             onClick={() =>
-              granted && router.replace(`/trading/${granted.stockCode}/auto`)
+              granted && router.replace(tradingAutoDetailPath(granted.stockCode))
             }
             className="mt-6 h-14 w-full text-base font-bold"
           >

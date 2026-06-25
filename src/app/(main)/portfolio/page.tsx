@@ -15,6 +15,10 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { HoldingCard } from "@/components/features/portfolio/HoldingCard";
 import { PiecesCard } from "@/components/features/portfolio/PiecesCard";
+import {
+  portfolioDetailPath,
+  tradingDetailPath,
+} from "@/lib/navigation/routes";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
@@ -162,9 +166,9 @@ export default function PortfolioPage() {
       : null;
 
   // 전체 렌즈 → 종목 현황(기본) / 모으기·조각 렌즈 → 퍼즐(?view=pieces)
-  const goDetail = (code: string) => router.push(`/portfolio/${code}`);
+  const goDetail = (code: string) => router.push(portfolioDetailPath(code));
   const goPieces = (code: string) =>
-    router.push(`/portfolio/${code}?view=pieces`);
+    router.push(portfolioDetailPath(code, { view: "pieces" }));
 
   return (
     <>
@@ -225,7 +229,7 @@ export default function PortfolioPage() {
                 chevron
                 accent
                 onClick={() =>
-                  router.push(topCode ? `/trading/${topCode}` : "/trading")
+                  router.push(topCode ? tradingDetailPath(topCode) : "/trading")
                 }
               />
               <StripItem

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
@@ -59,7 +59,8 @@ const AMOUNT_CHIPS = [1000, 5000, 10000];
 const QTY_CHIPS = [1, 5, 10];
 
 export default function AutoInvestPage() {
-  const { stockCode } = useParams<{ stockCode: string }>();
+  const searchParams = useSearchParams();
+  const stockCode = searchParams.get("stockCode") ?? "";
   const detailQ = useStockDetail(stockCode);
   const autoQ = useAutoInvest(stockCode);
 

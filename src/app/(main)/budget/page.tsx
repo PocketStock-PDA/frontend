@@ -26,6 +26,7 @@ import { useSetTransferAccount } from "@/hooks/mutations/useSetTransferAccount";
 import { useAgreeCollect } from "@/hooks/mutations/useAgreeCollect";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
+import { budgetMonthPath } from "@/lib/navigation/routes";
 import { StockCalendarTab } from "./StockCalendarTab";
 import type { BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
 
@@ -338,7 +339,10 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                 type="button"
                 onClick={() =>
                   router.push(
-                    `/budget/${calendarMonth.getFullYear()}/${calendarMonth.getMonth() + 1}`,
+                    budgetMonthPath(
+                      calendarMonth.getFullYear(),
+                      calendarMonth.getMonth() + 1,
+                    ),
                   )
                 }
                 className="flex flex-col items-end gap-1"

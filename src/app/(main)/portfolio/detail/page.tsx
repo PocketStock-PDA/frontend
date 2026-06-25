@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { ChevronRight } from "lucide-react";
 import Decimal from "decimal.js";
@@ -37,6 +37,11 @@ import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { splitOrderToast } from "@/lib/utils/orderResult";
+import {
+  portfolioDetailPath,
+  tradingAutoDetailPath,
+  tradingDetailPath,
+} from "@/lib/navigation/routes";
 import type { SplitOrderResponse } from "@/types/domain/order";
 import { cn } from "@/lib/utils";
 import type {
@@ -83,9 +88,9 @@ interface Selection {
 }
 
 export default function StockDetailPage() {
-  const { stockCode } = useParams<{ stockCode: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const stockCode = searchParams.get("stockCode") ?? "";
   // view=pieces(조각/모으기 렌즈 진입) → 퍼즐 / 그 외(전체 렌즈) → 종목 현황
   const isPieces = searchParams.get("view") === "pieces";
 
@@ -298,7 +303,7 @@ export default function StockDetailPage() {
       description: "조금 더 모으면 온주로 굳힐 수 있어요.",
       action: {
         label: "매매창으로",
-        onClick: () => router.push(`/trading/${stockCode}`),
+        onClick: () => router.push(tradingDetailPath(stockCode)),
       },
     });
   };
@@ -324,7 +329,7 @@ export default function StockDetailPage() {
         {auto.id !== null && auto.setting && (
           <button
             type="button"
-            onClick={() => router.push(`/trading/${stockCode}/auto`)}
+            onClick={() => router.push(tradingAutoDetailPath(stockCode))}
             className="flex w-full items-center justify-between rounded-xl bg-brand-surface px-4 py-3 text-left"
           >
             <span className="flex min-w-0 items-center gap-2 text-sm">
@@ -496,7 +501,9 @@ export default function StockDetailPage() {
             {/* 조각 모으기(퍼즐) 진입 */}
             <button
               type="button"
-              onClick={() => router.push(`/portfolio/${stockCode}?view=pieces`)}
+              onClick={() =>
+                router.push(portfolioDetailPath(stockCode, { view: "pieces" }))
+              }
               className="flex w-full items-center justify-between rounded-xl bg-brand-surface px-4 py-3 text-left transition-colors hover:bg-brand-surface/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <span className="flex items-center gap-2 text-sm font-semibold text-primary">

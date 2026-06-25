@@ -1,8 +1,8 @@
 "use client";
 
-import { createElement, use, useState } from "react";
+import { createElement, useState } from "react";
 import { format } from "date-fns";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
@@ -15,25 +15,30 @@ import { useTransferAccount } from "@/hooks/queries/useTransferAccount";
 import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
 import { formatKRW, parseAmount } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
-import { getCategoryIcon } from "../../_utils/categoryIcon";
+import { getCategoryIcon } from "../_utils/categoryIcon";
 import { BudgetSplitSummary } from "@/components/features/budget/BudgetSplitSummary";
 
-interface Props {
-  params: Promise<{ year: string; month: string }>;
-}
-
-export default function BudgetMonthPage({ params }: Props) {
+export default function BudgetMonthPage() {
   const router = useRouter();
-  const { year: yearStr, month: monthStr } = use(params);
-  const year = Number(yearStr);
-  const month = Number(monthStr);
+  const searchParams = useSearchParams();
+  const current = new Date();
+  const yearParam = Number(searchParams.get("year"));
+  const monthParam = Number(searchParams.get("month"));
+  const year =
+    Number.isInteger(yearParam) && yearParam > 0
+      ? yearParam
+      : current.getFullYear();
+  const month =
+    Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12
+      ? monthParam
+      : current.getMonth() + 1;
 
   const goalsQ = useBudgetGoals();
   const calendarQ = useBudgetCalendar(year, month);
   const savingsQ = useBudgetSavings();
   const transferAccountQ = useTransferAccount();
 
-  const now = new Date();
+  const now = current;
   const isCurrentMonth =
     now.getFullYear() === year && now.getMonth() + 1 === month;
 
