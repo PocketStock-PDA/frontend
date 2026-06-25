@@ -24,11 +24,19 @@ const DEL = "del";
 // 기본(비보안) 배치 — 기존 레이아웃과 동일(1~9, 빈칸, 0, 지우기)
 const FIXED_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", DEL];
 
+/** [0, max) 정수 — CSPRNG(crypto.getRandomValues) 기반. 작은 범위라 모듈로 편향은 무시 가능. */
+function randomInt(max: number): number {
+  if (max <= 0) return 0;
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return (buf[0] ?? 0) % max;
+}
+
 /** 0~9 + 빈칸 1개를 셔플하고 지우기는 우하단 고정 → 12칸 배열 */
 function shuffledKeys(): string[] {
   const slots = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ""];
   for (let i = slots.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(i + 1);
     const a = slots[i];
     const b = slots[j];
     if (a !== undefined && b !== undefined) {
@@ -45,9 +53,9 @@ function pickDecoys(keys: string[], index: number): number[] {
     k !== "" && k !== DEL && i !== index ? [i] : [],
   );
   const decoys: number[] = [];
-  const count = 2 + Math.floor(Math.random() * 2); // 2~3개
+  const count = 2 + randomInt(2); // 2~3개
   while (decoys.length < count && digitIdx.length > 0) {
-    const at = Math.floor(Math.random() * digitIdx.length);
+    const at = randomInt(digitIdx.length);
     const pick = digitIdx[at];
     if (pick === undefined) break;
     digitIdx.splice(at, 1);
