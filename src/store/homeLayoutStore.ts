@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
@@ -38,9 +39,18 @@ export const useHomeLayoutStore = create<HomeLayoutState>()(
       setOrder: (order) => set({ order: resolveOrder(order) }),
       reset: () => set({ order: DEFAULT_LINK_ORDER, hidden: [] }),
     }),
-    { name: "ps.home.layout" },
+    // skipHydration: SSR/첫 클라 렌더는 기본값으로 고정하고, 마운트 후 useHydrateHomeLayout으로
+    // localStorage 값을 재수화한다(하이드레이션 미스매치 방지).
+    { name: "ps.home.layout", skipHydration: true },
   ),
 );
+
+/** 마운트 후 1회 localStorage 값으로 재수화. 홈/홈편집 등 store 소비 화면에서 호출. */
+export function useHydrateHomeLayout() {
+  useEffect(() => {
+    void useHomeLayoutStore.persist.rehydrate();
+  }, []);
+}
 
 // 이 함수는 매번 새 배열을 만들므로 zustand selector 로 직접 쓰지 말고,
 // 컴포넌트에서 order/hidden 을 구독한 뒤 useMemo 로 감싸 호출한다(재렌더 루프 방지).

@@ -143,6 +143,14 @@ export default function StockPuzzlePage() {
         chosen.add(idx);
       }
       indexes = Array.from(chosen).sort((a, b) => a - b);
+      // 가용 조각으로도 최소 주문금액을 못 채우면 주문 시트를 열지 않는다.
+      if (indexes.length < minPieces) {
+        toast.warning(
+          `최소 주문금액(${fmtAmount(minOrder)})을 채울 조각이 부족해요`,
+        );
+        setSel(null);
+        return;
+      }
       if (indexes.length > s.indexes.length) {
         toast.warning(
           `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${indexes.length}조각으로 맞췄어요`,

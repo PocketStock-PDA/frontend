@@ -6,7 +6,10 @@ import { GripVertical } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { useHomeLayoutStore } from "@/store/homeLayoutStore";
+import {
+  useHomeLayoutStore,
+  useHydrateHomeLayout,
+} from "@/store/homeLayoutStore";
 import { QUICK_LINK_BY_ID, resolveOrder } from "@/lib/home/quickLinks";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +59,7 @@ export default function HomeEditPage() {
   const order = useHomeLayoutStore((s) => s.order);
   const setOrder = useHomeLayoutStore((s) => s.setOrder);
   const reset = useHomeLayoutStore((s) => s.reset);
+  useHydrateHomeLayout();
   const ids = useMemo(() => resolveOrder(order), [order]);
 
   return (

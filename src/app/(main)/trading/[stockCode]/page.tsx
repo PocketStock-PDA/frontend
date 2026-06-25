@@ -215,6 +215,28 @@ export default function TradePage() {
         `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${formatShares(new Decimal(correctedQty))}주로 조정했어요`,
       );
     }
+    // 보정 후 실제 주문 가능 범위 검증 — 매수 가능 금액 / 매도 가능 수량 초과 시 차단(초과 주문 방지).
+    if (side === "BUY") {
+      const need =
+        inputMode === "AMOUNT"
+          ? new Decimal(correctedAmount)
+          : new Decimal(correctedQty).times(price);
+      if (need.gt(buyingPower)) {
+        toast.error("매수 가능 금액을 초과했어요.");
+        return;
+      }
+    } else {
+      const sellQty =
+        inputMode === "AMOUNT"
+          ? price.gt(0)
+            ? new Decimal(correctedAmount).div(price)
+            : new Decimal(0)
+          : new Decimal(correctedQty);
+      if (sellQty.gt(holdingQty)) {
+        toast.error("보유 수량을 초과했어요.");
+        return;
+      }
+    }
     const orderDetail =
       inputMode === "AMOUNT"
         ? ({ orderType: "AMOUNT", amount: correctedAmount } as const)

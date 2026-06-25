@@ -18,7 +18,11 @@ import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import { useMyProfile } from "@/hooks/queries/useMyProfile";
 import { useWelcomeRewards } from "@/hooks/queries/useWelcomeRewards";
 import { useCollectChange } from "@/hooks/mutations/useCollectChange";
-import { useHomeLayoutStore, visibleLinks } from "@/store/homeLayoutStore";
+import {
+  useHomeLayoutStore,
+  useHydrateHomeLayout,
+  visibleLinks,
+} from "@/store/homeLayoutStore";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import type { CollectSourceType } from "@/types/domain/cma";
@@ -58,6 +62,7 @@ export default function HomePage() {
   const collect = useCollectChange();
   const linkOrder = useHomeLayoutStore((s) => s.order);
   const hiddenLinks = useHomeLayoutStore((s) => s.hidden);
+  useHydrateHomeLayout();
   const quickLinks = useMemo(
     () => visibleLinks(linkOrder, hiddenLinks),
     [linkOrder, hiddenLinks],
