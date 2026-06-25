@@ -52,7 +52,6 @@ const sourceTitle = (sourceType: CollectSourceType, name: string) =>
       ? "포인트"
       : name;
 
-const WELCOME_DISMISS_KEY = "ps.welcomeEvent.dismissed";
 
 export default function HomePage() {
   const router = useRouter();
@@ -73,20 +72,14 @@ export default function HomePage() {
   const noCmaAccount = isNoCmaAccount(error);
   const [eventOpen, setEventOpen] = useState(true);
 
-  // 첫 가입 이벤트 팝업: 첫 주식 미수령(rewards 비어있음) + 미닫힘 시 노출 (issue #34)
+  // 첫 가입 이벤트 팝업: 첫 주식 미수령(rewards 비어있음) 시 홈 진입마다 노출 (issue #84)
+  // 미수령이면 localStorage dismiss 무시 — 닫아도 홈 재진입 시 다시 뜸.
+  // 수령 완료 시 welcomeEligible이 false가 되어 팝업 자체가 렌더되지 않음.
   const rewardsQ = useWelcomeRewards();
-  const [welcomeDismissed, setWelcomeDismissed] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      localStorage.getItem(WELCOME_DISMISS_KEY) === "1",
-  );
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const welcomeEligible =
     rewardsQ.isSuccess && (rewardsQ.data?.length ?? 0) === 0;
-  const dismissWelcome = () => {
-    if (typeof window !== "undefined")
-      localStorage.setItem(WELCOME_DISMISS_KEY, "1");
-    setWelcomeDismissed(true);
-  };
+  const dismissWelcome = () => setWelcomeDismissed(true);
 
   if (isLoading) {
     return (
