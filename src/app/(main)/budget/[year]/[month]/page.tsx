@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useBudgetGoals, useBudgetCalendar } from "@/hooks/queries/useBudget";
 import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
-import { formatKRW } from "@/lib/utils/currency";
+import { formatKRW, parseAmount } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "../../_utils/categoryIcon";
 import type { BudgetGoalCategoryItem } from "@/types/domain/budget";
@@ -66,10 +66,14 @@ export default function BudgetMonthPage({ params }: Props) {
   };
 
   const handleSave = () => {
-    const parsed = (goalsQ.data?.categories ?? []).map((c) => ({
-      category: c.category,
-      budget: Number(budgets[c.category]?.replace(/,/g, "") ?? c.budget),
-    }));
+    const parsed = (goalsQ.data?.categories ?? []).map((c) => {
+      const raw = budgets[c.category]?.trim();
+      // 빈 입력은 기존 목표 예산을 유지(0원으로 덮어쓰기 방지)
+      return {
+        category: c.category,
+        budget: raw ? parseAmount(raw) : c.budget,
+      };
+    });
     setGoals.mutate(parsed, { onSuccess: () => setIsEditing(false) });
   };
 
