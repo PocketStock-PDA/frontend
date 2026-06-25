@@ -8,6 +8,8 @@ export interface SearchInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   onClear?: () => void;
+  /** 마운트 시 자동 포커스 (검색 전용 오버레이 등) */
+  autoFocus?: boolean;
   className?: string;
 }
 
@@ -17,6 +19,7 @@ export function SearchInput({
   onChange,
   placeholder = "검색",
   onClear,
+  autoFocus = false,
   className,
 }: SearchInputProps) {
   const handleClear = () => {
@@ -34,6 +37,7 @@ export function SearchInput({
       <Search className="size-4 shrink-0 text-muted-foreground" />
       <input
         type="search"
+        autoFocus={autoFocus}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

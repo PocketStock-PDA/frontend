@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { ChevronRight } from "lucide-react";
 import Decimal from "decimal.js";
@@ -15,6 +15,7 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { JigsawPuzzle } from "@/components/features/portfolio/JigsawPuzzle";
 import { PuzzleOrderSheet } from "@/components/features/portfolio/PuzzleOrderSheet";
+import { ValuationSparkline } from "@/components/features/portfolio/ValuationSparkline";
 import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
@@ -23,6 +24,11 @@ import {
   useAutoInvest,
   useAutoInvestExecutions,
 } from "@/hooks/queries/useAutoInvest";
+import { useValuations } from "@/hooks/queries/useValuations";
+import {
+  useWholeShareHistory,
+  useConvertWholeShares,
+} from "@/hooks/queries/useWholeShares";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { useCancelOrder } from "@/hooks/mutations/useCancelOrder";
@@ -76,15 +82,23 @@ interface Selection {
   clientOrderId: string;
 }
 
-export default function StockPuzzlePage() {
+export default function StockDetailPage() {
   const { stockCode } = useParams<{ stockCode: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // view=pieces(조각/모으기 렌즈 진입) → 퍼즐 / 그 외(전체 렌즈) → 종목 현황
+  const isPieces = searchParams.get("view") === "pieces";
+
   const holdingsQ = useHoldings();
   const detailQ = useStockDetail(stockCode);
   const ordersQ = useOrders();
   // 자동모으기 종목인지 + 회차 내역 (모으기 종목일 때만 의미)
   const auto = useAutoInvest(stockCode);
   const execQ = useAutoInvestExecutions(auto.id);
+  // 현황 뷰 전용: 평가추이·온주전환
+  const valuationsQ = useValuations(stockCode, !isPieces);
+  const wholeQ = useWholeShareHistory();
+  const convert = useConvertWholeShares();
   const buyOrder = useBuyOrder();
   const sellOrder = useSellOrder();
   const cancelOrder = useCancelOrder();
@@ -137,6 +151,17 @@ export default function StockPuzzlePage() {
   const evalAmount = qty.times(price);
   const remainAmount = new Decimal(1).minus(frac).times(price);
 
+  // 현황: 평가손익 + 온주/소수 분리(FRAC-010)
+  const invested = qty.times(toDecimal(holding?.avgBuyPrice));
+  const profit = evalAmount.minus(invested);
+  const rate = invested.gt(0) ? profit.div(invested).times(100) : new Decimal(0);
+  const wholeQtyD = toDecimal(holding?.wholeQty);
+  const fractionalQtyD = toDecimal(holding?.fractionalQty);
+  const canConvert = fractionalQtyD.gte(1); // 신탁 소수가 1주 이상이면 온주 전환 가능
+  const convHistory = (wholeQ.data ?? []).filter(
+    (c) => c.stockCode === stockCode,
+  );
+
   // 주문 (틀): 조각당 금액 = 현재가 / 100
   const isUSD = detail.currency === "USD";
   const market = isUSD ? "OVERSEAS" : "DOMESTIC";
@@ -153,7 +178,6 @@ export default function StockPuzzlePage() {
     : 1;
 
   // 선택 확정 = 새 주문 시도 → 멱등키 1개 발급(해제는 null). 재드래그하면 새 키.
-  // 최소 주문금액 미만이면, 같은 모드(매수=빈칸 / 매도=채운칸)에서 조각을 1,000원 이상이 될 때까지 자동 추가.
   const handleCommit = (
     s: { mode: "buy" | "sell"; indexes: number[] } | null,
   ) => {
@@ -163,7 +187,6 @@ export default function StockPuzzlePage() {
     }
     let indexes = s.indexes;
     if (indexes.length < minPieces) {
-      // 후보 조각: 매수=빈칸(pieces~99) / 매도=채운칸(0~pieces-1)
       const candidates =
         s.mode === "buy"
           ? Array.from({ length: PIECES_PER_SHARE - pieces }, (_, i) => pieces + i)
@@ -174,7 +197,6 @@ export default function StockPuzzlePage() {
         chosen.add(idx);
       }
       indexes = Array.from(chosen).sort((a, b) => a - b);
-      // 가용 조각으로도 최소 주문금액을 못 채우면 주문 시트를 열지 않는다.
       if (indexes.length < minPieces) {
         toast.warning(
           `최소 주문금액(${fmtAmount(minOrder)})을 채울 조각이 부족해요`,
@@ -194,7 +216,6 @@ export default function StockPuzzlePage() {
   const handleConfirm = () => {
     if (!sel || ordering) return;
     const isBuy = sel.mode === "buy";
-    // sel.clientOrderId 재사용 → 따닥 탭/재시도해도 동일 키 = 멱등 (성공 시에만 폐기)
     const clientOrderId = sel.clientOrderId;
     const opts = {
       onSuccess: (data: SplitOrderResponse) => {
@@ -203,17 +224,14 @@ export default function StockPuzzlePage() {
           t.title,
           t.description ? { description: t.description } : undefined,
         );
-        setSel(null); // 키 폐기 → 다음 주문은 새 멱등키
+        setSel(null);
       },
-      // 실패 시 sel 유지 → 같은 멱등키로 재시도 가능 (시트도 열린 채)
       onError: (err: unknown) => {
-        // 거래 인증 미완료: 계좌 비밀번호 시트를 띄우고, 인증되면 동일 키로 재시도
         if (err instanceof ApiError && err.code === "TXN_AUTH_REQUIRED") {
           setAuthOpen(true);
           return;
         }
         if (err instanceof ApiError && err.status === 409) {
-          // 멱등 충돌: 거의 동시 동일 키 → 같은 키로 다시 누르면 기존 결과 반환
           toast.error("이미 처리 중인 주문이에요. 잠시 후 다시 확인해 주세요.");
           return;
         }
@@ -224,8 +242,6 @@ export default function StockPuzzlePage() {
         );
       },
     };
-    // 조각=수량(1조각=1/PIECES_PER_SHARE주). 금액(AMOUNT)으로 보내면 국내 1,000원 단위 제약에
-    // 걸리므로 수량(QUANTITY)으로 보낸다 — 단위 제약 없이 최소 금액만 검증됨.
     const quantity = new Decimal(selPieces).div(PIECES_PER_SHARE).toNumber();
     if (sel.mode === "buy") {
       buyOrder.mutate(
@@ -244,7 +260,6 @@ export default function StockPuzzlePage() {
     .filter((o) => o.stockCode === stockCode && o.status !== "REJECTED")
     .slice(0, 5);
 
-  // 미체결 주문 취소 (소수점 QUEUED / 온주 PENDING). 성공 시 캐시 무효화 → 목록 갱신.
   const handleCancel = (orderId: number) => {
     if (cancelOrder.isPending) return;
     cancelOrder.mutate(orderId, {
@@ -258,15 +273,51 @@ export default function StockPuzzlePage() {
     });
   };
 
+  const handleConvert = () => {
+    if (convert.isPending) return;
+    convert.mutate(stockCode, {
+      onSuccess: (r) =>
+        toast.success(`${r.convertedWholeQty}주를 온주로 전환했어요`),
+      onError: (err: unknown) =>
+        toast.error(
+          err instanceof ApiError
+            ? err.message
+            : "온주 전환에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        ),
+    });
+  };
+
+  // 전환 버튼: 1주 이상이면 바로 전환 / 1주 미만이면 더 모으도록 매매창 안내
+  const handleConvertClick = () => {
+    if (convert.isPending) return;
+    if (canConvert) {
+      handleConvert();
+      return;
+    }
+    toast("아직 온주 1주가 안 됐어요", {
+      description: "조금 더 모으면 온주로 굳힐 수 있어요.",
+      action: {
+        label: "매매창으로",
+        onClick: () => router.push(`/trading/${stockCode}`),
+      },
+    });
+  };
+
+  const latestVal = (valuationsQ.data ?? []).at(-1);
+
   return (
     <>
       <AppHeader variant="sub" title={detail.stockName} />
 
       <div className="space-y-6">
-        {/* 현재가 + 등락 */}
+        {/* 현재가 + 등락 — 공통 */}
         <div className="flex items-baseline gap-2">
           <AmountDisplay value={price.toString()} size="lg" />
-          <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="md" />
+          <ChangeIndicator
+            value={detail.price?.changeRate ?? 0}
+            percent
+            size="md"
+          />
         </div>
 
         {/* 자동모으기 상태 — 모으기 종목일 때만. 탭 → 설정 */}
@@ -297,49 +348,167 @@ export default function StockPuzzlePage() {
           </button>
         )}
 
-        {/* 퍼즐 현황 (조각 탭 → 매수/매도 선택) */}
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-foreground">퍼즐 현황</h2>
-            <span className="font-numeric text-sm font-bold text-primary">
-              {pieces}/{PIECES_PER_SHARE} 조각
-            </span>
-          </div>
-          <JigsawPuzzle
-            total={PIECES_PER_SHARE}
-            filled={pieces}
-            onSelectionCommit={handleCommit}
-            selectedIndexes={sel?.indexes ?? []}
-          />
-          <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="inline-block size-2 rounded-full bg-primary" />
-            빈 조각 탭 → 매수 · 채운 조각 탭 → 매도
-          </p>
-        </section>
+        {isPieces ? (
+          <>
+            {/* 퍼즐 현황 (조각 탭 → 매수/매도 선택) */}
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-base font-bold text-foreground">퍼즐 현황</h2>
+                <span className="font-numeric text-sm font-bold text-primary">
+                  {pieces}/{PIECES_PER_SHARE} 조각
+                </span>
+              </div>
+              <JigsawPuzzle
+                total={PIECES_PER_SHARE}
+                filled={pieces}
+                onSelectionCommit={handleCommit}
+                selectedIndexes={sel?.indexes ?? []}
+              />
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="inline-block size-2 rounded-full bg-primary" />
+                빈 조각 탭 → 매수 · 채운 조각 탭 → 매도
+              </p>
+            </section>
 
-        {/* 보유 / 남은 금액 */}
-        <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border p-4">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">내 보유</p>
-            <p className="font-numeric text-lg font-bold text-foreground">
-              {formatShares(qty)}주
-            </p>
-            <p className="text-xs text-muted-foreground">
-              = {fmtAmount(evalAmount.toString())}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">1주까지 남은 금액</p>
-            <AmountDisplay
-              value={remainAmount.toString()}
-              size="lg"
-              className="font-bold"
-            />
-            {/* TODO: "≈ N일 (정기 적립식 기준)" — 적립식 설정 API 연동 후 */}
-          </div>
-        </div>
+            {/* 보유 / 남은 금액 */}
+            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border p-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">내 보유</p>
+                <p className="font-numeric text-lg font-bold text-foreground">
+                  {formatShares(qty)}주
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  = {fmtAmount(evalAmount.toString())}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">1주까지 남은 금액</p>
+                <AmountDisplay
+                  value={remainAmount.toString()}
+                  size="lg"
+                  className="font-bold"
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* 평가 추이 (현황) */}
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-base font-bold text-foreground">평가 추이</h2>
+                {latestVal && (
+                  <ChangeIndicator value={latestVal.profitRate} percent size="sm" />
+                )}
+              </div>
+              {valuationsQ.isLoading ? (
+                <SkeletonCard lines={0} className="h-16" />
+              ) : (
+                <ValuationSparkline data={valuationsQ.data ?? []} />
+              )}
+            </section>
 
-        {/* 모으기 내역 (회차) — 자동모으기 종목만 노출 */}
+            {/* 보유 요약 (현황) */}
+            <section className="space-y-3 rounded-2xl border border-border p-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-muted-foreground">평가금액</span>
+                <AmountDisplay
+                  value={evalAmount.toString()}
+                  currency={isUSD ? "USD" : "KRW"}
+                  size="lg"
+                  className="font-bold"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">평가손익</span>
+                <div className="flex items-center gap-1.5">
+                  <ChangeIndicator
+                    value={profit.toNumber()}
+                    suffix={isUSD ? "$" : "원"}
+                    size="sm"
+                    showArrow={false}
+                  />
+                  <ChangeIndicator value={rate.toNumber()} percent size="sm" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between border-t border-border pt-3">
+                <span className="text-xs text-muted-foreground">보유</span>
+                <span className="font-numeric text-sm font-bold text-foreground">
+                  {formatShares(qty)}주
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  직접소유 · 신탁(소수)
+                </span>
+                <span className="font-numeric text-xs text-muted-foreground">
+                  {formatShares(wholeQtyD)}주 · {formatShares(fractionalQtyD)}
+                </span>
+              </div>
+            </section>
+
+            {/* 온주 전환 — 신탁 소수가 있으면 노출(1주 이상이어야 전환 가능, 미만이면 안내) */}
+            {fractionalQtyD.gt(0) && (
+              <section className="rounded-2xl border border-border p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground">온주로 전환</p>
+                    <p className="text-xs text-muted-foreground">
+                      {canConvert
+                        ? `신탁 소수 ${formatShares(fractionalQtyD)}주 중 ${fractionalQtyD.floor().toString()}주를 직접소유 온주로 굳혀요`
+                        : `신탁 소수 ${formatShares(fractionalQtyD)}주 · 1주를 채우면 온주로 전환할 수 있어요`}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={convert.isPending}
+                    onClick={handleConvertClick}
+                  >
+                    {convert.isPending ? "전환 중…" : "전환"}
+                  </Button>
+                </div>
+              </section>
+            )}
+
+            {convHistory.length > 0 && (
+              <section>
+                <h2 className="mb-3 text-base font-bold text-foreground">
+                  온주 전환 내역
+                </h2>
+                <div className="divide-y divide-border">
+                  {convHistory.map((c, i) => (
+                    <div
+                      key={`${c.stockCode}-${c.convertedAt}-${i}`}
+                      className="flex items-center justify-between py-3"
+                    >
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(c.convertedAt), "yyyy.MM.dd")}
+                      </span>
+                      <span className="font-numeric text-sm font-bold text-foreground">
+                        {c.wholeQty}주 전환
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* 조각 모으기(퍼즐) 진입 */}
+            <button
+              type="button"
+              onClick={() => router.push(`/portfolio/${stockCode}?view=pieces`)}
+              className="flex w-full items-center justify-between rounded-xl bg-brand-surface px-4 py-3 text-left transition-colors hover:bg-brand-surface/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <span className="inline-block size-2 rounded-full bg-primary" />
+                조각 모으기 (퍼즐)
+              </span>
+              <ChevronRight className="size-4 text-primary" />
+            </button>
+          </>
+        )}
+
+        {/* 모으기 내역 (회차) — 자동모으기 종목만 노출. 공통 */}
         {auto.id !== null && (
           <section>
             <h2 className="mb-3 text-base font-bold text-foreground">모으기 내역</h2>
@@ -396,7 +565,7 @@ export default function StockPuzzlePage() {
           </section>
         )}
 
-        {/* 최근 내역 */}
+        {/* 최근 내역 — 공통 */}
         <section>
           <h2 className="mb-3 text-base font-bold text-foreground">최근 내역</h2>
           {recentOrders.length === 0 ? (
@@ -406,7 +575,6 @@ export default function StockPuzzlePage() {
               {recentOrders.map((o) => {
                 const orderQty = toDecimal(o.quantity);
                 const orderPrice = toDecimal(o.price);
-                // 소수점 주문은 체결 전 price가 비어 0 → 현재가로 추정(≈). 온주는 체결단가 그대로.
                 const estimated = !orderPrice.gt(0);
                 const amt = (estimated ? price : orderPrice).times(orderQty);
                 const cancellable =

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronRight, Repeat } from "lucide-react";
+import { ChevronRight, Repeat, Search } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -281,7 +281,13 @@ export default function TradePage() {
       <AppHeader
         variant="sub"
         title={
-          <span className="flex items-center gap-2">
+          // 헤더 탭 → 검색 전용 오버레이 (메뉴 아님). 종목명 옆 돋보기로 검색 가능함을 암시
+          <button
+            type="button"
+            onClick={() => router.push("/trading/search")}
+            aria-label="종목 검색 열기"
+            className="-mx-1 flex items-center gap-2 rounded-lg px-1 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
             <Avatar className="size-7">
               {detail.logoUrl && (
                 <AvatarImage src={detail.logoUrl} alt={detail.stockName} />
@@ -290,16 +296,17 @@ export default function TradePage() {
                 {(detail.stockCode ?? detail.stockName).trim().charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <span className="flex flex-col leading-tight">
-              <span className="text-xs text-muted-foreground">
+            <span className="flex flex-col text-left leading-tight">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 {detail.stockName}
+                <Search className="size-3" />
               </span>
               <span className="flex items-baseline gap-1.5">
                 <AmountDisplay value={price.toString()} size="md" className="font-bold" />
                 <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
               </span>
             </span>
-          </span>
+          </button>
         }
       />
 

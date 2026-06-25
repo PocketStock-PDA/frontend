@@ -1,104 +1,89 @@
 "use client";
 
-import Decimal from "decimal.js";
-import { Settings } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
-import { ProgressBar } from "@/components/common/ProgressBar";
+import { formatHoldingShort } from "@/lib/utils/pieces";
 
 export interface HoldingCardProps {
   name: string;
   ticker?: string;
   logoUrl?: string | null;
-  /** 채운 조각 수 */
-  pieces: number;
-  total?: number;
+  /** 보유 수량(소수 주) */
   quantity: number;
   evalAmount: number;
   /** 평가손익 */
   profit: number;
   /** 수익률(%) */
   rate: number;
+  /** 자동모으기 진행 중 — 배지 노출 */
+  isAuto?: boolean;
+  currency?: "KRW" | "USD";
   onClick?: () => void;
-  onSettings?: () => void;
 }
 
-/** 포트폴리오 보드 종목 카드: 로고/이름 + 조각·주수 + 평가/손익 + 진행바 */
+/**
+ * 보유 종목 카드(전체·모으기 렌즈). 위계: 평가액이 1차, 보유량/손익이 2차.
+ * 보유량은 "N주 M조각"으로 정직하게 — 온주가 사라져 보이지 않게 한다.
+ */
 export function HoldingCard({
   name,
   ticker,
   logoUrl,
-  pieces,
-  total = 100,
   quantity,
   evalAmount,
   profit,
   rate,
+  isAuto = false,
+  currency = "KRW",
   onClick,
-  onSettings,
 }: HoldingCardProps) {
   const initial = (ticker ?? name).trim().charAt(0).toUpperCase();
-  const shares = new Decimal(quantity).toDecimalPlaces(4).toString();
 
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick?.();
-        }
-      }}
-      className="cursor-pointer rounded-2xl border border-border bg-card p-4"
+      className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
-      <div className="flex items-start gap-3">
-        <Avatar>
-          {logoUrl && <AvatarImage src={logoUrl} alt={name} />}
-          <AvatarFallback>{initial}</AvatarFallback>
-        </Avatar>
+      <Avatar className="shrink-0">
+        {logoUrl && <AvatarImage src={logoUrl} alt="" />}
+        <AvatarFallback>{initial}</AvatarFallback>
+      </Avatar>
 
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-foreground">{name}</p>
-          <p className="font-numeric text-xs text-muted-foreground">
-            {pieces}조각 · {shares}주
-          </p>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-bold text-foreground">
+            {name}
+          </span>
+          {isAuto && (
+            <span className="shrink-0 rounded-full bg-brand-surface px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              모으는 중
+            </span>
+          )}
         </div>
-
-        <div className="shrink-0 text-right">
-          <AmountDisplay value={evalAmount} size="md" className="font-bold" />
-          <div className="flex items-center justify-end gap-1">
-            <ChangeIndicator
-              value={profit}
-              suffix="원"
-              size="sm"
-              showArrow={false}
-            />
-            <ChangeIndicator value={rate} percent size="sm" />
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSettings?.();
-          }}
-          aria-label="모으기 설정"
-          className="-mr-1 -mt-1 shrink-0 p-1 text-muted-foreground"
-        >
-          <Settings className="size-4" />
-        </button>
+        <p className="mt-0.5 font-numeric text-xs text-muted-foreground">
+          {formatHoldingShort(quantity)}
+        </p>
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <ProgressBar value={(pieces / total) * 100} className="flex-1" />
-        <span className="font-numeric text-xs text-muted-foreground">
-          {pieces}/{total}
-        </span>
+      <div className="shrink-0 text-right">
+        <AmountDisplay
+          value={evalAmount}
+          currency={currency}
+          size="md"
+          className="block font-bold"
+        />
+        <div className="mt-0.5 flex items-center justify-end gap-1.5">
+          <ChangeIndicator
+            value={profit}
+            suffix={currency === "USD" ? "$" : "원"}
+            size="sm"
+            showArrow={false}
+          />
+          <ChangeIndicator value={rate} percent size="sm" />
+        </div>
       </div>
-    </div>
+    </button>
   );
 }
