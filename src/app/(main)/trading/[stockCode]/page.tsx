@@ -17,6 +17,7 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
@@ -60,6 +61,8 @@ export default function TradePage() {
   const [qty, setQty] = useState(0);
   const [amount, setAmount] = useState(0);
   const [autoCharge, setAutoCharge] = useState(true);
+  // 거래 인증 필요(TXN_AUTH_REQUIRED) 시 계좌 비밀번호를 받기 위한 시트 — 인증 후 그 side로 재시도
+  const [authSide, setAuthSide] = useState<Side | null>(null);
 
   // 멱등키: 같은 주문(파라미터·side) 재시도 시 동일 키 재사용, 입력 변경 시 폐기 (issue #4)
   const orderKeys = useRef<Record<Side, string | null>>({ BUY: null, SELL: null });
@@ -98,6 +101,7 @@ export default function TradePage() {
   const market = isUSD ? "OVERSEAS" : "DOMESTIC";
   const amountDp = isUSD ? 2 : 0; // 금액 반올림 자리수: KRW 0 / USD 2(센트)
   const fmtAmount = (v: number | string) => (isUSD ? formatUSD(v) : formatKRW(v));
+  const minOrder = isUSD ? 0.01 : 1000; // 소수점 최소 주문금액 (국내 1,000원 / 해외 $0.01)
 
   // 금액 계산은 decimal.js 필수 (README 가이드라인). API 값은 toDecimal로 안전 변환(null→0)
   const price = toDecimal(detail.price.currentPrice);
@@ -157,6 +161,11 @@ export default function TradePage() {
     },
     // 실패 시 키 유지 → 같은 주문 재시도 시 동일 키(멱등)
     onError: (err: unknown) => {
+      // 거래 인증 미완료: 계좌 비밀번호 시트를 띄우고, 인증되면 동일 키로 재시도
+      if (err instanceof ApiError && err.code === "TXN_AUTH_REQUIRED") {
+        setAuthSide(side);
+        return;
+      }
       if (err instanceof ApiError && err.status === 409) {
         toast.error("이미 처리 중인 주문이에요. 잠시 후 다시 확인해 주세요.");
         return;
@@ -181,16 +190,61 @@ export default function TradePage() {
         { clientOrderId, stockCode, market, side, orderType: "MARKET", quantity: qty },
         opts,
       );
-    } else if (side === "BUY") {
-      buyOrder.mutate(
-        { clientOrderId, stockCode, market, orderType: "AMOUNT", amount: orderAmount.toNumber() },
-        opts,
+      return;
+    }
+    // 소수점: 금액 모드는 AMOUNT(국내 1,000원 단위), 수량 모드는 QUANTITY(소수 주수, 단위 제약 없음).
+    // 수량 모드를 AMOUNT(=수량×가격)로 보내면 1,000원 배수가 아니라 백엔드가 거부함.
+    // 최소 주문금액(1,000원·$0.01) 미만은 자동으로 최소금액/최소수량으로 상향 보정.
+    let correctedAmount = amount;
+    let correctedQty = qty;
+    if (inputMode === "AMOUNT") {
+      if (amount > 0 && amount < minOrder) {
+        correctedAmount = minOrder;
+        setAmount(minOrder);
+        toast.warning(
+          `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${fmtAmount(minOrder)}으로 맞췄어요`,
+        );
+      }
+    } else if (price.gt(0) && new Decimal(qty).times(price).lt(minOrder)) {
+      correctedQty = new Decimal(minOrder)
+        .div(price)
+        .toDecimalPlaces(4, Decimal.ROUND_UP)
+        .toNumber();
+      setQty(correctedQty);
+      toast.warning(
+        `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${formatShares(new Decimal(correctedQty))}주로 조정했어요`,
       );
+    }
+    // 보정 후 실제 주문 가능 범위 검증 — 매수 가능 금액 / 매도 가능 수량 초과 시 차단(초과 주문 방지).
+    if (side === "BUY") {
+      const need =
+        inputMode === "AMOUNT"
+          ? new Decimal(correctedAmount)
+          : new Decimal(correctedQty).times(price);
+      if (need.gt(buyingPower)) {
+        toast.error("매수 가능 금액을 초과했어요.");
+        return;
+      }
     } else {
-      sellOrder.mutate(
-        { clientOrderId, stockCode, market, orderType: "AMOUNT", amount: orderAmount.toNumber() },
-        opts,
-      );
+      const sellQty =
+        inputMode === "AMOUNT"
+          ? price.gt(0)
+            ? new Decimal(correctedAmount).div(price)
+            : new Decimal(0)
+          : new Decimal(correctedQty);
+      if (sellQty.gt(holdingQty)) {
+        toast.error("보유 수량을 초과했어요.");
+        return;
+      }
+    }
+    const orderDetail =
+      inputMode === "AMOUNT"
+        ? ({ orderType: "AMOUNT", amount: correctedAmount } as const)
+        : ({ orderType: "QUANTITY", quantity: correctedQty } as const);
+    if (side === "BUY") {
+      buyOrder.mutate({ clientOrderId, stockCode, market, ...orderDetail }, opts);
+    } else {
+      sellOrder.mutate({ clientOrderId, stockCode, market, ...orderDetail }, opts);
     }
   };
 
@@ -339,6 +393,34 @@ export default function TradePage() {
           </div>
         </div>
 
+        {/* 예상 주문금액 / 수수료 / 결제액 (수량·금액 바꿀 때 실시간 갱신) */}
+        {valid && (
+          <div className="space-y-1.5 rounded-xl bg-muted/40 px-4 py-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">예상 주문금액</span>
+              <span className="font-numeric font-bold text-foreground">
+                {fmtAmount(orderAmount.toDecimalPlaces(amountDp).toNumber())}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">
+                예상 수수료 ({FEE_RATE * 100}%)
+              </span>
+              <span className="font-numeric text-muted-foreground">
+                {fmtAmount(fee.toDecimalPlaces(amountDp).toNumber())}
+              </span>
+            </div>
+            <div className="flex items-center justify-between border-t border-border pt-1.5">
+              <span className="text-muted-foreground">매수 시 예상 결제액</span>
+              <span className="font-numeric font-bold text-primary">
+                {fmtAmount(
+                  orderAmount.plus(fee).toDecimalPlaces(amountDp).toNumber(),
+                )}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* 매수 / 매도 */}
         <div className="flex gap-3">
           <Button
@@ -356,10 +438,6 @@ export default function TradePage() {
             매도
           </Button>
         </div>
-
-        <p className="text-center text-xs text-muted-foreground">
-          수수료 {FEE_RATE * 100}% · 약 {fmtAmount(fee.toDecimalPlaces(amountDp).toNumber())}
-        </p>
 
         {/* 온주: 호가창(지정가) 매매로 이동 (이슈 ②) */}
         {method === "WHOLE" && (
@@ -386,6 +464,18 @@ export default function TradePage() {
           <ChevronRight className="size-4 text-muted-foreground" />
         </button>
       </div>
+
+      <TxnAuthDialog
+        open={authSide !== null}
+        onOpenChange={(o) => {
+          if (!o) setAuthSide(null);
+        }}
+        onVerified={() => {
+          const side = authSide;
+          setAuthSide(null);
+          if (side) submit(side);
+        }}
+      />
     </>
   );
 }

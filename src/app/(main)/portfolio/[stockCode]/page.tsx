@@ -14,17 +14,29 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { JigsawPuzzle } from "@/components/features/portfolio/JigsawPuzzle";
 import { PuzzleOrderSheet } from "@/components/features/portfolio/PuzzleOrderSheet";
+import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useOrders } from "@/hooks/queries/useOrders";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
+import { useCancelOrder } from "@/hooks/mutations/useCancelOrder";
 import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 
 const PIECES_PER_SHARE = 100; // 1주 = 100조각
+
+// 미체결/종결 상태 라벨 (FILLED는 칩 미표시). 취소 가능 = QUEUED(소수점)·PENDING(온주).
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  RECEIVED: "접수됨",
+  QUEUED: "체결 대기",
+  SENT: "처리 중",
+  PENDING: "미체결",
+  CANCELLED: "취소됨",
+  REJECTED: "실패",
+};
 
 function formatShares(q: Decimal) {
   return q.toDecimalPlaces(4).toString();
@@ -44,12 +56,15 @@ export default function StockPuzzlePage() {
   const ordersQ = useOrders();
   const buyOrder = useBuyOrder();
   const sellOrder = useSellOrder();
+  const cancelOrder = useCancelOrder();
   // 실시간 시세(체결) → 현재가 갱신 (issue #10)
   useStockTradeSocket(stockCode, {
     overseas: detailQ.data?.currency === "USD",
     enabled: !!detailQ.data,
   });
   const [sel, setSel] = useState<Selection | null>(null);
+  // 거래 인증 필요 시 계좌 비밀번호를 받기 위한 시트 — 인증 후 동일 키로 재시도
+  const [authOpen, setAuthOpen] = useState(false);
 
   if (holdingsQ.isLoading || detailQ.isLoading) {
     return (
@@ -99,15 +114,55 @@ export default function StockPuzzlePage() {
   const orderAmount = price.div(PIECES_PER_SHARE).times(selPieces);
   const ordering = buyOrder.isPending || sellOrder.isPending;
 
+  // 백엔드 최소 주문금액(국내 1,000원 / 해외 $0.01)을 충족하는 최소 조각 수.
+  const perPiece = price.div(PIECES_PER_SHARE);
+  const minOrder = isUSD ? 0.01 : 1000;
+  const minPieces = perPiece.gt(0)
+    ? new Decimal(minOrder).div(perPiece).ceil().toNumber()
+    : 1;
+
   // 선택 확정 = 새 주문 시도 → 멱등키 1개 발급(해제는 null). 재드래그하면 새 키.
+  // 최소 주문금액 미만이면, 같은 모드(매수=빈칸 / 매도=채운칸)에서 조각을 1,000원 이상이 될 때까지 자동 추가.
   const handleCommit = (
     s: { mode: "buy" | "sell"; indexes: number[] } | null,
-  ) => setSel(s ? { ...s, clientOrderId: genClientOrderId() } : null);
+  ) => {
+    if (!s) {
+      setSel(null);
+      return;
+    }
+    let indexes = s.indexes;
+    if (indexes.length < minPieces) {
+      // 후보 조각: 매수=빈칸(pieces~99) / 매도=채운칸(0~pieces-1)
+      const candidates =
+        s.mode === "buy"
+          ? Array.from({ length: PIECES_PER_SHARE - pieces }, (_, i) => pieces + i)
+          : Array.from({ length: pieces }, (_, i) => i);
+      const chosen = new Set(indexes);
+      for (const idx of candidates) {
+        if (chosen.size >= minPieces) break;
+        chosen.add(idx);
+      }
+      indexes = Array.from(chosen).sort((a, b) => a - b);
+      // 가용 조각으로도 최소 주문금액을 못 채우면 주문 시트를 열지 않는다.
+      if (indexes.length < minPieces) {
+        toast.warning(
+          `최소 주문금액(${fmtAmount(minOrder)})을 채울 조각이 부족해요`,
+        );
+        setSel(null);
+        return;
+      }
+      if (indexes.length > s.indexes.length) {
+        toast.warning(
+          `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${indexes.length}조각으로 맞췄어요`,
+        );
+      }
+    }
+    setSel({ mode: s.mode, indexes, clientOrderId: genClientOrderId() });
+  };
 
   const handleConfirm = () => {
     if (!sel || ordering) return;
     const isBuy = sel.mode === "buy";
-    const amount = orderAmount.toNumber();
     // sel.clientOrderId 재사용 → 따닥 탭/재시도해도 동일 키 = 멱등 (성공 시에만 폐기)
     const clientOrderId = sel.clientOrderId;
     const opts = {
@@ -117,6 +172,11 @@ export default function StockPuzzlePage() {
       },
       // 실패 시 sel 유지 → 같은 멱등키로 재시도 가능 (시트도 열린 채)
       onError: (err: unknown) => {
+        // 거래 인증 미완료: 계좌 비밀번호 시트를 띄우고, 인증되면 동일 키로 재시도
+        if (err instanceof ApiError && err.code === "TXN_AUTH_REQUIRED") {
+          setAuthOpen(true);
+          return;
+        }
         if (err instanceof ApiError && err.status === 409) {
           // 멱등 충돌: 거의 동시 동일 키 → 같은 키로 다시 누르면 기존 결과 반환
           toast.error("이미 처리 중인 주문이에요. 잠시 후 다시 확인해 주세요.");
@@ -129,22 +189,39 @@ export default function StockPuzzlePage() {
         );
       },
     };
+    // 조각=수량(1조각=1/PIECES_PER_SHARE주). 금액(AMOUNT)으로 보내면 국내 1,000원 단위 제약에
+    // 걸리므로 수량(QUANTITY)으로 보낸다 — 단위 제약 없이 최소 금액만 검증됨.
+    const quantity = new Decimal(selPieces).div(PIECES_PER_SHARE).toNumber();
     if (sel.mode === "buy") {
       buyOrder.mutate(
-        { clientOrderId, stockCode, market, orderType: "AMOUNT", amount },
+        { clientOrderId, stockCode, market, orderType: "QUANTITY", quantity },
         opts,
       );
     } else {
       sellOrder.mutate(
-        { clientOrderId, stockCode, market, orderType: "AMOUNT", amount },
+        { clientOrderId, stockCode, market, orderType: "QUANTITY", quantity },
         opts,
       );
     }
   };
 
   const recentOrders = (ordersQ.data ?? [])
-    .filter((o) => o.stockCode === stockCode)
+    .filter((o) => o.stockCode === stockCode && o.status !== "REJECTED")
     .slice(0, 5);
+
+  // 미체결 주문 취소 (소수점 QUEUED / 온주 PENDING). 성공 시 캐시 무효화 → 목록 갱신.
+  const handleCancel = (orderId: number) => {
+    if (cancelOrder.isPending) return;
+    cancelOrder.mutate(orderId, {
+      onSuccess: () => toast.success("주문을 취소했어요"),
+      onError: (err: unknown) =>
+        toast.error(
+          err instanceof ApiError
+            ? err.message
+            : "주문 취소에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        ),
+    });
+  };
 
   return (
     <>
@@ -206,31 +283,59 @@ export default function StockPuzzlePage() {
             <EmptyState title="최근 내역이 없어요" className="py-6" />
           ) : (
             <div className="divide-y divide-border">
-              {recentOrders.map((o) => (
-                <div
-                  key={o.orderId}
-                  className="flex items-center justify-between py-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {o.side === "BUY" ? "매수" : "매도"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(o.createdAt), "yyyy.MM.dd")}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-numeric text-sm font-bold text-foreground">
-                      {formatShares(toDecimal(o.quantity))}주
-                    </p>
-                    <p className="font-numeric text-xs text-muted-foreground">
-                      {fmtAmount(
-                        toDecimal(o.price).times(toDecimal(o.quantity)).toString(),
+              {recentOrders.map((o) => {
+                const orderQty = toDecimal(o.quantity);
+                const orderPrice = toDecimal(o.price);
+                // 소수점 주문은 체결 전 price가 비어 0 → 현재가로 추정(≈). 온주는 체결단가 그대로.
+                const estimated = !orderPrice.gt(0);
+                const amt = (estimated ? price : orderPrice).times(orderQty);
+                const cancellable =
+                  o.status === "QUEUED" || o.status === "PENDING";
+                const canceling =
+                  cancelOrder.isPending && cancelOrder.variables === o.orderId;
+                return (
+                  <div
+                    key={o.orderId}
+                    className="flex items-center justify-between gap-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                        {o.side === "BUY" ? "매수" : "매도"}
+                        {o.status !== "FILLED" && ORDER_STATUS_LABEL[o.status] && (
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {ORDER_STATUS_LABEL[o.status]}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(o.createdAt), "yyyy.MM.dd")}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <div className="text-right">
+                        <p className="font-numeric text-sm font-bold text-foreground">
+                          {formatShares(orderQty)}주
+                        </p>
+                        <p className="font-numeric text-xs text-muted-foreground">
+                          {amt.gt(0)
+                            ? `${estimated ? "≈ " : ""}${fmtAmount(amt.toString())}`
+                            : "—"}
+                        </p>
+                      </div>
+                      {cancellable && (
+                        <button
+                          type="button"
+                          onClick={() => handleCancel(o.orderId)}
+                          disabled={cancelOrder.isPending}
+                          className="shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                        >
+                          {canceling ? "취소 중..." : "취소"}
+                        </button>
                       )}
-                    </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
@@ -248,6 +353,12 @@ export default function StockPuzzlePage() {
         formatAmount={fmtAmount}
         onConfirm={handleConfirm}
         pending={ordering}
+      />
+
+      <TxnAuthDialog
+        open={authOpen}
+        onOpenChange={setAuthOpen}
+        onVerified={handleConfirm}
       />
     </>
   );

@@ -4,46 +4,22 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight,
-  CreditCard,
-  Landmark,
+  LayoutGrid,
   LogOut,
-  Plane,
   Plus,
-  Smartphone,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
 import { Switch } from "@/components/ui/switch";
 import { useMyProfile } from "@/hooks/queries/useMyProfile";
+import { useUpdateMyPageSettings } from "@/hooks/mutations/useUpdateMyPageSettings";
 import { useLogout } from "@/hooks/mutations/useAuth";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
-import type { LinkedAccount, LinkedAccountType } from "@/types/domain/myPage";
-
-const ACCOUNT_ICON: Record<LinkedAccountType, LucideIcon> = {
-  BANK: Landmark,
-  CARD: CreditCard,
-  TRAVEL: Plane,
-  PAY: Smartphone,
-};
 
 const SOON = () => toast.info("준비 중이에요");
-
-/** 연동 계좌 칩 (연동됨) */
-function LinkedAccountChip({ account }: { account: LinkedAccount }) {
-  const Icon = ACCOUNT_ICON[account.type];
-  return (
-    <div className="flex flex-col items-center gap-1 rounded-xl border border-border px-2 py-3">
-      <span className="flex size-7 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-500">
-        <Icon className="size-3.5" />
-      </span>
-      <span className="text-[11px] text-foreground">{account.name}</span>
-      <span className="text-[11px] text-emerald-500">연동됨</span>
-    </div>
-  );
-}
 
 /** 우측 화살표가 있는 설정 카드 (탭 시 이동) */
 function SettingLinkCard({
@@ -89,6 +65,7 @@ export default function MyPage() {
   const { data: profile } = useMyProfile();
   const { setGuest } = useAuth();
   const logout = useLogout();
+  const updateSettings = useUpdateMyPageSettings();
 
   const [cardChangeCollect, setCardChangeCollect] = useState(false);
   const [monthlySavingCollect, setMonthlySavingCollect] = useState(false);
@@ -101,6 +78,27 @@ export default function MyPage() {
     setCardChangeCollect(profile.settings.cardChangeCollect);
     setMonthlySavingCollect(profile.settings.monthlySavingCollect);
   }
+
+  // 토글: 낙관적 반영 후 PATCH. 실패 시 이전 값으로 롤백.
+  const toggleSetting = (
+    key: "cardChangeCollect" | "monthlySavingCollect",
+    next: boolean,
+  ) => {
+    const setLocal =
+      key === "cardChangeCollect"
+        ? setCardChangeCollect
+        : setMonthlySavingCollect;
+    setLocal(next);
+    updateSettings.mutate(
+      { [key]: next },
+      {
+        onError: () => {
+          setLocal(!next);
+          toast.error("설정 변경에 실패했어요");
+        },
+      },
+    );
+  };
 
   const handleLogout = () => {
     logout.mutate(undefined, {
@@ -126,7 +124,9 @@ export default function MyPage() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold text-foreground">{profile.name}</p>
-          <p className="text-[11px] text-muted-foreground">{profile.username}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {profile.username}
+          </p>
         </div>
       </div>
 
@@ -149,22 +149,25 @@ export default function MyPage() {
         </div>
       </div>
 
-      {/* 연동 계좌 */}
-      <p className="mb-2 mt-5 text-xs font-medium text-muted-foreground">
-        연동 계좌
-      </p>
-      <div className="grid grid-cols-3 gap-2">
-        {profile.linkedAccounts.map((account) => (
-          <LinkedAccountChip key={account.id} account={account} />
-        ))}
+      {/* 홈화면 편집 + 자산연동 추가 */}
+      <div className="mt-5 grid grid-cols-2 gap-2.5">
         <button
-          onClick={SOON}
-          className="flex flex-col items-center gap-1 rounded-xl border border-border px-2 py-3"
+          onClick={() => router.push("/home/edit")}
+          className="flex min-h-[72px] flex-col items-start justify-between rounded-2xl border border-border p-[15px] text-left"
         >
-          <span className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-            <Plus className="size-3.5" />
+          <LayoutGrid className="size-5 text-primary" />
+          <span className="text-xs font-medium leading-snug text-foreground">
+            홈화면 편집
           </span>
-          <span className="text-[11px] text-muted-foreground">추가</span>
+        </button>
+        <button
+          onClick={() => router.push("/asset-link")}
+          className="flex min-h-[72px] flex-col items-start justify-between rounded-2xl border border-border p-[15px] text-left"
+        >
+          <Plus className="size-5 text-primary" />
+          <span className="text-xs font-medium leading-snug text-foreground">
+            자산연동 추가하기
+          </span>
         </button>
       </div>
 
@@ -172,7 +175,9 @@ export default function MyPage() {
       <div className="-mx-5 mt-5 h-2 bg-muted" />
 
       {/* 설정 */}
-      <p className="mb-2 mt-5 text-xs font-medium text-muted-foreground">설정</p>
+      <p className="mb-2 mt-5 text-xs font-medium text-muted-foreground">
+        설정
+      </p>
       <div className="grid grid-cols-2 gap-2.5">
         {/* 토글 2개 */}
         <div className="flex flex-col gap-2 rounded-2xl border border-border px-[15px] py-3.5">
@@ -187,7 +192,8 @@ export default function MyPage() {
             </span>
             <Switch
               checked={cardChangeCollect}
-              onCheckedChange={setCardChangeCollect}
+              onCheckedChange={(v) => toggleSetting("cardChangeCollect", v)}
+              disabled={updateSettings.isPending}
             />
           </div>
         </div>
@@ -203,7 +209,8 @@ export default function MyPage() {
             </span>
             <Switch
               checked={monthlySavingCollect}
-              onCheckedChange={setMonthlySavingCollect}
+              onCheckedChange={(v) => toggleSetting("monthlySavingCollect", v)}
+              disabled={updateSettings.isPending}
             />
           </div>
         </div>
@@ -213,7 +220,6 @@ export default function MyPage() {
           title="카드 잔돈 모으기 등록 카드 변경"
           onClick={SOON}
         />
-        <SettingLinkCard title="절약금 이체되는 계좌 변경" onClick={SOON} />
         <SettingLinkCard title="주단위 적립 금액 하한선 설정" onClick={SOON} />
         <SettingLinkCard title="알림 설정" onClick={SOON} />
         <SettingLinkCard
