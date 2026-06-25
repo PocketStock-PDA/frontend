@@ -218,7 +218,7 @@ export default function MyPage() {
         {/* 이동형 카드 */}
         <SettingLinkCard
           title="카드 잔돈 모으기 등록 카드 변경"
-          onClick={SOON}
+          onClick={() => router.push("/my/card-collect")}
         />
         <SettingLinkCard title="주단위 적립 금액 하한선 설정" onClick={SOON} />
         <SettingLinkCard title="알림 설정" onClick={SOON} />
