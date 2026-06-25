@@ -74,12 +74,17 @@ export default function HomePage() {
   } | null>(null);
 
   const handleCollect = () => {
-    collect.mutate();
-    const origin = sourcesRef.current?.getBoundingClientRect();
-    const target = collectBtnRef.current?.getBoundingClientRect();
-    if (origin && target) {
-      setCollectAnim({ id: Date.now(), origin, target });
-    }
+    if (collect.isPending) return; // 재진입 방지
+    collect.mutate(undefined, {
+      // 성공했을 때만 코인 모이기 연출 — 실패 요청엔 재생하지 않음
+      onSuccess: () => {
+        const origin = sourcesRef.current?.getBoundingClientRect();
+        const target = collectBtnRef.current?.getBoundingClientRect();
+        if (origin && target) {
+          setCollectAnim({ id: Date.now(), origin, target });
+        }
+      },
+    });
   };
 
   const linkOrder = useHomeLayoutStore((s) => s.order);

@@ -28,7 +28,13 @@ import { PocketStockIntro } from "./_components/PocketStockIntro";
 
 // "오늘 보지 않기" 로 닫은 날짜를 보관 — 같은 날 재진입 시 팝업 자동 노출 생략.
 const POPUP_HIDDEN_KEY = "ps.superSolPopupHiddenDate";
-const todayKey = () => new Date().toISOString().slice(0, 10);
+// 로컬(브라우저) 기준 날짜 — toISOString()의 UTC 사용 시 KST 자정 부근에 날짜가 어긋남.
+const todayKey = () => {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+};
 
 export default function SuperSolPage() {
   const router = useRouter();

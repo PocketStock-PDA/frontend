@@ -27,7 +27,7 @@ export function PocketStockIntro({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-white">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white">
       <video
         src="/pocketstock-intro.mp4"
         autoPlay
