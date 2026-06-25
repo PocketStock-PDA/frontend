@@ -108,6 +108,7 @@ export default function CardRecommendationPage() {
 
 function CardItem({ card, rank }: { card: CardRecommendationItem; rank: number }) {
   const [showBack, setShowBack] = useState(false);
+  const imageUrl = card.imageUrl;
 
   return (
     <div
@@ -115,18 +116,18 @@ function CardItem({ card, rank }: { card: CardRecommendationItem; rank: number }
     >
       <div className="flex gap-3">
         {/* 카드 이미지 — 탭하면 앞뒤 전환 */}
-        {card.imageUrl ? (
+        {imageUrl ? (
           <button
             type="button"
             onClick={() => setShowBack((v) => !v)}
             className="shrink-0"
           >
             <img
-              src={showBack ? getBackImageUrl(card.imageUrl) : card.imageUrl}
+              src={showBack ? getBackImageUrl(imageUrl) : imageUrl}
               alt={card.cardName}
               className="h-[84px] w-[52px] rounded-xl object-cover shadow-sm transition-opacity duration-200"
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = card.imageUrl!;
+                e.currentTarget.src = imageUrl;
                 setShowBack(false);
               }}
             />

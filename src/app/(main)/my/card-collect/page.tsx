@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
@@ -23,20 +23,19 @@ export default function CardCollectSettingPage() {
   const collectSettings = useCollectSettings();
   const saveSettings = useSaveCollectSettings();
 
-  // 단일 선택 — null이면 미선택
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const activeCardId = useMemo(() => {
+    const active = collectSettings.data?.find(
+      (s) => s.sourceType === "CARD" && s.enabled,
+    );
+    return active?.sourceRefId ?? null;
+  }, [collectSettings.data]);
 
-  // collectSettings 로드 완료 시 기존 활성 카드 반영
-  useEffect(() => {
-    if (!initialized && collectSettings.data) {
-      const active = collectSettings.data.find(
-        (s) => s.sourceType === "CARD" && s.enabled,
-      );
-      setSelectedId(active?.sourceRefId ?? null);
-      setInitialized(true);
-    }
-  }, [collectSettings.data, initialized]);
+  // undefined이면 서버 설정을 따르고, null이면 사용자가 명시적으로 미선택한 상태.
+  const [selectedOverride, setSelectedOverride] = useState<
+    number | null | undefined
+  >(undefined);
+  const selectedId =
+    selectedOverride !== undefined ? selectedOverride : activeCardId;
 
   const handleSave = () => {
     const shinhanCheckCards = (linkedCards.data ?? []).filter(isShinhanCheck);
@@ -98,7 +97,7 @@ export default function CardCollectSettingPage() {
                   type="button"
                   role="radio"
                   aria-checked={on}
-                  onClick={() => setSelectedId(on ? null : card.cardId)}
+                  onClick={() => setSelectedOverride(on ? null : card.cardId)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors",
                     on ? "border-primary bg-primary/5" : "border-border",

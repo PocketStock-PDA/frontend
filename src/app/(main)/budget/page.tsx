@@ -205,7 +205,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   };
 
   const handleSetupSave = () => {
-    if (setupAccountId == null) return;
+    if (setupAccountId === null) return;
     setTransferAccount.mutate(setupAccountId, {
       onSuccess: () => agreeCollect.mutate(undefined, {
         onSuccess: () => setShowSetupSheet(false),
@@ -570,7 +570,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
           )}
           <Button
             className="mt-5 h-14 w-full text-base font-bold"
-            disabled={setupAccountId == null || setTransferAccount.isPending || agreeCollect.isPending}
+            disabled={setupAccountId === null || setTransferAccount.isPending || agreeCollect.isPending}
             onClick={handleSetupSave}
           >
             {setTransferAccount.isPending || agreeCollect.isPending ? "처리 중..." : "시작하기"}
@@ -640,4 +640,3 @@ function CategoryBar({
     </div>
   );
 }
-

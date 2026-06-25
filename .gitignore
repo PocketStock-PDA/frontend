@@ -17,6 +17,8 @@
 /.next/
 /.next-dev.nosync/
 /out/
+/public/sw.js
+/public/workbox-*.js
 
 # production
 /build

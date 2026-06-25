@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { createElement, use, useState } from "react";
 import { format } from "date-fns";
 import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -12,7 +12,6 @@ import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
 import { formatKRW, parseAmount } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "../../_utils/categoryIcon";
-import type { BudgetGoalCategoryItem } from "@/types/domain/budget";
 
 interface Props {
   params: Promise<{ year: string; month: string }>;
@@ -214,7 +213,10 @@ function CategoryGoalRow({
   const pct =
     budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
   const hasSpending = spent > 0;
-  const Icon = getCategoryIcon(category);
+  const iconClassName = cn(
+    "size-[14px]",
+    hasSpending ? "text-primary" : "text-[#AAAAAA]",
+  );
 
   return (
     <div className="space-y-[5px]">
@@ -226,12 +228,7 @@ function CategoryGoalRow({
               hasSpending ? "bg-accent" : "bg-muted",
             )}
           >
-            <Icon
-              className={cn(
-                "size-[14px]",
-                hasSpending ? "text-primary" : "text-[#AAAAAA]",
-              )}
-            />
+            {createElement(getCategoryIcon(category), { className: iconClassName })}
           </div>
           <span
             className={cn(

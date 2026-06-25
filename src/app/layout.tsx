@@ -1,22 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Noto_Sans_KR } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
-
-// 숫자/금액 표기용
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-// 본문/한글 기본 폰트
-const notoSansKr = Noto_Sans_KR({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  variable: "--font-noto-sans-kr",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: { default: "PocketStock", template: "%s | PocketStock" },
@@ -45,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body className={`${notoSansKr.variable} ${inter.variable}`}>
+      <body>
         <Providers>{children}</Providers>
       </body>
     </html>
