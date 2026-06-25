@@ -40,6 +40,8 @@ export const queryKeys = {
     all: ["cma"] as const,
     home: ["cma", "home"] as const,
     collectSettings: ["cma", "collect-settings"] as const,
+    transactions: (page: number, size: number) =>
+      ["cma", "transactions", page, size] as const,
   },
   exchange: {
     all: ["exchange"] as const,
