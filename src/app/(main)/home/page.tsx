@@ -172,7 +172,10 @@ export default function HomePage() {
           ctaLabel="종목 선택하러 가기"
         />
       )}
-      <HomeHeader userName={profile?.name ?? "회원"} />
+      <HomeHeader
+        userName={profile?.name ?? "회원"}
+        onBellClick={() => router.push("/notifications")}
+      />
       <div className="space-y-4">
         {/* TODO: usdToKrwRate는 환율 API 연동 시 전달(펼침 시 'N원 기준' 표기) */}
         <CmaBalanceCard
