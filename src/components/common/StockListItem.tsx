@@ -56,18 +56,19 @@ export function StockListItem({
       <div className="shrink-0 text-right">
         <AmountDisplay value={price} size="md" className="font-bold" />
         {hasChange && (
-          <div className="flex items-center justify-end gap-1">
-            {change !== undefined && (
+          <div className="flex justify-end">
+            {change !== undefined ? (
               <ChangeIndicator
                 value={change}
                 suffix="원"
                 size="sm"
-                showArrow={false}
+                {...(changePercent !== undefined
+                  ? { subPercent: changePercent }
+                  : {})}
               />
-            )}
-            {changePercent !== undefined && (
+            ) : changePercent !== undefined ? (
               <ChangeIndicator value={changePercent} percent size="sm" />
-            )}
+            ) : null}
           </div>
         )}
       </div>

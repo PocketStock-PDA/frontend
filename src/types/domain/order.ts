@@ -12,8 +12,8 @@ interface FractionalOrderBase {
 }
 
 /**
- * AMOUNT=금액 기반(국내는 1,000원 단위 제약) / QUANTITY=수량 기반(소수 주수, 단위 제약 없음).
- * 수량으로 주문할 땐 AMOUNT(=수량×가격)로 보내면 1,000원 배수가 아니라 거부되므로 QUANTITY를 쓴다.
+ * AMOUNT=금액 기반(원하는 금액만큼) / QUANTITY=수량 기반(소수 주수).
+ * 최소 주문금액(국내 1,000원·해외 $1) 이상이면 되고, 금액 단위·배수 제약은 없다.
  */
 export type BuyOrderRequest =
   | (FractionalOrderBase & { orderType: "AMOUNT"; amount: number })
@@ -75,7 +75,7 @@ export interface WholeOrderResponse {
   quantity: number;
   /** 체결가 (PENDING이면 null일 수 있음) */
   fillPrice: number | null;
-  /** fillPrice × quantity (수수료·세금 미반영) */
+  /** fillPrice × quantity (세금 미반영) */
   totalAmount: number | null;
   status: string; // FILLED | PENDING 등
   /** 체결 후 예수금 잔액(KRW) */

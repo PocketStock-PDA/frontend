@@ -1,12 +1,11 @@
-import { ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Size = "sm" | "md" | "lg";
 
 const sizeMap: Record<Size, string> = {
-  sm: "text-xs gap-0.5 [&_svg]:size-3",
-  md: "text-sm gap-0.5 [&_svg]:size-3.5",
-  lg: "text-base gap-1 [&_svg]:size-4",
+  sm: "text-xs",
+  md: "text-sm",
+  lg: "text-base",
 };
 
 export interface ChangeIndicatorProps {
@@ -18,8 +17,8 @@ export interface ChangeIndicatorProps {
   suffix?: string;
   /** 값 앞 단위 (예: "$"). 부호 다음·숫자 앞에 붙음 */
   prefix?: string;
-  /** ▲▼ 화살표 표시 (기본 true) */
-  showArrow?: boolean;
+  /** 함께 표시할 수익률(%) — 지정 시 "값(X.XX%)"로 괄호 병기 (같은 색·한 줄) */
+  subPercent?: number;
   /** 부호(+) 표시 (기본 true) */
   showSign?: boolean;
   size?: Size;
@@ -35,7 +34,7 @@ export function ChangeIndicator({
   percent = false,
   suffix = "",
   prefix = "",
-  showArrow = true,
+  subPercent,
   showSign = true,
   size = "md",
   className,
@@ -44,9 +43,13 @@ export function ChangeIndicator({
   const isDown = value < 0;
   const abs = Math.abs(value);
 
-  const formatted = abs.toLocaleString("ko-KR", {
-    maximumFractionDigits: 2,
-  });
+  // 퍼센트는 소수점 2자리 고정(10.60%), 금액은 정수/센트(.00 강제 안 함)
+  const formatted = abs.toLocaleString(
+    "ko-KR",
+    percent
+      ? { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+      : { maximumFractionDigits: 2 },
+  );
 
   const sign = showSign ? (isUp ? "+" : isDown ? "-" : "") : "";
   const unit = percent ? "%" : suffix;
@@ -62,13 +65,16 @@ export function ChangeIndicator({
         className,
       )}
     >
-      {showArrow && isUp && <ArrowUp aria-hidden />}
-      {showArrow && isDown && <ArrowDown aria-hidden />}
       <span>
         {sign}
         {prefix}
         {formatted}
         {unit}
+        {subPercent !== undefined &&
+          ` (${Math.abs(subPercent).toLocaleString("ko-KR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}%)`}
       </span>
     </span>
   );

@@ -110,7 +110,7 @@ export default function TradePage() {
   const market = isUSD ? "OVERSEAS" : "DOMESTIC";
   const amountDp = isUSD ? 2 : 0; // 금액 반올림 자리수: KRW 0 / USD 2(센트)
   const fmtAmount = (v: number | string) => (isUSD ? formatUSD(v) : formatKRW(v));
-  const minOrder = isUSD ? 0.01 : 1000; // 소수점 최소 주문금액 (국내 1,000원 / 해외 $0.01)
+  const minOrder = isUSD ? 1 : 1000; // 소수점 최소 주문금액 (국내 1,000원 / 해외 $1)
 
   // 금액 계산은 decimal.js 필수 (README 가이드라인). API 값은 toDecimal로 안전 변환(null→0)
   const price = toDecimal(detail.price?.currentPrice);
@@ -213,9 +213,8 @@ export default function TradePage() {
       );
       return;
     }
-    // 소수점: 금액 모드는 AMOUNT(국내 1,000원 단위), 수량 모드는 QUANTITY(소수 주수, 단위 제약 없음).
-    // 수량 모드를 AMOUNT(=수량×가격)로 보내면 1,000원 배수가 아니라 백엔드가 거부함.
-    // 최소 주문금액(1,000원·$0.01) 미만은 자동으로 최소금액/최소수량으로 상향 보정.
+    // 소수점: 금액 모드는 AMOUNT(원하는 금액), 수량 모드는 QUANTITY(소수 주수). 금액 단위·배수 제약 없음.
+    // 최소 주문금액(1,000원·$1) 미만은 자동으로 최소금액/최소수량으로 상향 보정.
     let correctedAmount = amount;
     let correctedQty = qty;
     if (inputMode === "AMOUNT") {

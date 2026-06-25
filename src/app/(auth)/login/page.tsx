@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -32,9 +33,17 @@ function LoginScreen() {
 
   return (
     <PageContainer className="flex min-h-screen flex-col">
-      <div className="pt-12 pb-10 text-center">
-        <h1 className="text-2xl font-bold text-primary">포켓스톡</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+      <div className="pt-24 pb-10 text-center">
+        <Image
+          src="/images/PocketStock-logo.png"
+          alt="포켓스톡"
+          width={72}
+          height={72}
+          priority
+          className="mx-auto mb-3 size-16"
+        />
+        <h1 className="text-lg font-bold text-primary">포켓스톡</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
           잔돈으로 시작하는 소수점 투자
         </p>
       </div>

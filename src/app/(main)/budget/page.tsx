@@ -334,7 +334,8 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             </div>
 
             {/* 우상단 미니 요약: 사용률·절약 % + 슬림 2색 바 — 탭 시 월 상세 */}
-            <div className="flex flex-col items-end gap-1">
+            {/* min-h: 증권 캘린더 탭과 달력 시작 y 정렬용 (요약 높이 고정) */}
+            <div className="flex min-h-[40px] flex-col items-end gap-1">
               <button
                 type="button"
                 onClick={() =>

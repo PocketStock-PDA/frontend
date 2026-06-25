@@ -20,7 +20,7 @@ export function tradingOrderbookPath(stockCode: string) {
 
 export function portfolioDetailPath(
   stockCode: string,
-  options: { view?: "pieces" } = {},
+  options: { view?: "pieces" | "collect" } = {},
 ) {
   return `/portfolio/detail?${query({ stockCode, view: options.view })}`;
 }
