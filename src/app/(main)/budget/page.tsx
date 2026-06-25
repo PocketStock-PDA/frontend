@@ -214,7 +214,6 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   };
 
   const handleMonthChange = (newMonth: Date) => {
-    setTxExpanded(false);
     setViewMode("month");
     setCalendarMonth(newMonth);
     const lastDay = new Date(
@@ -234,10 +233,8 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
 
   const handleDateSelect = (date: Date) => {
     if (viewMode === "day" && isSameDay(date, selectedDate)) {
-      setTxExpanded(false);
       setViewMode("month");
     } else {
-      setTxExpanded(false);
       setSelectedDate(date);
       setViewMode("day");
     }
@@ -441,7 +438,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                   </p>
                   <button
                     type="button"
-                    onClick={() => { setTxExpanded(false); setViewMode("month"); }}
+                    onClick={() => setViewMode("month")}
                     className="flex items-center gap-0.5 text-xs text-muted-foreground"
                   >
                     <X className="size-3.5" />

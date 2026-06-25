@@ -1,17 +1,44 @@
 // 거래/보유/종목 (ledger-api)
 
+/** 시장 구분 (순위 API 경로) */
+export type StockMarket = "domestic" | "overseas";
+/** 순위 정렬 기준 */
+export type RankingSort = "tradevalue" | "marketcap";
+
 /**
- * 종목 검색·목록용 요약 (리스트 렌더링).
- * ⚠️ GET /api/trading/stocks/search 는 문서 스펙 기준 — 백엔드 미구현 가능 (구현 시 동작)
+ * 종목 순위 항목 (GET /api/trading/stocks/rankings/{market}?sort=).
+ * 거래대금·시총을 함께 내려 탭 전환 시 재정렬만으로 충분(해외는 정렬한 지표만 채워짐).
  */
-export interface StockSummary {
+export interface StockRankingItem {
+  /** 유니버스 필터 후 1부터 재부여한 순위 */
+  rank: number;
   stockCode: string;
   stockName: string;
-  logoUrl: string | null;
-  currentPrice: number;
-  /** 등락률(%) — 예: 1.2 = +1.20% */
+  exchange: string;
+  currency: string;
+  /** 현재가 */
+  price: number;
+  /** 전일대비 등락률(%) */
   changeRate: number;
-  currency: "KRW" | "USD";
+  /** 거래대금(원/USD) */
+  tradingValue: number | null;
+  /** 시가총액(원/USD) */
+  marketCap: number | null;
+  logoUrl: string | null;
+}
+
+/**
+ * 종목 검색 결과 (GET /api/trading/stocks/search?q=&limit=).
+ * 자체 종목마스터 기반 — 현재가는 미포함(상세/시세에서 합성).
+ */
+export interface StockSearchItem {
+  stockCode: string;
+  stockName: string;
+  englishName: string | null;
+  exchange: string;
+  secType: string;
+  currency: string;
+  logoUrl: string | null;
 }
 
 export interface Holding {
@@ -42,7 +69,8 @@ export interface StockDetail {
   currency: string;
   fractional: boolean;
   logoUrl: string | null;
-  price: StockPrice;
+  /** 현재가 — 시세 미합성/조회불가 시 null (방어). 보통 국내·해외 모두 채워짐 */
+  price: StockPrice | null;
 }
 
 /**

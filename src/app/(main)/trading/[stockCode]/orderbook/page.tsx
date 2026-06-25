@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { OrderBook, type OrderPrice } from "@/components/features/trading/OrderBook";
+import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
@@ -25,6 +26,8 @@ import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
+import { wholeOrderToast } from "@/lib/utils/orderResult";
+import type { WholeOrderResponse } from "@/types/domain/order";
 
 type QtyMode = "RATIO" | "QTY";
 type Side = "BUY" | "SELL";
@@ -41,10 +44,14 @@ export default function OrderbookPage() {
   const [qtyMode, setQtyMode] = useState<QtyMode>("RATIO");
   const [quantity, setQuantity] = useState(0);
   const [showAll, setShowAll] = useState(false); // 5호가 / 10호가
+  // 거래 인증 필요 시 계좌 비밀번호를 받기 위한 시트 — 인증 후 그 주문을 재시도
+  const [authRetry, setAuthRetry] = useState<{ side: Side; p: OrderPrice } | null>(
+    null,
+  );
   // 주문 멱등키: 동일 주문(side+가격+수량) 재시도 시 동일 키 재사용 (issue #4)
   const orderKey = useRef<{ sig: string; key: string } | null>(null);
 
-  const basePrice = detailQ.data?.price.currentPrice ?? 0;
+  const basePrice = detailQ.data?.price?.currentPrice ?? 0;
   const obQ = useOrderBook(stockCode);
   // 실시간 호가: 스냅샷 위에 STOMP 틱으로 사다리·총잔량 갱신 (issue #2)
   useStockQuoteSocket(stockCode);
@@ -130,13 +137,21 @@ export default function OrderbookPage() {
     }
     const sig = `${side}:${p}:${quantity}`;
     const clientOrderId = keyFor(sig);
-    const label = side === "BUY" ? "매수" : "매도";
     const opts = {
-      onSuccess: () => {
+      onSuccess: (data: WholeOrderResponse) => {
         orderKey.current = null;
-        toast.success(`${label} 주문이 접수됐어요`);
+        const t = wholeOrderToast(data, fmtAmount);
+        toast.success(
+          t.title,
+          t.description ? { description: t.description } : undefined,
+        );
       },
       onError: (err: unknown) => {
+        // 거래 인증 미완료: 계좌 비밀번호 시트를 띄우고, 인증되면 동일 키로 재시도
+        if (err instanceof ApiError && err.code === "TXN_AUTH_REQUIRED") {
+          setAuthRetry({ side, p });
+          return;
+        }
         if (err instanceof ApiError && err.status === 409) {
           toast.error("이미 처리 중인 주문이에요. 잠시 후 다시 확인해 주세요.");
           return;
@@ -172,7 +187,7 @@ export default function OrderbookPage() {
             </span>
             <span className="flex items-baseline gap-1.5">
               <AmountDisplay value={price.toString()} size="md" className="font-bold" />
-              <ChangeIndicator value={detail.price.changeRate} percent size="sm" />
+              <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
             </span>
           </span>
         }
@@ -326,6 +341,18 @@ export default function OrderbookPage() {
           <span className="text-up">구매</span>를 누르면 해당 가격으로 주문돼요
         </p>
       </div>
+
+      <TxnAuthDialog
+        open={authRetry !== null}
+        onOpenChange={(o) => {
+          if (!o) setAuthRetry(null);
+        }}
+        onVerified={() => {
+          const retry = authRetry;
+          setAuthRetry(null);
+          if (retry) submit(retry.side, retry.p);
+        }}
+      />
     </>
   );
 }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { PinKeypad } from "@/components/common/PinKeypad";
+import { AccountPasswordUnlock } from "@/components/common/AccountPasswordUnlock";
 import { ApiError } from "@/lib/api/client";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
@@ -201,7 +202,7 @@ function MainView({
   buyRate: number;
   sellRate: number;
   change: number;
-  updatedAt?: string;
+  updatedAt?: string | undefined;
   isLoading: boolean;
   onSelect: (dir: Direction) => void;
 }) {
@@ -440,6 +441,7 @@ function ExchangeInputView({
 
 function PinView({ onVerified }: { onBack: () => void; onVerified: () => void }) {
   const [pin, setPin] = useState("");
+  const [locked, setLocked] = useState(false);
   const txnAuth = useTxnAuth();
 
   async function handlePin(value: string) {
@@ -448,17 +450,33 @@ function PinView({ onVerified }: { onBack: () => void; onVerified: () => void })
     try {
       await txnAuth.mutateAsync({ accountPassword: value, keepAuth: true });
       onVerified();
-    } catch {
-      toast.error("비밀번호가 틀렸어요. 다시 입력해 주세요.");
+    } catch (err) {
       setPin("");
+      if (err instanceof ApiError && err.code === "ACCOUNT_PASSWORD_LOCKED") {
+        setLocked(true);
+        return;
+      }
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "비밀번호가 틀렸어요. 다시 입력해 주세요.",
+      );
     }
+  }
+
+  if (locked) {
+    return (
+      <div className="pb-6">
+        <AccountPasswordUnlock onUnlocked={() => setLocked(false)} />
+      </div>
+    );
   }
 
   return (
     <div className="pb-6">
       <p className="mb-1 text-center text-base font-bold text-foreground">계좌 비밀번호 입력</p>
       <p className="mb-8 text-center text-sm text-muted-foreground">4자리 숫자를 입력해 주세요</p>
-      <PinKeypad value={pin} onChange={handlePin} length={4} disabled={txnAuth.isPending} />
+      <PinKeypad value={pin} onChange={handlePin} length={4} disabled={txnAuth.isPending} secure />
     </div>
   );
 }

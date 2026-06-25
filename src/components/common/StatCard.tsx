@@ -45,7 +45,10 @@ export function StatCard({
         {subtitle && (
           <span className="text-xs text-muted-foreground">{subtitle}</span>
         )}
-        <span className="text-sm font-bold text-foreground">{value}</span>
+        {/* 금액은 타일 하단에 고정 — 제목 줄 수가 달라도 그리드 내 금액 높이가 통일됨 */}
+        <span className="mt-auto pt-1 text-sm font-bold text-foreground">
+          {value}
+        </span>
       </Tag>
     );
   }

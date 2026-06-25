@@ -1,22 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeftRight,
-  ArrowUp,
-  BookText,
-  Coins,
-  CreditCard,
-  Globe,
-  Landmark,
-  PieChart,
-  Receipt,
-  Settings,
-  TrendingUp,
-  Wallet,
-} from "lucide-react";
+import { ArrowUp, Coins, CreditCard, Globe, Landmark } from "lucide-react";
 import { HomeHeader } from "@/components/common/HomeHeader";
 import { CmaBalanceCard } from "@/components/features/cma/CmaBalanceCard";
 import { SectionHeader } from "@/components/common/SectionHeader";
@@ -28,8 +15,14 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { WelcomeEventDialog } from "@/components/features/onboarding/WelcomeEventDialog";
 import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
+import { useMyProfile } from "@/hooks/queries/useMyProfile";
 import { useWelcomeRewards } from "@/hooks/queries/useWelcomeRewards";
 import { useCollectChange } from "@/hooks/mutations/useCollectChange";
+import {
+  useHomeLayoutStore,
+  useHydrateHomeLayout,
+  visibleLinks,
+} from "@/store/homeLayoutStore";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import type { CollectSourceType } from "@/types/domain/cma";
@@ -53,54 +46,40 @@ const SOURCE_LABEL: Record<CollectSourceType, string> = {
 
 // 잔돈 대시보드 표시 타이틀 — ACCOUNT/POINT는 백엔드 name(기관명) 대신 고정 라벨로 노출.
 const sourceTitle = (sourceType: CollectSourceType, name: string) =>
-  sourceType === "ACCOUNT" ? "은행 잔돈" : sourceType === "POINT" ? "포인트" : name;
+  sourceType === "ACCOUNT"
+    ? "은행 잔돈"
+    : sourceType === "POINT"
+      ? "포인트"
+      : name;
 
-interface QuickLink {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  href: string;
-  highlight?: boolean;
-}
-
-// TODO: 라우트 일부 미확정 — 사용자 지정 대기 중 (#)
-const QUICK_LINKS: QuickLink[] = [
-  { label: "주식 모으기", icon: TrendingUp, href: "/trading", highlight: true },
-  { label: "환전", icon: ArrowLeftRight, href: "/exchange" },
-  { label: "가계부", icon: BookText, href: "/budget" },
-  { label: "포트폴리오", icon: PieChart, href: "/portfolio" },
-  { label: "자산", icon: Wallet, href: "/asset" },
-  { label: "모으기 설정", icon: Settings, href: "/trading/auto" },
-  { label: "거래 내역", icon: Receipt, href: "#" },
-  { label: "포인트", icon: Coins, href: "/points" },
-];
-
-const WELCOME_DISMISS_KEY = "ps.welcomeEvent.dismissed";
 
 export default function HomePage() {
   const router = useRouter();
-  // TODO: 인사말 이름은 사용자 프로필 API 연동 시 교체 (/home 응답엔 없음)
+  // 인사말 이름은 /home 응답에 없어 마이페이지 프로필(GET /api/users/me/mypage)에서 가져온다.
   const { data, isLoading, isError, error, refetch } = useCmaHome();
+  const { data: profile } = useMyProfile();
   const collect = useCollectChange();
+  const linkOrder = useHomeLayoutStore((s) => s.order);
+  const hiddenLinks = useHomeLayoutStore((s) => s.hidden);
+  useHydrateHomeLayout();
+  const quickLinks = useMemo(
+    () => visibleLinks(linkOrder, hiddenLinks),
+    [linkOrder, hiddenLinks],
+  );
 
   // 신규 회원 = CMA 계좌 미개설(/home 404). 첫 가입 이벤트 팝업을 먼저 띄운다.
   // (rewards용 localStorage dismiss와 분리 — 계좌 없으면 진입 시 매번 노출)
   const noCmaAccount = isNoCmaAccount(error);
   const [eventOpen, setEventOpen] = useState(true);
 
-  // 첫 가입 이벤트 팝업: 첫 주식 미수령(rewards 비어있음) + 미닫힘 시 노출 (issue #34)
+  // 첫 가입 이벤트 팝업: 첫 주식 미수령(rewards 비어있음) 시 홈 진입마다 노출 (issue #84)
+  // 미수령이면 localStorage dismiss 무시 — 닫아도 홈 재진입 시 다시 뜸.
+  // 수령 완료 시 welcomeEligible이 false가 되어 팝업 자체가 렌더되지 않음.
   const rewardsQ = useWelcomeRewards();
-  const [welcomeDismissed, setWelcomeDismissed] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      localStorage.getItem(WELCOME_DISMISS_KEY) === "1",
-  );
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const welcomeEligible =
     rewardsQ.isSuccess && (rewardsQ.data?.length ?? 0) === 0;
-  const dismissWelcome = () => {
-    if (typeof window !== "undefined")
-      localStorage.setItem(WELCOME_DISMISS_KEY, "1");
-    setWelcomeDismissed(true);
-  };
+  const dismissWelcome = () => setWelcomeDismissed(true);
 
   if (isLoading) {
     return (
@@ -186,7 +165,10 @@ export default function HomePage() {
           ctaLabel="종목 선택하러 가기"
         />
       )}
-      <HomeHeader userName="회원" />
+      <HomeHeader
+        userName={profile?.name ?? "회원"}
+        onBellClick={() => router.push("/notifications")}
+      />
       <div className="space-y-4">
         {/* TODO: usdToKrwRate는 환율 API 연동 시 전달(펼침 시 'N원 기준' 표기) */}
         <CmaBalanceCard
@@ -275,35 +257,37 @@ export default function HomePage() {
 
         <Separator />
 
-        {/* 바로가기 */}
-        <section>
-          <p className="mb-3 text-[13px] font-medium text-muted-foreground">
-            바로가기
-          </p>
-          <div className="grid grid-cols-4 gap-y-5">
-            {QUICK_LINKS.map(({ label, icon: Icon, href, highlight }) => (
-              <Link
-                key={label}
-                href={href}
-                className="flex flex-col items-center gap-1.5"
-              >
-                <span
-                  className={cn(
-                    "flex size-14 items-center justify-center rounded-2xl",
-                    highlight
-                      ? "bg-primary/10 text-primary"
-                      : "bg-muted text-foreground",
-                  )}
+        {/* 바로가기 (홈화면 편집에서 순서/표시 변경) */}
+        {quickLinks.length > 0 && (
+          <section>
+            <p className="mb-3 text-[13px] font-medium text-muted-foreground">
+              바로가기
+            </p>
+            <div className="grid grid-cols-4 gap-y-5">
+              {quickLinks.map(({ id, label, icon: Icon, href, highlight }) => (
+                <Link
+                  key={id}
+                  href={href}
+                  className="flex flex-col items-center gap-1.5"
                 >
-                  <Icon className="size-6" />
-                </span>
-                <span className="whitespace-nowrap text-xs text-foreground">
-                  {label}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
+                  <span
+                    className={cn(
+                      "flex size-14 items-center justify-center rounded-2xl",
+                      highlight
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-foreground",
+                    )}
+                  >
+                    <Icon className="size-6" />
+                  </span>
+                  <span className="whitespace-nowrap text-xs text-foreground">
+                    {label}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </>
   );

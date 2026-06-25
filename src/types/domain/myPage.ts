@@ -1,8 +1,17 @@
 // 마이페이지 / 설정 (Figma 화면 25)
-// ⚠️ 사용자 프로필·설정 백엔드 API 미구현 — 현재 mock 으로 채운다(useMyProfile + mock/myPage).
+// GET /api/users/me/mypage 의 MyProfileResponse 와 1:1 (core-api MyPageController).
 
-/** 연동 자산 종류 — 아이콘 매핑용 */
-export type LinkedAccountType = "BANK" | "CARD" | "TRAVEL" | "PAY";
+/**
+ * 연동 자산 종류 — 아이콘 매핑용.
+ * 백엔드 mapType(): POINT→PAY, 나머지(BANK/CARD/SECURITIES)는 카테고리 그대로.
+ * TRAVEL 은 실제 카테고리엔 없지만 Figma mock 호환용으로 유지.
+ */
+export type LinkedAccountType =
+  | "BANK"
+  | "CARD"
+  | "SECURITIES"
+  | "TRAVEL"
+  | "PAY";
 
 /** 연동 계좌 칩 한 개 */
 export interface LinkedAccount {

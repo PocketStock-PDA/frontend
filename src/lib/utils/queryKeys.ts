@@ -8,6 +8,7 @@ export const queryKeys = {
       ["asset", "spending", period] as const,
     bankAccounts: ["asset", "bank-accounts"] as const,
     institutions: ["asset", "institutions"] as const,
+    cards: ["asset", "cards"] as const,
     scan: ["asset", "scan"] as const,
     dormant: ["asset", "dormant"] as const,
     externalHoldings: ["asset", "external-holdings"] as const,
@@ -31,14 +32,24 @@ export const queryKeys = {
     orders: ["trading", "orders"] as const,
     stockDetail: (code: string) => ["trading", "stock", code] as const,
     search: (q: string) => ["trading", "search", q] as const,
+    rankings: (market: string, sort: string) =>
+      ["trading", "rankings", market, sort] as const,
     orderbook: (code: string) => ["trading", "orderbook", code] as const,
     autoInvest: (code: string) => ["trading", "autoInvest", code] as const,
+    autoInvestSummary: ["trading", "autoInvest", "summary"] as const,
+    autoInvestTriggers: (id: number) =>
+      ["trading", "autoInvest", "triggers", id] as const,
+    autoInvestExecutions: (id: number) =>
+      ["trading", "autoInvest", "executions", id] as const,
     rewards: ["trading", "rewards"] as const,
     rewardCandidates: ["trading", "rewards", "candidates"] as const,
   },
   cma: {
     all: ["cma"] as const,
     home: ["cma", "home"] as const,
+    collectSettings: ["cma", "collect-settings"] as const,
+    transactions: (page: number, size: number) =>
+      ["cma", "transactions", page, size] as const,
   },
   exchange: {
     all: ["exchange"] as const,
@@ -52,5 +63,10 @@ export const queryKeys = {
   },
   user: {
     profile: ["user", "profile"] as const,
+  },
+  notification: {
+    all: ["notification"] as const,
+    list: (page: number, size: number) =>
+      ["notification", "list", page, size] as const,
   },
 } as const;
