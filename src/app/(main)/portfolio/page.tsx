@@ -15,6 +15,12 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { HoldingCard } from "@/components/features/portfolio/HoldingCard";
 import { PiecesCard } from "@/components/features/portfolio/PiecesCard";
+import {
+  StockIcon,
+  CollectIcon,
+  CalendarIcon,
+  OrdersIcon,
+} from "@/components/features/portfolio/ActionIcons";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
@@ -216,37 +222,30 @@ export default function PortfolioPage() {
             </div>
           </div>
 
-          {/* 동선 스트립 — 카드 하단에 통합 */}
+          {/* 동선 — 기능별 타일(아이콘 + 라벨) */}
           {rows.length > 0 && (
-            <div className="flex items-stretch border-t border-primary/10">
-              <StripItem
-                label="주식투자"
-                value="매수매도"
-                chevron
-                accent
+            <div className="grid grid-cols-4 gap-2 border-t border-primary/10 p-4">
+              <ActionTile
+                icon={<StockIcon className="size-8" />}
+                label="주식 투자"
                 onClick={() =>
                   router.push(topCode ? `/trading/${topCode}` : "/trading")
                 }
               />
-              <StripItem
-                label="모으는 중"
-                value={`${autoRows.length}종목`}
+              <ActionTile
+                icon={<CollectIcon className="size-8" />}
+                label="모으기"
                 onClick={() => router.push("/trading")}
-                divider
               />
-              <StripItem
+              <ActionTile
+                icon={<CalendarIcon className="size-8" />}
                 label="증권 캘린더"
-                value="보기"
-                chevron
                 onClick={() => router.push("/budget?tab=stock")}
-                divider
               />
-              <StripItem
+              <ActionTile
+                icon={<OrdersIcon className="size-8" />}
                 label="주문내역"
-                value="보기"
-                chevron
                 onClick={() => router.push("/history")}
-                divider
               />
             </div>
           )}
@@ -359,37 +358,24 @@ export default function PortfolioPage() {
   );
 }
 
-function StripItem({
+function ActionTile({
+  icon,
   label,
-  value,
   onClick,
-  chevron = false,
-  divider = false,
-  accent = false,
 }: {
+  icon: React.ReactNode;
   label: string;
-  value: string;
   onClick: () => void;
-  chevron?: boolean;
-  divider?: boolean;
-  accent?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-1 flex-col items-center gap-0.5 px-2 py-3 transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${
-        divider ? "border-l border-border" : ""
-      }`}
+      className="flex flex-col items-center gap-2 rounded-xl border border-black/[0.04] bg-card px-1 py-3 transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span
-        className={`flex items-center gap-0.5 font-numeric text-sm font-bold ${
-          accent ? "text-primary" : "text-foreground"
-        }`}
-      >
-        {value}
-        {chevron && <ChevronRight className="size-3.5 text-muted-foreground" />}
+      {icon}
+      <span className="break-keep text-center text-xs font-medium leading-tight text-foreground">
+        {label}
       </span>
     </button>
   );
