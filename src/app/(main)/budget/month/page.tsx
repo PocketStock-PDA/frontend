@@ -393,7 +393,7 @@ function CategoryGoalRow({
           {dot}
           <span className="flex flex-col">
             <span>{category}</span>
-            {prevSpent != null && prevSpent > 0 && (
+            {prevSpent !== undefined && prevSpent > 0 && (
               <span className="text-[11px] font-normal text-muted-foreground">
                 지난달 {formatKRW(prevSpent)}
               </span>
