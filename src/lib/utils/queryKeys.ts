@@ -30,8 +30,15 @@ export const queryKeys = {
     orders: ["trading", "orders"] as const,
     stockDetail: (code: string) => ["trading", "stock", code] as const,
     search: (q: string) => ["trading", "search", q] as const,
+    rankings: (market: string, sort: string) =>
+      ["trading", "rankings", market, sort] as const,
     orderbook: (code: string) => ["trading", "orderbook", code] as const,
     autoInvest: (code: string) => ["trading", "autoInvest", code] as const,
+    autoInvestSummary: ["trading", "autoInvest", "summary"] as const,
+    autoInvestTriggers: (id: number) =>
+      ["trading", "autoInvest", "triggers", id] as const,
+    autoInvestExecutions: (id: number) =>
+      ["trading", "autoInvest", "executions", id] as const,
     rewards: ["trading", "rewards"] as const,
     rewardCandidates: ["trading", "rewards", "candidates"] as const,
   },

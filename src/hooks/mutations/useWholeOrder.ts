@@ -1,7 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { queryKeys } from "@/lib/utils/queryKeys";
-import type { OrderResult, WholeOrderRequest } from "@/types/domain/order";
+import type {
+  WholeOrderRequest,
+  WholeOrderResponse,
+} from "@/types/domain/order";
 
 /**
  * 온주(정수 주) 매수/매도 (POST /api/trading/orders/whole).
@@ -12,7 +15,7 @@ export function useWholeOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (req: WholeOrderRequest) =>
-      api.post<OrderResult>("/api/trading/orders/whole", req),
+      api.post<WholeOrderResponse>("/api/trading/orders/whole", req),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.trading.all }),
   });

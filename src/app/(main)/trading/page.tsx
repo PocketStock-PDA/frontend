@@ -2,69 +2,253 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { SearchInput } from "@/components/common/SearchInput";
-import { StockListItem } from "@/components/common/StockListItem";
+import { SegmentedControl } from "@/components/common/SegmentedControl";
+import { ChangeIndicator } from "@/components/common/ChangeIndicator";
 import { EmptyState } from "@/components/common/EmptyState";
-import { SkeletonCard } from "@/components/common/SkeletonCard";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { useStockSearch } from "@/hooks/queries/useStockSearch";
+import { useStockRankings } from "@/hooks/queries/useStockRankings";
+import { useStockTradesLive, type LiveQuote } from "@/hooks/useStockTradesLive";
+import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
+import type {
+  RankingSort,
+  StockMarket,
+  StockRankingItem,
+  StockSearchItem,
+} from "@/types/domain/trading";
 
-/** T1. 종목 검색·탐색 — 검색 후 종목 선택 시 매수/매도 화면으로 이동 */
-export default function TradingSearchPage() {
+const MARKET_TABS: { label: string; value: StockMarket }[] = [
+  { label: "국내", value: "domestic" },
+  { label: "해외", value: "overseas" },
+];
+const SORT_TABS: { label: string; value: RankingSort }[] = [
+  { label: "거래대금", value: "tradevalue" },
+  { label: "시가총액", value: "marketcap" },
+];
+
+/** T1. 종목 탐색 — 검색창 + 실시간 순위. 입력 시 연관 결과를 검색창 아래 드롭다운으로. */
+export default function TradingExplorePage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const { data, isLoading, isFetching, isPlaceholderData } =
-    useStockSearch(query);
-  const stocks = data ?? [];
-  // keepPreviousData로 이전 결과가 보이는 동안(검색 중) 흐리게 → stale 구분
-  const showingStale = isFetching && isPlaceholderData;
+  const goStock = (code: string) => router.push(`/trading/${code}`);
 
   return (
     <>
       <AppHeader variant="sub" title="종목 탐색" />
-      <div className="space-y-4">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder="종목명 또는 코드 검색"
-        />
+      <div className="space-y-5">
+        <div className="relative">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="종목명 또는 코드 검색"
+          />
+          {query.trim().length > 0 && (
+            <SearchDropdown query={query} onPick={goStock} />
+          )}
+        </div>
 
-        {/* TODO: 테마 필터 칩(40대 여성 상위·나스닥 우량주 등) — 후순위(별도 이슈) */}
+        <Rankings onPick={goStock} />
+      </div>
+    </>
+  );
+}
+
+// ── 검색 드롭다운 (검색창 아래 오버레이) ──────────────────────────────
+function SearchDropdown({
+  query,
+  onPick,
+}: {
+  query: string;
+  onPick: (code: string) => void;
+}) {
+  const { data, isLoading } = useStockSearch(query);
+  // 백엔드가 드물게 data:null을 주면 api 클라가 {}를 반환 → 배열 가드로 크래시 방지
+  const stocks = Array.isArray(data) ? data : [];
+
+  return (
+    <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-[60vh] overflow-auto rounded-xl border border-border bg-background py-1 shadow-lg">
+      {isLoading ? (
+        <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+          검색 중…
+        </p>
+      ) : stocks.length === 0 ? (
+        <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+          검색 결과가 없어요
+        </p>
+      ) : (
+        <ul>
+          {stocks.map((s) => (
+            <li key={s.stockCode}>
+              <SearchRow item={s} onClick={() => onPick(s.stockCode)} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SearchRow({
+  item,
+  onClick,
+}: {
+  item: StockSearchItem;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted"
+    >
+      <Avatar className="size-8">
+        {item.logoUrl && <AvatarImage src={item.logoUrl} alt={item.stockName} />}
+        <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-foreground">
+          {item.stockName}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">
+          {item.exchange} · {item.stockCode}
+        </p>
+      </div>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
+
+// ── 실시간 순위 (국내/해외 × 거래대금/시총) ───────────────────────────
+function Rankings({ onPick }: { onPick: (code: string) => void }) {
+  const [market, setMarket] = useState<StockMarket>("domestic");
+  const [sort, setSort] = useState<RankingSort>("tradevalue");
+  const { data, isLoading, isError, refetch } = useStockRankings(market, sort);
+  const items = Array.isArray(data) ? data : [];
+  // REST 스냅샷으로 첫 렌더 후, 목록 종목들에 WS를 붙여 가격·등락률 실시간 갱신
+  const live = useStockTradesLive(
+    items.map((it) => it.stockCode),
+    market === "overseas",
+  );
+
+  return (
+    <section className="space-y-3">
+      <SegmentedControl
+        options={MARKET_TABS}
+        value={market}
+        onChange={setMarket}
+      />
+
+      <div className="rounded-2xl border border-border p-4">
+        <h2 className="mb-3 text-base font-bold text-foreground">실시간 순위</h2>
+
+        {/* 정렬: 거래대금 / 시가총액 */}
+        <div className="mb-1 flex gap-2">
+          {SORT_TABS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setSort(t.value)}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-bold transition-colors",
+                sort === t.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
         {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <SkeletonCard key={i} lines={1} className="h-12 border-0 p-0" />
+          <div className="divide-y divide-border">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 py-3">
+                <div className="size-9 shrink-0 animate-pulse rounded-full bg-muted" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
+                  <div className="h-3 w-14 animate-pulse rounded bg-muted" />
+                </div>
+              </div>
             ))}
           </div>
-        ) : stocks.length === 0 ? (
+        ) : isError ? (
           <EmptyState
-            title="검색 결과가 없어요"
-            description="종목명 또는 코드를 다시 확인해 주세요."
-            className="py-10"
+            title="순위를 불러오지 못했어요"
+            description="잠시 후 다시 시도해 주세요."
+            className="py-8"
+            action={
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                다시 시도
+              </Button>
+            }
           />
+        ) : items.length === 0 ? (
+          <EmptyState title="순위가 없어요" className="py-8" />
         ) : (
-          <div
-            className={cn(
-              "divide-y divide-border transition-opacity",
-              showingStale && "opacity-60",
-            )}
-          >
-            {stocks.map((s) => (
-              <StockListItem
-                key={s.stockCode}
-                name={s.stockName}
-                ticker={s.stockCode}
-                {...(s.logoUrl ? { logoUrl: s.logoUrl } : {})}
-                price={s.currentPrice}
-                changePercent={s.changeRate}
-                onClick={() => router.push(`/trading/${s.stockCode}`)}
+          <div className="divide-y divide-border">
+            {items.map((it) => (
+              <RankingRow
+                key={it.stockCode}
+                item={it}
+                live={live[it.stockCode]}
+                onClick={() => onPick(it.stockCode)}
               />
             ))}
           </div>
         )}
       </div>
-    </>
+    </section>
+  );
+}
+
+function RankingRow({
+  item,
+  live,
+  onClick,
+}: {
+  item: StockRankingItem;
+  live?: LiveQuote | undefined;
+  onClick: () => void;
+}) {
+  // WS 라이브 값 우선, 없으면 REST 스냅샷
+  const price = live?.currentPrice ?? item.price;
+  const changeRate = live?.changeRate ?? item.changeRate;
+  const priceText = item.currency === "USD" ? formatUSD(price) : formatKRW(price);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 py-3 text-left"
+    >
+      <span className="w-5 shrink-0 text-center font-numeric text-sm font-bold text-primary">
+        {item.rank}
+      </span>
+      <Avatar className="size-9">
+        {item.logoUrl && <AvatarImage src={item.logoUrl} alt={item.stockName} />}
+        <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-foreground">
+          {item.stockName}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">
+          {item.stockCode}
+        </p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="font-numeric text-sm font-bold text-foreground">
+          {priceText}
+        </p>
+        <div className="flex justify-end">
+          <ChangeIndicator value={changeRate} percent size="sm" />
+        </div>
+      </div>
+    </button>
   );
 }

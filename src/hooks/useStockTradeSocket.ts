@@ -34,7 +34,7 @@ export function useStockTradeSocket(
       queryClient.setQueryData<StockDetail>(
         queryKeys.trading.stockDetail(stockCode),
         (prev) =>
-          prev
+          prev && prev.price
             ? {
                 ...prev,
                 price: {

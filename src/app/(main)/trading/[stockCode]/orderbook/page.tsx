@@ -26,6 +26,8 @@ import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
+import { wholeOrderToast } from "@/lib/utils/orderResult";
+import type { WholeOrderResponse } from "@/types/domain/order";
 
 type QtyMode = "RATIO" | "QTY";
 type Side = "BUY" | "SELL";
@@ -49,7 +51,7 @@ export default function OrderbookPage() {
   // 주문 멱등키: 동일 주문(side+가격+수량) 재시도 시 동일 키 재사용 (issue #4)
   const orderKey = useRef<{ sig: string; key: string } | null>(null);
 
-  const basePrice = detailQ.data?.price.currentPrice ?? 0;
+  const basePrice = detailQ.data?.price?.currentPrice ?? 0;
   const obQ = useOrderBook(stockCode);
   // 실시간 호가: 스냅샷 위에 STOMP 틱으로 사다리·총잔량 갱신 (issue #2)
   useStockQuoteSocket(stockCode);
@@ -135,11 +137,14 @@ export default function OrderbookPage() {
     }
     const sig = `${side}:${p}:${quantity}`;
     const clientOrderId = keyFor(sig);
-    const label = side === "BUY" ? "매수" : "매도";
     const opts = {
-      onSuccess: () => {
+      onSuccess: (data: WholeOrderResponse) => {
         orderKey.current = null;
-        toast.success(`${label} 주문이 접수됐어요`);
+        const t = wholeOrderToast(data, fmtAmount);
+        toast.success(
+          t.title,
+          t.description ? { description: t.description } : undefined,
+        );
       },
       onError: (err: unknown) => {
         // 거래 인증 미완료: 계좌 비밀번호 시트를 띄우고, 인증되면 동일 키로 재시도
@@ -182,7 +187,7 @@ export default function OrderbookPage() {
             </span>
             <span className="flex items-baseline gap-1.5">
               <AmountDisplay value={price.toString()} size="md" className="font-bold" />
-              <ChangeIndicator value={detail.price.changeRate} percent size="sm" />
+              <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
             </span>
           </span>
         }

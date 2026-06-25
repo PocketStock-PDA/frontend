@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
-import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { Stepper } from "@/components/common/Stepper";
 import { WeekdayPicker } from "@/components/common/WeekdayPicker";
 import { AmountInput } from "@/components/common/AmountInput";
@@ -16,6 +15,13 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   ConditionBuySheet,
   ConditionSellSheet,
 } from "@/components/features/trading/ConditionSheets";
@@ -23,17 +29,20 @@ import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useAutoInvest } from "@/hooks/queries/useAutoInvest";
-import { useSaveAutoInvest } from "@/hooks/mutations/useSaveAutoInvest";
+import {
+  useRemoveAutoInvest,
+  useSaveAutoInvest,
+} from "@/hooks/mutations/useSaveAutoInvest";
 import { formatKRW } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
-import type {
-  AmountMode,
-  AutoInvestFrequency,
-  AutoInvestSetting,
-  BuyCondition,
-  OrderMethod,
-  SellCondition,
+import {
+  defaultSetting,
+  type AmountMode,
+  type AutoInvestFrequency,
+  type AutoInvestSetting,
+  type BuyCondition,
+  type SellCondition,
 } from "@/types/domain/autoInvest";
 
 const FREQ_OPTIONS: { label: string; value: AutoInvestFrequency }[] = [
@@ -48,24 +57,6 @@ const FREQ_LABEL: Record<AutoInvestFrequency, string> = {
 };
 const AMOUNT_CHIPS = [1000, 5000, 10000];
 const QTY_CHIPS = [1, 5, 10];
-
-function defaultSetting(stockCode: string): AutoInvestSetting {
-  return {
-    stockCode,
-    enabled: true,
-    frequency: "DAILY",
-    weekdays: ["MON"],
-    dayOfMonth: 1,
-    method: "FRACTION",
-    amountMode: "AMOUNT",
-    amount: 10000,
-    quantity: 1,
-    autoCharge: true,
-    executeTime: "08:00",
-    buyCondition: { enabled: false, dropRate: 5, mode: "AMOUNT", amount: 10000, quantity: 1 },
-    sellCondition: { enabled: false, riseRate: 15, mode: "RATIO", ratioPct: 50, quantity: 1 },
-  };
-}
 
 export default function AutoInvestPage() {
   const { stockCode } = useParams<{ stockCode: string }>();
@@ -103,7 +94,10 @@ export default function AutoInvestPage() {
       stockCode={stockCode}
       stockName={detailQ.data.stockName}
       currentPrice={detailQ.data.price?.currentPrice ?? 0}
-      initial={autoQ.data ?? defaultSetting(stockCode)}
+      initial={autoQ.setting ?? defaultSetting(stockCode)}
+      settingId={autoQ.id}
+      buyTriggerId={autoQ.buyTriggerId}
+      sellTriggerId={autoQ.sellTriggerId}
     />
   );
 }
@@ -113,26 +107,32 @@ function AutoInvestForm({
   stockName,
   currentPrice,
   initial,
+  settingId,
+  buyTriggerId,
+  sellTriggerId,
 }: {
   stockCode: string;
   stockName: string;
   currentPrice: number;
   initial: AutoInvestSetting;
+  settingId: number | null;
+  buyTriggerId: number | null;
+  sellTriggerId: number | null;
 }) {
+  const router = useRouter();
   const holdingsQ = useHoldings();
   const cmaQ = useCmaHome();
   const save = useSaveAutoInvest(stockCode);
+  const remove = useRemoveAutoInvest();
 
+  const [showRemove, setShowRemove] = useState(false);
   const [enabled, setEnabled] = useState(initial.enabled);
   const [frequency, setFrequency] = useState(initial.frequency);
   const [weekdays, setWeekdays] = useState(initial.weekdays);
   const [dayOfMonth, setDayOfMonth] = useState(initial.dayOfMonth);
-  const [method, setMethod] = useState<OrderMethod>(initial.method);
   const [amountMode, setAmountMode] = useState<AmountMode>(initial.amountMode);
   const [amount, setAmount] = useState(initial.amount);
   const [quantity, setQuantity] = useState(initial.quantity);
-  const [autoCharge, setAutoCharge] = useState(initial.autoCharge);
-  const [executeTime, setExecuteTime] = useState(initial.executeTime);
   const [buyCondition, setBuyCondition] = useState<BuyCondition>(initial.buyCondition);
   const [sellCondition, setSellCondition] = useState<SellCondition>(initial.sellCondition);
   const [showBuy, setShowBuy] = useState(false);
@@ -146,16 +146,6 @@ function AutoInvestForm({
     ? new Decimal(buyingPower).div(price).floor().toNumber()
     : 0;
 
-  // 온주는 수량만 가능 → 금액 선택 시 소수점으로 전환
-  const changeMethod = (m: OrderMethod) => {
-    setMethod(m);
-    if (m === "WHOLE") setAmountMode("QTY");
-  };
-  const changeAmountMode = (im: AmountMode) => {
-    if (im === "AMOUNT" && method === "WHOLE") setMethod("FRACTION");
-    setAmountMode(im);
-  };
-
   const summary =
     amountMode === "QTY"
       ? `${FREQ_LABEL[frequency]} ${quantity}주씩`
@@ -163,21 +153,20 @@ function AutoInvestForm({
 
   const handleSave = () => {
     if (save.isPending) return;
+    const form: AutoInvestSetting = {
+      stockCode,
+      enabled,
+      frequency,
+      weekdays,
+      dayOfMonth,
+      amountMode,
+      amount,
+      quantity,
+      buyCondition,
+      sellCondition,
+    };
     save.mutate(
-      {
-        enabled,
-        frequency,
-        weekdays,
-        dayOfMonth,
-        method,
-        amountMode,
-        amount,
-        quantity,
-        autoCharge,
-        executeTime,
-        buyCondition,
-        sellCondition,
-      },
+      { form, id: settingId, buyTriggerId, sellTriggerId },
       {
         onSuccess: () => toast.success("자동모으기 설정을 저장했어요"),
         onError: (err) =>
@@ -188,6 +177,23 @@ function AutoInvestForm({
           ),
       },
     );
+  };
+
+  const handleRemove = () => {
+    if (settingId === null || remove.isPending) return;
+    remove.mutate(settingId, {
+      onSuccess: () => {
+        setShowRemove(false);
+        toast.success("자동모으기를 해제했어요");
+        router.back();
+      },
+      onError: (err) =>
+        toast.error(
+          err instanceof ApiError
+            ? err.message
+            : "해제에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        ),
+    });
   };
 
   return (
@@ -235,11 +241,16 @@ function AutoInvestForm({
             ))}
           </div>
 
-          {/* 요일 선택 (주1회일 때만) */}
+          {/* 요일 선택 (주1회일 때만 · 백엔드 지원 = 월~금) */}
           {frequency === "WEEKLY" && (
             <section className="space-y-2">
               <p className="text-sm text-muted-foreground">요일 선택</p>
-              <WeekdayPicker value={weekdays} onChange={setWeekdays} single />
+              <WeekdayPicker
+                value={weekdays}
+                onChange={setWeekdays}
+                single
+                businessDaysOnly
+              />
             </section>
           )}
 
@@ -266,25 +277,13 @@ function AutoInvestForm({
             </section>
           )}
 
-          {/* 매수 방식·금액/수량 */}
+          {/* 매수 금액/수량 (정기적립은 소수점 배치) */}
           <section className="space-y-3">
-            {/* 소수점/온주 — 수량으로일 때만 */}
-            {amountMode === "QTY" && (
-              <SegmentedControl<OrderMethod>
-                options={[
-                  { label: "소수점", value: "FRACTION" },
-                  { label: "온주", value: "WHOLE" },
-                ]}
-                value={method}
-                onChange={changeMethod}
-              />
-            )}
-
             <div className="space-y-3 rounded-2xl bg-muted/50 p-4">
               <div className="flex items-center gap-2 text-sm font-bold">
                 <button
                   type="button"
-                  onClick={() => changeAmountMode("QTY")}
+                  onClick={() => setAmountMode("QTY")}
                   className={amountMode === "QTY" ? "text-foreground" : "text-muted-foreground"}
                 >
                   수량으로
@@ -292,7 +291,7 @@ function AutoInvestForm({
                 <span className="text-border">|</span>
                 <button
                   type="button"
-                  onClick={() => changeAmountMode("AMOUNT")}
+                  onClick={() => setAmountMode("AMOUNT")}
                   className={amountMode === "AMOUNT" ? "text-foreground" : "text-muted-foreground"}
                 >
                   금액으로
@@ -304,9 +303,9 @@ function AutoInvestForm({
                 <Stepper
                   value={quantity}
                   onChange={setQuantity}
-                  step={method === "WHOLE" ? 1 : 0.1}
-                  min={method === "WHOLE" ? 1 : 0}
-                  precision={method === "WHOLE" ? 0 : 4}
+                  step={0.1}
+                  min={0}
+                  precision={4}
                   suffix="주"
                   editable
                 />
@@ -357,25 +356,7 @@ function AutoInvestForm({
             )}
           </section>
 
-          {/* 실행 시간 */}
-          <div className="flex items-center justify-between border-t border-border pt-4">
-            <span className="text-sm font-medium text-foreground">실행 시간</span>
-            <input
-              type="time"
-              value={executeTime}
-              onChange={(e) => setExecuteTime(e.target.value)}
-              aria-label="실행 시간"
-              className="rounded-md bg-transparent text-right font-numeric text-sm font-bold text-primary outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-            />
-          </div>
-
-          {/* 부족금액 자동충전 */}
-          <label className="flex items-center justify-between">
-            <span className="text-sm font-medium text-foreground">부족금액 자동충전</span>
-            <Switch checked={autoCharge} onCheckedChange={setAutoCharge} />
-          </label>
-
-          {/* 조건 카드 */}
+          {/* 조건 카드 (물타기/익절 → 트리거) */}
           <div className="space-y-2">
             <ConditionCard
               title="평단가 낮추면서 원할때만"
@@ -409,6 +390,17 @@ function AutoInvestForm({
         >
           {save.isPending ? "저장 중..." : "설정 저장"}
         </Button>
+
+        {/* 완전 해제 — 등록된 종목만. 일시중지(토글)와 분리한 파괴적 동작 */}
+        {settingId !== null && (
+          <button
+            type="button"
+            onClick={() => setShowRemove(true)}
+            className="mx-auto block px-4 py-2 text-sm font-medium text-destructive"
+          >
+            자동모으기 해제
+          </button>
+        )}
       </div>
 
       <ConditionBuySheet
@@ -429,6 +421,37 @@ function AutoInvestForm({
         value={sellCondition}
         onApply={setSellCondition}
       />
+
+      {/* 해제 확인 — pause(토글)와 명확히 구분하는 마이크로카피 */}
+      <Sheet open={showRemove} onOpenChange={setShowRemove}>
+        <SheetContent side="bottom" className="gap-0 rounded-t-2xl px-5 pb-8 pt-3">
+          <SheetHeader className="p-0 pb-2 text-left">
+            <SheetTitle className="text-lg font-bold">
+              자동모으기를 해제할까요?
+            </SheetTitle>
+            <SheetDescription className="text-sm text-muted-foreground">
+              {stockName} 설정과 조건(물타기·익절), 모으기 내역이 모두 삭제돼요.
+              잠시 멈추려는 거라면 해제 대신 모으기를 꺼두세요.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-5 flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowRemove(false)}
+              className="h-12 flex-1 text-base font-bold"
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleRemove}
+              disabled={remove.isPending}
+              className="h-12 flex-1 bg-destructive text-base font-bold text-white hover:bg-destructive/90"
+            >
+              {remove.isPending ? "해제 중…" : "해제"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

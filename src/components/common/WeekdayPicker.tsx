@@ -19,6 +19,8 @@ export interface WeekdayPickerProps {
   disabled?: boolean;
   /** 단일 선택(주1회): 항상 1개만 선택 */
   single?: boolean;
+  /** 평일만(월~금) — 정기적립 주1회는 백엔드가 월~금만 지원 */
+  businessDaysOnly?: boolean;
   className?: string;
 }
 
@@ -28,8 +30,12 @@ export function WeekdayPicker({
   onChange,
   disabled = false,
   single = false,
+  businessDaysOnly = false,
   className,
 }: WeekdayPickerProps) {
+  const days = businessDaysOnly
+    ? DAYS.filter((d) => d.value !== "SAT" && d.value !== "SUN")
+    : DAYS;
   const select = (d: Weekday) => {
     // 단일 선택: 항상 1개만(같은 날 다시 눌러도 유지)
     if (single) {
@@ -47,7 +53,7 @@ export function WeekdayPicker({
 
   return (
     <div className={cn("flex gap-2", className)}>
-      {DAYS.map((d) => {
+      {days.map((d) => {
         const active = value.includes(d.value);
         return (
           <button
