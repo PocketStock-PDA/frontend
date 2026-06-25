@@ -56,3 +56,9 @@ export interface SavingsStatusResponse {
   isCollectAgreed: boolean;
   transferStatus: string;
 }
+
+export interface TransferAccountInfo {
+  accountId: number;
+  bankName: string;
+  accountName: string;
+}
