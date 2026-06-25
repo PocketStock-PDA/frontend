@@ -106,8 +106,12 @@ export default function PortfolioPage() {
         variant="sub"
         title="포트폴리오"
         right={
-          /* TODO: 종목 추가(검색) 화면 연결 */
-          <Button variant="outline" size="sm" className="rounded-full">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-full"
+            onClick={() => router.push("/trading")}
+          >
             <Plus />
             종목 추가
           </Button>

@@ -201,7 +201,7 @@ function MainView({
   buyRate: number;
   sellRate: number;
   change: number;
-  updatedAt?: string;
+  updatedAt?: string | undefined;
   isLoading: boolean;
   onSelect: (dir: Direction) => void;
 }) {
