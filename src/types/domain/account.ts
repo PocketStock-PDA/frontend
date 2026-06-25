@@ -38,6 +38,15 @@ export interface OpenAccountResult {
   accountTypes: string[];
 }
 
+/** 연동 카드 단건 (GET /api/assets/cards) */
+export interface LinkedCard {
+  cardId: number;
+  cardName: string;
+  cardType: "CREDIT" | "CHECK";
+  maskedNo: string | null;
+  companyName: string;
+}
+
 /** CMA 계좌 개설 결과 (POST /api/cma/account) */
 export interface CmaAccountResult {
   cmaAccountNo: string | null;
