@@ -131,7 +131,7 @@ export default function CardCollectSettingPage() {
           )}
         </div>
 
-        <div className="fixed bottom-12 left-0 right-0 px-5">
+        <div className="fixed bottom-20 left-0 right-0 px-5">
           <Button
             onClick={handleSave}
             disabled={isError || isLoading || saveSettings.isPending}
