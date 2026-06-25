@@ -328,7 +328,12 @@ export default function AssetLinkPage() {
 
       {step === "CARD" && (
         <CardSelectView
-          cards={linkedCards.data ?? []}
+          cards={(linkedCards.data ?? []).filter(
+            (c) =>
+              c.cardType === "CHECK" &&
+              c.companyName.includes("신한") &&
+              !c.cardName.includes("트래블"),
+          )}
           isLoading={linkedCards.isLoading}
           isError={linkedCards.isError}
           onRetry={() => linkedCards.refetch()}
