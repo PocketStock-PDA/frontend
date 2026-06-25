@@ -34,6 +34,8 @@ export const queryKeys = {
     rankings: (market: string, sort: string) =>
       ["trading", "rankings", market, sort] as const,
     orderbook: (code: string) => ["trading", "orderbook", code] as const,
+    valuations: (code: string) => ["trading", "valuations", code] as const,
+    wholeShares: ["trading", "whole-shares"] as const,
     autoInvest: (code: string) => ["trading", "autoInvest", code] as const,
     autoInvestSummary: ["trading", "autoInvest", "summary"] as const,
     autoInvestTriggers: (id: number) =>

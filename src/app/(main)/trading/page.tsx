@@ -216,39 +216,48 @@ function RankingRow({
   live?: LiveQuote | undefined;
   onClick: () => void;
 }) {
+  const router = useRouter();
   // WS 라이브 값 우선, 없으면 REST 스냅샷
   const price = live?.currentPrice ?? item.price;
   const changeRate = live?.changeRate ?? item.changeRate;
   const priceText = item.currency === "USD" ? formatUSD(price) : formatKRW(price);
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-3 py-3 text-left"
-    >
-      <span className="w-5 shrink-0 text-center font-numeric text-sm font-bold text-primary">
-        {item.rank}
-      </span>
-      <Avatar className="size-9">
-        {item.logoUrl && <AvatarImage src={item.logoUrl} alt={item.stockName} />}
-        <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-foreground">
-          {item.stockName}
-        </p>
-        <p className="truncate text-xs text-muted-foreground">
-          {item.stockCode}
-        </p>
-      </div>
-      <div className="shrink-0 text-right">
-        <p className="font-numeric text-sm font-bold text-foreground">
-          {priceText}
-        </p>
-        <div className="flex justify-end">
-          <ChangeIndicator value={changeRate} percent size="sm" />
+    // 행 전체 = 매수매도 진입, '모으기'는 별도 형제 버튼(중첩 금지)
+    <div className="flex w-full items-center gap-3 py-3">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+      >
+        <span className="w-5 shrink-0 text-center font-numeric text-sm font-bold text-primary">
+          {item.rank}
+        </span>
+        <Avatar className="size-9">
+          {item.logoUrl && (
+            <AvatarImage src={item.logoUrl} alt={item.stockName} />
+          )}
+          <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold text-foreground">
+            {item.stockName}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <span className="font-numeric text-xs font-medium text-foreground">
+              {priceText}
+            </span>
+            <ChangeIndicator value={changeRate} percent size="sm" />
+          </div>
         </div>
-      </div>
-    </button>
+      </button>
+      <button
+        type="button"
+        onClick={() => router.push(`/trading/${item.stockCode}/auto`)}
+        aria-label={`${item.stockName} 모으기 설정`}
+        className="shrink-0 rounded-full bg-brand-surface px-3.5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-brand-surface/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        모으기
+      </button>
+    </div>
   );
 }
