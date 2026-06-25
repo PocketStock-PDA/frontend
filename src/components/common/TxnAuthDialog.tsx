@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api/client";
 import {
   Sheet,
   SheetContent,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { PinKeypad } from "@/components/common/PinKeypad";
+import { AccountPasswordUnlock } from "@/components/common/AccountPasswordUnlock";
 import { useTxnAuth } from "@/hooks/mutations/useTxnAuth";
 
 interface TxnAuthDialogProps {
@@ -24,6 +26,7 @@ interface TxnAuthDialogProps {
  * 거래 인증(계좌 비밀번호) 입력 시트.
  * 주문/이체가 TXN_AUTH_REQUIRED(401)를 던지면 띄워, 4자리 계좌 비밀번호를
  * 검증(keepAuth=true, 30분 세션 유지)한 뒤 onVerified로 원래 동작을 재시도한다.
+ * 5회 오답 → ACCOUNT_PASSWORD_LOCKED(423)면 휴대폰 푸시 인증 해제 화면으로 전환.
  */
 export function TxnAuthDialog({
   open,
@@ -33,11 +36,16 @@ export function TxnAuthDialog({
   const [pin, setPin] = useState("");
   // ON이면 30분간 비밀번호 없이 거래(keepAuth). OFF면 이번 1건만 인증(VALUE_ONCE).
   const [keepAuth, setKeepAuth] = useState(false);
+  // 계좌 비밀번호 잠금 상태 — 해제 화면으로 전환
+  const [locked, setLocked] = useState(false);
   const txnAuth = useTxnAuth();
 
-  // 시트가 닫힐 때 입력을 비워 다음 진입이 깨끗하게 시작되도록 한다.
+  // 시트가 닫힐 때 입력/잠금 상태를 비워 다음 진입이 깨끗하게 시작되도록 한다.
   const handleOpenChange = (next: boolean) => {
-    if (!next) setPin("");
+    if (!next) {
+      setPin("");
+      setLocked(false);
+    }
     onOpenChange(next);
   };
 
@@ -49,9 +57,18 @@ export function TxnAuthDialog({
       setPin("");
       onOpenChange(false);
       onVerified();
-    } catch {
-      toast.error("비밀번호가 틀렸어요. 다시 입력해 주세요.");
+    } catch (err) {
       setPin("");
+      if (err instanceof ApiError && err.code === "ACCOUNT_PASSWORD_LOCKED") {
+        setLocked(true);
+        return;
+      }
+      // 오답 메시지(남은 횟수 포함)를 그대로 노출
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "비밀번호가 틀렸어요. 다시 입력해 주세요.",
+      );
     }
   };
 
@@ -63,36 +80,46 @@ export function TxnAuthDialog({
       >
         <SheetHeader className="p-0">
           <SheetTitle className="text-center text-base font-bold text-foreground">
-            계좌 비밀번호 입력
+            {locked ? "계좌 비밀번호 잠금" : "계좌 비밀번호 입력"}
           </SheetTitle>
           <SheetDescription className="text-center text-sm text-muted-foreground">
-            거래 인증을 위해 4자리 숫자를 입력해 주세요
+            {locked
+              ? "휴대폰 인증으로 잠금을 해제해 주세요"
+              : "거래 인증을 위해 4자리 숫자를 입력해 주세요"}
           </SheetDescription>
         </SheetHeader>
-        <PinKeypad
-          value={pin}
-          onChange={handleChange}
-          length={4}
-          disabled={txnAuth.isPending}
-          className="mt-8"
-        />
 
-        <label className="mt-8 flex items-center justify-between">
-          <span className="flex flex-col">
-            <span className="text-sm font-medium text-foreground">
-              30분간 비밀번호 없이 거래
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              켜두면 30분 동안 추가 입력 없이 매매할 수 있어요
-            </span>
-          </span>
-          <Switch
-            checked={keepAuth}
-            onCheckedChange={setKeepAuth}
-            disabled={txnAuth.isPending}
-            aria-label="30분간 비밀번호 없이 거래"
-          />
-        </label>
+        {locked ? (
+          <AccountPasswordUnlock onUnlocked={() => setLocked(false)} />
+        ) : (
+          <>
+            <PinKeypad
+              value={pin}
+              onChange={handleChange}
+              length={4}
+              disabled={txnAuth.isPending}
+              secure
+              className="mt-8"
+            />
+
+            <label className="mt-8 flex items-center justify-between">
+              <span className="flex flex-col">
+                <span className="text-sm font-medium text-foreground">
+                  30분간 비밀번호 없이 거래
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  켜두면 30분 동안 추가 입력 없이 매매할 수 있어요
+                </span>
+              </span>
+              <Switch
+                checked={keepAuth}
+                onCheckedChange={setKeepAuth}
+                disabled={txnAuth.isPending}
+                aria-label="30분간 비밀번호 없이 거래"
+              />
+            </label>
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );
