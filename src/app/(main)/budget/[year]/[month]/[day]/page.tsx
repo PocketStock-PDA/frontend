@@ -45,22 +45,22 @@ export default function BudgetDayPage({ params }: Props) {
               -{formatKRW(txQ.data.totalAmount)}
             </span>
           </div>
-          <div className="divide-y divide-border rounded-2xl border border-border">
+          <div className="divide-y divide-border/50">
             {txQ.data.transactions.map((tx) => {
               const Icon = getCategoryIcon(tx.category);
               return (
                 <div
                   key={tx.transactionId}
-                  className="flex items-center gap-3 px-4 py-3"
+                  className="flex items-center gap-3.5 py-3.5"
                 >
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent">
-                    <Icon className="size-[15px] text-primary" />
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent">
+                    <Icon className="size-[17px] text-primary" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">
                       {tx.description}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {tx.category} · {formatTime(tx.transactedAt)}
                     </p>
                   </div>

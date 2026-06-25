@@ -19,6 +19,7 @@
 /out/
 /public/sw.js
 /public/workbox-*.js
+/public/worker-*.js
 
 # production
 /build
@@ -48,3 +49,9 @@ next-env.d.ts
 
 # 개인 참고용 md 폴더
 docs/
+
+# impeccable (design tooling — local only)
+.github/hooks/
+.github/skills/
+.impeccable/
+PRODUCT.md

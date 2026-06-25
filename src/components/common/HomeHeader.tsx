@@ -17,6 +17,8 @@ export interface HomeHeaderProps {
   userName: string;
   date?: Date;
   onBellClick?: () => void;
+  /** 안읽음 알림 개수 — 0이면 뱃지 미표시 */
+  unreadCount?: number;
 }
 
 /** 홈 전용 헤더: 인사말(좌) + 알림벨·햄버거(우) */
@@ -24,6 +26,7 @@ export function HomeHeader({
   userName,
   date = new Date(),
   onBellClick,
+  unreadCount = 0,
 }: HomeHeaderProps) {
   const openSidebar = useUiStore((s) => s.openSidebar);
 
@@ -41,10 +44,15 @@ export function HomeHeader({
           <button
             type="button"
             onClick={onBellClick}
-            aria-label="알림"
-            className="flex size-10 items-center justify-center text-foreground"
+            aria-label={unreadCount > 0 ? `알림 ${unreadCount}개` : "알림"}
+            className="relative flex size-10 items-center justify-center text-foreground"
           >
             <Bell className="size-6" />
+            {unreadCount > 0 && (
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </button>
           <button
             type="button"

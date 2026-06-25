@@ -16,6 +16,8 @@ export interface ChangeIndicatorProps {
   percent?: boolean;
   /** 값 뒤 단위 (예: "원"). percent와 동시 사용 안 함 */
   suffix?: string;
+  /** 값 앞 단위 (예: "$"). 부호 다음·숫자 앞에 붙음 */
+  prefix?: string;
   /** ▲▼ 화살표 표시 (기본 true) */
   showArrow?: boolean;
   /** 부호(+) 표시 (기본 true) */
@@ -32,6 +34,7 @@ export function ChangeIndicator({
   value,
   percent = false,
   suffix = "",
+  prefix = "",
   showArrow = true,
   showSign = true,
   size = "md",
@@ -63,6 +66,7 @@ export function ChangeIndicator({
       {showArrow && isDown && <ArrowDown aria-hidden />}
       <span>
         {sign}
+        {prefix}
         {formatted}
         {unit}
       </span>

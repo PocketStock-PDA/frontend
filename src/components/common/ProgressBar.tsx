@@ -5,6 +5,8 @@ export interface ProgressBarProps {
   value: number;
   /** 막대 색 (카테고리별). 기본 브랜드 */
   color?: string;
+  /** 스크린리더용 라벨 (무엇의 진행인지) */
+  "aria-label"?: string;
   className?: string;
   trackClassName?: string;
 }
@@ -13,6 +15,7 @@ export interface ProgressBarProps {
 export function ProgressBar({
   value,
   color,
+  "aria-label": ariaLabel,
   className,
   trackClassName,
 }: ProgressBarProps) {
@@ -20,6 +23,7 @@ export function ProgressBar({
   return (
     <div
       role="progressbar"
+      aria-label={ariaLabel}
       aria-valuenow={pct}
       aria-valuemin={0}
       aria-valuemax={100}

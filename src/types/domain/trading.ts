@@ -44,8 +44,43 @@ export interface StockSearchItem {
 export interface Holding {
   stockCode: string;
   quantity: number;
+  /** 온주(직접소유, 정수 매도) — quantity − fractionalQty (FRAC-010) */
+  wholeQty?: number;
+  /** 소수점(신탁, 소수 매도 ≤ 이 값) */
+  fractionalQty?: number;
   avgBuyPrice: number;
   currency: string;
+}
+
+/** 일별 평가 스냅샷 (GET /api/trading/valuations/{code}). 종가 native·환차손익 제외 */
+export interface DailyValuation {
+  /** yyyy-MM-dd */
+  evalDate: string;
+  quantity: number;
+  closePrice: number;
+  evalAmount: number;
+  profitAmount: number;
+  /** 수익률(%) */
+  profitRate: number;
+  currency: string;
+}
+
+/** 온주 전환내역 항목 (GET /api/trading/whole-shares) */
+export interface WholeShareConversion {
+  stockCode: string;
+  stockName: string;
+  wholeQty: number;
+  /** ISO datetime */
+  convertedAt: string;
+}
+
+/** 온주 전환 결과 (POST /api/trading/whole-shares) */
+export interface WholeShareConvertResult {
+  stockCode: string;
+  convertedWholeQty: number;
+  remainingFractional: number;
+  wholeQty: number;
+  totalQuantity: number;
 }
 
 export interface StockPrice {
