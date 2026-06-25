@@ -20,7 +20,7 @@ const MENU: RecentMenu[] = [
   { label: "주식모으기", href: "/trading" },
   { label: "환전", href: "/exchange" },
   { label: "가계부", href: "/budget" },
-  { label: "포트폴리오", href: "/portfolio" },
+  { label: "증권", href: "/portfolio" },
   { label: "주식 자동모으기 설정", href: "/trading/auto" },
   { label: "거래 내역", href: "/history" },
   { label: "내 자산", href: "/asset" },
