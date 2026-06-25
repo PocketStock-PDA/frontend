@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
-import Decimal from "decimal.js";
-import { ChevronRight, Plus, Settings } from "lucide-react";
+import { ChevronRight, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppHeader } from "@/components/common/AppHeader";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
@@ -21,13 +21,13 @@ import {
   CalendarIcon,
   OrdersIcon,
 } from "@/components/features/portfolio/ActionIcons";
-import { useHoldings } from "@/hooks/queries/useHoldings";
+import { usePortfolioSummary } from "@/hooks/queries/usePortfolioSummary";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
-import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
-import { toDecimal } from "@/lib/utils/decimal";
+import type { AutoInvestStock } from "@/types/domain/autoInvest";
 import { toPieceParts } from "@/lib/utils/pieces";
 import { queryKeys } from "@/lib/utils/queryKeys";
+import { cn } from "@/lib/utils";
 
 type Lens = "all" | "auto" | "pieces";
 
@@ -50,14 +50,16 @@ export default function PortfolioPage() {
   const queryClient = useQueryClient();
   const [lens, setLens] = useState<Lens>("all");
   const [scope, setScope] = useState<Scope>("all");
+  // 해외 평가금액을 원화로 환산해 볼지 (false=달러 $, true=원화 ₩)
+  const [ovsKrw, setOvsKrw] = useState(false);
   const reduce = useReducedMotion();
 
-  const holdingsQ = useHoldings();
-  const holdings = holdingsQ.data ?? [];
+  const summaryQ = usePortfolioSummary();
+  const summary = summaryQ.data;
+  const holdings = summary?.holdings ?? [];
   const codes = holdings.map((h) => h.stockCode);
   const details = useStockDetails(codes);
   const autoSummaryQ = useAutoInvestSummary();
-  const exchangeRateQ = useExchangeRate();
 
   // 자동모으기 활성 종목코드 집합 (모으기 렌즈·배지용)
   const autoCodes = new Set(
@@ -66,10 +68,23 @@ export default function PortfolioPage() {
       .map((s) => s.stockCode),
   );
 
+  // 모으기 활성 + 미보유(첫 매수 전) 종목 — 로고·이름 위해 시세 상세도 조회(훅은 early return 전에)
+  const heldCodes = new Set(codes);
+  const pendingAutoStocks = (autoSummaryQ.data?.stocks ?? []).filter(
+    (s) => s.isActive && !heldCodes.has(s.stockCode),
+  );
+  const pendingCodes = pendingAutoStocks.map((s) => s.stockCode);
+  const pendingDetails = useStockDetails(pendingCodes);
+
+  // 보유 0인데 모으기 예정만 있으면 기본 렌즈를 '모으기'로(빈 전체 탭에 막히지 않게)
+  useEffect(() => {
+    if (holdings.length === 0 && pendingAutoStocks.length > 0) setLens("auto");
+  }, [holdings.length, pendingAutoStocks.length]);
+
   const detailsLoading = codes.length > 0 && details.some((d) => d.isLoading);
   const detailsError = codes.length > 0 && details.some((d) => d.isError);
 
-  if (holdingsQ.isLoading || detailsLoading) {
+  if (summaryQ.isLoading || detailsLoading) {
     return (
       <div className="space-y-5">
         <SkeletonCard lines={2} className="h-36" />
@@ -80,7 +95,7 @@ export default function PortfolioPage() {
   }
 
   // 보유 조회 실패 또는 일부 종목 시세 실패(평가 0 오인 방지) 시 에러 노출
-  if (holdingsQ.isError || detailsError) {
+  if (summaryQ.isError || detailsError) {
     return (
       <EmptyState
         title="불러오지 못했어요"
@@ -100,95 +115,119 @@ export default function PortfolioPage() {
     );
   }
 
-  // 금액·수량 계산은 decimal.js 필수. API 값은 toDecimal로 안전 변환(null→0)
-  // TODO: 혼합 통화(USD) 보유 시 환율 환산 — 현재는 KRW 기준
+  // 평가·수익률은 백엔드 summary 단일소스(native 통화). 이름·로고만 종목 상세에서 보강.
   const rows = holdings.map((h, i) => {
     const detail = details[i]?.data;
-    const qty = toDecimal(h.quantity);
-    const price = toDecimal(detail?.price?.currentPrice);
-    const evalAmount = qty.times(price);
-    const invested = qty.times(toDecimal(h.avgBuyPrice));
-    const profit = evalAmount.minus(invested);
-    const rate = invested.gt(0)
-      ? profit.div(invested).times(100)
-      : new Decimal(0);
-    const parts = toPieceParts(h.quantity);
     return {
       h,
       name: detail?.stockName ?? h.stockCode,
       logoUrl: detail?.logoUrl ?? null,
-      evalAmount: evalAmount.toNumber(),
-      invested,
-      profit: profit.toNumber(),
-      rate: rate.toNumber(),
-      parts,
+      currency: (h.currency === "USD" ? "USD" : "KRW") as "KRW" | "USD",
+      evalAmount: h.evalAmount ?? 0, // native(해외=USD)
+      evalKrw: h.evalKrw ?? 0, // 환산 KRW(종목 간 비교·정렬용)
+      investedKrw: h.investedKrw ?? 0,
+      profit: h.profit ?? 0, // native
+      profitKrw: h.profitKrw ?? 0, // 환산 KRW 손익
+      rate: h.profitRate ?? 0,
+      priced: h.priced,
+      parts: toPieceParts(h.quantity),
       isAuto: autoCodes.has(h.stockCode),
     };
   });
 
-  // scope별 평가 집계 — 국내(KRW)/해외(USD) 분리, 전체는 환율로 KRW 환산 합산.
-  // TODO: 백엔드 portfolio/summary 나오면 이 클라이언트 합성을 교체(환율·원금 서버 단일소스).
-  const sumEval = (arr: typeof rows) =>
-    arr.reduce((s, r) => s.plus(r.evalAmount), new Decimal(0));
-  const sumInvested = (arr: typeof rows) =>
-    arr.reduce((s, r) => s.plus(r.invested), new Decimal(0));
+  // scope별 집계는 백엔드 summary 단일소스. 전체/국내=KRW, 해외=USD(+환산 KRW).
+  const fx = summary?.usdKrwRate ?? null;
+  const hasOverseas = !!summary?.overseas;
 
-  const domRows = rows.filter((r) => r.h.currency !== "USD");
-  const ovsRows = rows.filter((r) => r.h.currency === "USD");
-  const hasOverseas = ovsRows.length > 0;
-  const domEval = sumEval(domRows);
-  const domInvested = sumInvested(domRows);
-  const ovsEval = sumEval(ovsRows); // USD native
-  const ovsInvested = sumInvested(ovsRows); // USD native
-  const fx = exchangeRateQ.data?.baseRate
-    ? new Decimal(exchangeRateQ.data.baseRate)
-    : null;
-  // 전체: 해외(USD)×환율 + 국내(KRW). 환율 없으면 native 합 폴백(기존 동작).
-  const allEval = fx ? domEval.plus(ovsEval.times(fx)) : domEval.plus(ovsEval);
-  const allInvested = fx
-    ? domInvested.plus(ovsInvested.times(fx))
-    : domInvested.plus(ovsInvested);
+  // 표시할 평가/원금/손익/통화 — scope + 해외 원화토글(ovsKrw) 반영.
+  let displayEval = 0;
+  let displayInvested = 0;
+  let displayProfit = 0;
+  let displayCurrency: "KRW" | "USD" = "KRW";
+  let scopeLabel = "총 평가금액";
+  if (scope === "domestic") {
+    const d = summary?.domestic;
+    displayEval = d?.evalKrw ?? 0;
+    displayInvested = d?.investedKrw ?? 0;
+    displayProfit = d?.profitKrw ?? 0;
+    scopeLabel = "국내 평가금액";
+  } else if (scope === "overseas") {
+    const o = summary?.overseas;
+    const showKrw = ovsKrw && fx !== null; // 토글 ON + 환율 보유 시 원화 환산
+    displayEval = (showKrw ? o?.evalKrw : o?.evalUsd) ?? 0;
+    displayInvested = (showKrw ? o?.investedKrw : o?.investedUsd) ?? 0;
+    displayProfit = (showKrw ? o?.profitKrw : o?.profitUsd) ?? 0;
+    displayCurrency = showKrw ? "KRW" : "USD";
+    scopeLabel = "해외 평가금액";
+  } else {
+    const t = summary?.total;
+    displayEval = t?.evalKrw ?? 0;
+    displayInvested = t?.investedKrw ?? 0;
+    displayProfit = t?.profitKrw ?? 0;
+  }
+  // 수익률 = 손익 / 원금 (표시 통화 기준). 원금 0이면 0.
+  const scopeRate =
+    displayInvested !== 0 ? (displayProfit / displayInvested) * 100 : 0;
 
-  const scopeView = {
-    all: { eval: allEval, invested: allInvested, currency: "KRW" as const, label: "총 평가금액" },
-    domestic: { eval: domEval, invested: domInvested, currency: "KRW" as const, label: "국내 평가금액" },
-    overseas: { eval: ovsEval, invested: ovsInvested, currency: "USD" as const, label: "해외 평가금액" },
-  }[scope];
-  const scopeProfit = scopeView.eval.minus(scopeView.invested);
-  const scopeRate = scopeView.invested.gt(0)
-    ? scopeProfit.div(scopeView.invested).times(100)
-    : new Decimal(0);
+  // scope로 아래 목록도 필터 — 국내(KRW)만 / 해외(USD)만 / 전체.
+  const scopedRows =
+    scope === "domestic"
+      ? rows.filter((r) => r.currency === "KRW")
+      : scope === "overseas"
+        ? rows.filter((r) => r.currency === "USD")
+        : rows;
 
-  const autoRows = rows.filter((r) => r.isAuto);
-  const pieceRows = rows.filter((r) => r.parts.hasFraction);
+  // 해외 scope + 원화 토글이면 카드도 원화로 — 그 외엔 종목 native 통화.
+  const cardKrw = scope === "overseas" && ovsKrw && fx !== null;
+  const cardView = (r: (typeof rows)[number]) =>
+    cardKrw
+      ? {
+          evalAmount: r.evalKrw,
+          profit: r.profitKrw,
+          rate: r.investedKrw !== 0 ? (r.profitKrw / r.investedKrw) * 100 : 0,
+          currency: "KRW" as const,
+        }
+      : { evalAmount: r.evalAmount, profit: r.profit, rate: r.rate, currency: r.currency };
+
+  const autoRows = scopedRows.filter((r) => r.isAuto);
+  // 종목코드 → 모으기 일정 문구("매일 10,000원씩") — 보유/미보유 모으기 카드 공용
+  const scheduleByCode = new Map(
+    (autoSummaryQ.data?.stocks ?? []).map((s) => [
+      s.stockCode,
+      autoScheduleText(s),
+    ]),
+  );
+  // 미보유 모으기 종목 표시용 — 상세에서 로고·이름 보강(없으면 요약의 stockName/이니셜). scope 필터 반영.
+  const pendingAuto = pendingAutoStocks
+    .map((s, i) => ({
+      stock: s,
+      name: pendingDetails[i]?.data?.stockName ?? s.stockName,
+      logoUrl: pendingDetails[i]?.data?.logoUrl ?? null,
+    }))
+    .filter((p) =>
+      scope === "domestic"
+        ? p.stock.currency !== "USD"
+        : scope === "overseas"
+          ? p.stock.currency === "USD"
+          : true,
+    );
+  const pieceRows = scopedRows.filter((r) => r.parts.hasFraction);
   // 주식투자(매수매도) 바로가기 — 최다 보유 종목으로(없으면 종목 목록)
   const topCode =
     rows.length > 0
-      ? rows.reduce((a, b) => (b.evalAmount > a.evalAmount ? b : a)).h.stockCode
+      ? rows.reduce((a, b) => (b.evalKrw > a.evalKrw ? b : a)).h.stockCode
       : null;
 
   // 전체 렌즈 → 종목 현황(기본) / 모으기·조각 렌즈 → 퍼즐(?view=pieces)
   const goDetail = (code: string) => router.push(`/portfolio/${code}`);
   const goPieces = (code: string) =>
     router.push(`/portfolio/${code}?view=pieces`);
+  const goCollect = (code: string) =>
+    router.push(`/portfolio/${code}?view=collect`);
 
   return (
     <>
-      <AppHeader
-        variant="sub"
-        title="포트폴리오"
-        right={
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-            onClick={() => router.push("/trading")}
-          >
-            <Plus />
-            종목 추가
-          </Button>
-        }
-      />
+      <AppHeader variant="sub" title="포트폴리오" />
 
       <div className="space-y-6">
         {/* 개요: 평가금액(전체/국내/해외 토글) + 동선 스트립을 하나의 카드로 */}
@@ -203,22 +242,27 @@ export default function PortfolioPage() {
                 className="mb-4"
               />
             )}
-            <p className="text-sm font-medium text-primary">{scopeView.label}</p>
-            <AmountDisplay
-              value={scopeView.eval.toString()}
-              currency={scopeView.currency}
-              size="xl"
-              className="mt-1 block text-foreground"
-            />
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <ChangeIndicator
-                value={scopeProfit.toNumber()}
-                suffix={scopeView.currency === "KRW" ? "원" : ""}
-                prefix={scopeView.currency === "USD" ? "$" : ""}
-                size="md"
-                showArrow={false}
+            <p className="text-sm font-medium text-primary">{scopeLabel}</p>
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <AmountDisplay
+                value={displayEval}
+                currency={displayCurrency}
+                size="xl"
+                className="text-foreground"
               />
-              <ChangeIndicator value={scopeRate.toNumber()} percent size="md" />
+              {/* 해외 + 환율 보유 시: 달러 ↔ 원화 표시 토글 */}
+              {scope === "overseas" && fx != null && (
+                <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
+              )}
+            </div>
+            <div className="mt-1.5">
+              <ChangeIndicator
+                value={displayProfit}
+                suffix={displayCurrency === "KRW" ? "원" : ""}
+                prefix={displayCurrency === "USD" ? "$" : ""}
+                subPercent={scopeRate}
+                size="md"
+              />
             </div>
           </div>
 
@@ -251,8 +295,8 @@ export default function PortfolioPage() {
           )}
         </section>
 
-        {/* 보유 — 렌즈 칩 + 렌즈별 리스트 */}
-        {rows.length === 0 ? (
+        {/* 보유 — 렌즈 칩 + 렌즈별 리스트. 보유·모으기 둘 다 없을 때만 빈 화면 */}
+        {rows.length === 0 && pendingAuto.length === 0 ? (
           <EmptyState
             title="아직 모은 조각이 없어요"
             description="포인트·잔돈으로 첫 조각을 담아보세요."
@@ -311,50 +355,182 @@ export default function PortfolioPage() {
                     </span>
                     <ChevronRight className="size-4 text-primary" />
                   </button>
-                  {autoRows.length === 0 ? (
+                  {autoRows.length === 0 && pendingAuto.length === 0 ? (
                     <EmptyState
                       title="모으는 중인 종목이 없어요"
                       description="모으기 설정에서 종목을 추가해 보세요."
                       className="py-8"
                     />
                   ) : (
-                    autoRows.map((r) => (
-                      <HoldingCard
-                        key={r.h.stockCode}
-                        name={r.name}
-                        ticker={r.h.stockCode}
-                        logoUrl={r.logoUrl}
-                        quantity={r.h.quantity}
-                        evalAmount={r.evalAmount}
-                        profit={r.profit}
-                        rate={r.rate}
-                        isAuto={r.isAuto}
-                        onClick={() => goPieces(r.h.stockCode)}
-                      />
-                    ))
+                    <>
+                      {autoRows.map((r) => {
+                        const cv = cardView(r);
+                        return (
+                          <HoldingCard
+                            key={r.h.stockCode}
+                            name={r.name}
+                            ticker={r.h.stockCode}
+                            logoUrl={r.logoUrl}
+                            quantity={r.h.quantity}
+                            evalAmount={cv.evalAmount}
+                            profit={cv.profit}
+                            rate={cv.rate}
+                            currency={cv.currency}
+                            isAuto={r.isAuto}
+                            subtitle={scheduleByCode.get(r.h.stockCode) ?? ""}
+                            onClick={() => goCollect(r.h.stockCode)}
+                          />
+                        );
+                      })}
+                      {/* 설정만 하고 아직 미보유(첫 매수 전) 종목 */}
+                      {pendingAuto.map((p) => (
+                        <AutoPendingCard
+                          key={p.stock.stockCode}
+                          name={p.name}
+                          ticker={p.stock.stockCode}
+                          logoUrl={p.logoUrl}
+                          stock={p.stock}
+                          onClick={() => goCollect(p.stock.stockCode)}
+                        />
+                      ))}
+                    </>
                   )}
                 </>
+              ) : scopedRows.length === 0 ? (
+                <EmptyState
+                  title={
+                    scope === "domestic"
+                      ? "국내 보유 종목이 없어요"
+                      : scope === "overseas"
+                        ? "해외 보유 종목이 없어요"
+                        : "보유 종목이 없어요"
+                  }
+                  description="모으기 탭에서 예정 종목을 확인해 보세요."
+                  className="py-8"
+                />
               ) : (
-                rows.map((r) => (
-                  <HoldingCard
-                    key={r.h.stockCode}
-                    name={r.name}
-                    ticker={r.h.stockCode}
-                    logoUrl={r.logoUrl}
-                    quantity={r.h.quantity}
-                    evalAmount={r.evalAmount}
-                    profit={r.profit}
-                    rate={r.rate}
-                    isAuto={r.isAuto}
-                    onClick={() => goDetail(r.h.stockCode)}
-                  />
-                ))
+                scopedRows.map((r) => {
+                  const cv = cardView(r);
+                  return (
+                    <HoldingCard
+                      key={r.h.stockCode}
+                      name={r.name}
+                      ticker={r.h.stockCode}
+                      logoUrl={r.logoUrl}
+                      quantity={r.h.quantity}
+                      evalAmount={cv.evalAmount}
+                      profit={cv.profit}
+                      rate={cv.rate}
+                      currency={cv.currency}
+                      isAuto={r.isAuto}
+                      onClick={() => goDetail(r.h.stockCode)}
+                    />
+                  );
+                })
               )}
             </motion.div>
           </section>
         )}
       </div>
     </>
+  );
+}
+
+/** 달러($) ↔ 원화(₩) 표시 토글. checked=원화. knob에 현재 통화 글자 노출. */
+function CurrencyToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={checked ? "원화로 보기 (켜짐)" : "원화로 보기 (꺼짐)"}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full px-1 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        checked ? "bg-primary" : "bg-muted",
+      )}
+    >
+      <span
+        className={cn(
+          "flex size-5 items-center justify-center rounded-full bg-white font-numeric text-[11px] font-bold shadow-sm transition-transform duration-200 ease-out",
+          checked ? "translate-x-5 text-primary" : "translate-x-0 text-muted-foreground",
+        )}
+      >
+        {checked ? "₩" : "$"}
+      </span>
+    </button>
+  );
+}
+
+const FREQ_TEXT: Record<string, string> = {
+  DAILY: "매일",
+  WEEKLY: "주1회",
+  MONTHLY: "월1회",
+};
+
+/** 모으기 주기·금액 한 줄 요약 — "매일 1,000원씩" / "주1회 1주씩" */
+function autoScheduleText(s: AutoInvestStock): string {
+  const freq = FREQ_TEXT[s.period] ?? "";
+  let amt = "";
+  if (s.amountType === "AMOUNT" && s.buyAmount != null) {
+    amt =
+      s.currency === "USD"
+        ? `$${s.buyAmount}`
+        : `${s.buyAmount.toLocaleString("ko-KR")}원`;
+  } else if (s.buyQuantity != null) {
+    amt = `${s.buyQuantity}주`;
+  }
+  return amt ? `${freq} ${amt}씩` : freq;
+}
+
+/** 모으기 설정만 하고 아직 미보유(첫 매수 전)인 종목 카드 — 보유 카드와 구분(점선·"아직 매수 전"). */
+function AutoPendingCard({
+  name,
+  ticker,
+  logoUrl,
+  stock,
+  onClick,
+}: {
+  name: string;
+  ticker?: string;
+  logoUrl?: string | null;
+  stock: AutoInvestStock;
+  onClick: () => void;
+}) {
+  const initial = (ticker ?? name).trim().charAt(0).toUpperCase();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      <Avatar className="shrink-0">
+        {logoUrl && <AvatarImage src={logoUrl} alt="" />}
+        <AvatarFallback>{initial}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-bold text-foreground">
+            {name}
+          </span>
+          <span className="shrink-0 rounded-full bg-brand-surface px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+            모으는 중
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {autoScheduleText(stock)}
+        </p>
+      </div>
+      <span className="shrink-0 text-xs font-medium text-muted-foreground">
+        모으기 전
+      </span>
+    </button>
   );
 }
 

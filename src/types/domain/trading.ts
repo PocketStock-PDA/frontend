@@ -52,6 +52,64 @@ export interface Holding {
   currency: string;
 }
 
+/** 통화 단일(KRW) 집계 — 전체/국내 (GET /api/trading/portfolio/summary) */
+export interface PortfolioSegment {
+  evalKrw: number;
+  investedKrw: number;
+  profitKrw: number;
+  /** 수익률 % */
+  profitRate: number;
+}
+
+/** 해외 집계 — USD native(환차 제외 수익률) + 현재 환율 환산 KRW(참고) */
+export interface PortfolioOverseasSegment {
+  evalUsd: number;
+  investedUsd: number;
+  profitUsd: number;
+  /** 수익률 % (USD 기준, 환차 제외) */
+  profitRate: number;
+  evalKrw: number;
+  /** 매수시점 환율 기준 */
+  investedKrw: number;
+  /** 환차손익 포함 */
+  profitKrw: number;
+}
+
+/** 종목별 평가 — native 통화 기준 + 환산 KRW. priced=false면 평가 필드 null */
+export interface PortfolioHoldingValuation {
+  stockCode: string;
+  currency: string;
+  quantity: number;
+  wholeQty: number;
+  fractionalQty: number;
+  avgBuyPrice: number;
+  currentPrice: number | null;
+  evalAmount: number | null;
+  invested: number;
+  profit: number | null;
+  profitRate: number | null;
+  evalKrw: number | null;
+  /** 환산 KRW 원금(해외=매수시점 환율). 카드 원화표시용 */
+  investedKrw: number;
+  /** 환산 KRW 손익 = evalKrw − investedKrw. priced=false/환율없음이면 null */
+  profitKrw: number | null;
+  /** 현재가 조회 성공 여부 */
+  priced: boolean;
+}
+
+/** 포트폴리오 요약 (GET /api/trading/portfolio/summary). 화면 상단 총합·보유 카드 단일소스 */
+export interface PortfolioSummary {
+  /** 스냅샷 시각(ISO-8601) */
+  asOf: string;
+  /** 환산에 쓴 현재 USD/KRW 환율($↔₩ 토글용). 해외 없음/콜드스타트면 null */
+  usdKrwRate: number | null;
+  total: PortfolioSegment;
+  domestic: PortfolioSegment;
+  /** 해외 보유 없으면 null */
+  overseas: PortfolioOverseasSegment | null;
+  holdings: PortfolioHoldingValuation[];
+}
+
 /** 일별 평가 스냅샷 (GET /api/trading/valuations/{code}). 종가 native·환차손익 제외 */
 export interface DailyValuation {
   /** yyyy-MM-dd */
