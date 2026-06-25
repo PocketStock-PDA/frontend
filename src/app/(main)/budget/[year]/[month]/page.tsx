@@ -2,16 +2,21 @@
 
 import { use, useState } from "react";
 import { format } from "date-fns";
-import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
-import { useBudgetGoals, useBudgetCalendar } from "@/hooks/queries/useBudget";
+import {
+  useBudgetGoals,
+  useBudgetCalendar,
+  useBudgetSavings,
+} from "@/hooks/queries/useBudget";
+import { useTransferAccount } from "@/hooks/queries/useTransferAccount";
 import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
 import { formatKRW, parseAmount } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import { getCategoryIcon } from "../../_utils/categoryIcon";
+import { BudgetSplitSummary } from "@/components/features/budget/BudgetSplitSummary";
 import type { BudgetGoalCategoryItem } from "@/types/domain/budget";
 
 interface Props {
@@ -26,12 +31,17 @@ export default function BudgetMonthPage({ params }: Props) {
 
   const goalsQ = useBudgetGoals();
   const calendarQ = useBudgetCalendar(year, month);
+  const savingsQ = useBudgetSavings();
+  const transferAccountQ = useTransferAccount();
 
   const now = new Date();
   const isCurrentMonth =
     now.getFullYear() === year && now.getMonth() + 1 === month;
 
-  const title = format(new Date(year, month - 1, 1), "yyyy년 M월 지출");
+  const title =
+    year === now.getFullYear()
+      ? format(new Date(year, month - 1, 1), "M월 지출")
+      : format(new Date(year, month - 1, 1), "yyyy년 M월 지출");
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const calendarDailyBudget = calendarQ.data?.dailyBudget ?? 0;
@@ -89,37 +99,23 @@ export default function BudgetMonthPage({ params }: Props) {
         <EmptyState title="불러오지 못했어요" className="mt-8" />
       ) : (
         <div className="space-y-5 py-4">
-          {/* 월 지출 요약 */}
-          <div className="rounded-2xl bg-accent px-4 py-[14px]">
-            <p className="text-xs font-medium text-muted-foreground">
-              {format(new Date(year, month - 1, 1), "M월")} 지출
-            </p>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="font-numeric text-[22px] font-bold text-primary">
-                {formatKRW(spentAmount)}
-              </span>
-              <span className="font-numeric text-xs text-muted-foreground">
-                / {formatKRW(monthlyBudget)}
-              </span>
-            </div>
-            <div className="mt-3 h-[7px] w-full overflow-hidden rounded-full bg-[#C8DFF8]">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${usedPct}%` }}
-              />
-            </div>
-            <div className="mt-1.5 flex justify-between text-[11px]">
-              <span className="text-muted-foreground">{usedPct}% 사용</span>
-              <span className="text-primary">
-                남은 예산 {formatKRW(monthlyBudget - spentAmount)}
-              </span>
-            </div>
-          </div>
+          {/* 월 예산 분배: 쓴 돈 · 아낀 돈(→CMA) — 가계부 메인과 동일한 조각 미터 */}
+          <BudgetSplitSummary
+            spent={spentAmount}
+            budget={monthlyBudget}
+            usedPct={usedPct}
+            savingsQ={savingsQ}
+            transferAccountQ={transferAccountQ}
+            monthLabel={format(new Date(year, month - 1, 1), "M월")}
+            budgetLabel={`${format(new Date(year, month - 1, 1), "M월")} 예산`}
+            savingsApplicable={isCurrentMonth}
+            onManageTransfer={() => router.push("/my/savings-transfer")}
+          />
 
           {/* 카테고리별 지출 */}
           <section>
             <div className="flex items-center justify-between pb-3">
-              <p className="text-xs font-medium text-muted-foreground">
+              <p className="text-sm font-semibold text-foreground">
                 카테고리별 지출
               </p>
               {isCurrentMonth && (
@@ -167,26 +163,22 @@ export default function BudgetMonthPage({ params }: Props) {
             </div>
           </section>
 
-          {/* 카드 추천 */}
-          <div className="-mx-5 h-2 bg-muted" />
+          {/* 카드 추천: 티저 섹션 */}
           <section>
-            <p className="pb-3 text-xs font-medium text-muted-foreground">
-              카드 추천
+            <p className="text-lg font-bold text-foreground">
+              내 소비에 딱 맞는 카드를 찾았어요
             </p>
+            <div className="mt-4 flex justify-center">
+              <div className="flex h-[120px] w-[88px] items-center justify-center rounded-2xl bg-muted">
+                <span className="text-3xl font-bold text-muted-foreground/40">?</span>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => router.push("/recommendations/cards")}
-              className="flex w-full items-center justify-between rounded-2xl border border-border bg-accent px-4 py-[14px] text-left"
+              className="mt-4 w-full rounded-full bg-accent py-3.5 text-sm font-semibold text-primary"
             >
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  소비 패턴 맞춤 카드 추천
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  내 소비 기준 가장 혜택이 큰 카드를 추천해 드려요
-                </p>
-              </div>
-              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+              많이 쓴 곳에서 할인받기
             </button>
           </section>
         </div>
@@ -214,6 +206,7 @@ function CategoryGoalRow({
   const pct =
     budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
   const hasSpending = spent > 0;
+  const isOver = budget > 0 && spent > budget;
   const Icon = getCategoryIcon(category);
 
   return (
@@ -222,38 +215,45 @@ function CategoryGoalRow({
         <div className="flex items-center gap-2">
           <div
             className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-lg",
+              "flex size-7 items-center justify-center rounded-full",
               hasSpending ? "bg-accent" : "bg-muted",
             )}
           >
             <Icon
               className={cn(
                 "size-[14px]",
-                hasSpending ? "text-primary" : "text-[#AAAAAA]",
+                hasSpending ? "text-primary" : "text-muted-foreground",
               )}
             />
           </div>
           <span
             className={cn(
               "text-xs font-medium",
-              hasSpending ? "text-foreground" : "text-[#AAAAAA]",
+              hasSpending ? "text-foreground" : "text-muted-foreground",
             )}
           >
             {category}
           </span>
+          {isOver && (
+            <span className="rounded-full bg-[#FDECEC] px-1.5 py-px text-[10px] font-medium text-[#F04452]">
+              초과
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <span
             className={cn(
               "text-xs font-medium",
-              hasSpending ? "text-foreground" : "text-[#AAAAAA]",
+              isOver
+                ? "text-[#F04452]"
+                : hasSpending
+                  ? "text-foreground"
+                  : "text-muted-foreground",
             )}
           >
             {formatKRW(spent)}
           </span>
-          <span className={cn("text-[11px]", hasSpending ? "text-[#888888]" : "text-[#AAAAAA]")}>
-            /
-          </span>
+          <span className="text-[11px] text-muted-foreground">/</span>
           {isEditing ? (
             <input
               inputMode="numeric"
@@ -262,7 +262,7 @@ function CategoryGoalRow({
               className="w-20 border-b border-primary bg-transparent text-right text-[11px] font-semibold text-foreground outline-none"
             />
           ) : (
-            <span className={cn("text-[11px]", hasSpending ? "text-[#888888]" : "text-[#AAAAAA]")}>
+            <span className="text-[11px] text-muted-foreground">
               {formatKRW(budget)}
             </span>
           )}
@@ -272,7 +272,7 @@ function CategoryGoalRow({
         <div
           className={cn(
             "h-full rounded-full",
-            hasSpending ? "bg-primary" : "bg-[#E8E8E8]",
+            isOver ? "bg-[#F04452]" : "bg-primary",
           )}
           style={{ width: `${pct}%` }}
         />

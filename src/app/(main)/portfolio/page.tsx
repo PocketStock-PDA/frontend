@@ -18,7 +18,7 @@ import { PiecesCard } from "@/components/features/portfolio/PiecesCard";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
-import { formatKRW } from "@/lib/utils/currency";
+import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { toDecimal } from "@/lib/utils/decimal";
 import { toPieceParts } from "@/lib/utils/pieces";
 import { queryKeys } from "@/lib/utils/queryKeys";
@@ -31,10 +31,19 @@ const LENS_OPTIONS: { label: string; value: Lens }[] = [
   { label: "조각", value: "pieces" },
 ];
 
+// 평가금액 범위: 전체(환산 KRW) / 국내(KRW) / 해외(USD)
+type Scope = "all" | "domestic" | "overseas";
+const SCOPE_OPTIONS: { label: string; value: Scope }[] = [
+  { label: "전체", value: "all" },
+  { label: "국내", value: "domestic" },
+  { label: "해외", value: "overseas" },
+];
+
 export default function PortfolioPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [lens, setLens] = useState<Lens>("all");
+  const [scope, setScope] = useState<Scope>("all");
   const reduce = useReducedMotion();
 
   const holdingsQ = useHoldings();
@@ -42,6 +51,7 @@ export default function PortfolioPage() {
   const codes = holdings.map((h) => h.stockCode);
   const details = useStockDetails(codes);
   const autoSummaryQ = useAutoInvestSummary();
+  const exchangeRateQ = useExchangeRate();
 
   // 자동모으기 활성 종목코드 집합 (모으기 렌즈·배지용)
   const autoCodes = new Set(
@@ -110,17 +120,37 @@ export default function PortfolioPage() {
     };
   });
 
-  const totalEval = rows.reduce(
-    (s, r) => s.plus(r.evalAmount),
-    new Decimal(0),
-  );
-  const totalInvested = rows.reduce(
-    (s, r) => s.plus(r.invested),
-    new Decimal(0),
-  );
-  const totalProfit = totalEval.minus(totalInvested);
-  const totalRate = totalInvested.gt(0)
-    ? totalProfit.div(totalInvested).times(100)
+  // scope별 평가 집계 — 국내(KRW)/해외(USD) 분리, 전체는 환율로 KRW 환산 합산.
+  // TODO: 백엔드 portfolio/summary 나오면 이 클라이언트 합성을 교체(환율·원금 서버 단일소스).
+  const sumEval = (arr: typeof rows) =>
+    arr.reduce((s, r) => s.plus(r.evalAmount), new Decimal(0));
+  const sumInvested = (arr: typeof rows) =>
+    arr.reduce((s, r) => s.plus(r.invested), new Decimal(0));
+
+  const domRows = rows.filter((r) => r.h.currency !== "USD");
+  const ovsRows = rows.filter((r) => r.h.currency === "USD");
+  const hasOverseas = ovsRows.length > 0;
+  const domEval = sumEval(domRows);
+  const domInvested = sumInvested(domRows);
+  const ovsEval = sumEval(ovsRows); // USD native
+  const ovsInvested = sumInvested(ovsRows); // USD native
+  const fx = exchangeRateQ.data?.baseRate
+    ? new Decimal(exchangeRateQ.data.baseRate)
+    : null;
+  // 전체: 해외(USD)×환율 + 국내(KRW). 환율 없으면 native 합 폴백(기존 동작).
+  const allEval = fx ? domEval.plus(ovsEval.times(fx)) : domEval.plus(ovsEval);
+  const allInvested = fx
+    ? domInvested.plus(ovsInvested.times(fx))
+    : domInvested.plus(ovsInvested);
+
+  const scopeView = {
+    all: { eval: allEval, invested: allInvested, currency: "KRW" as const, label: "총 평가금액" },
+    domestic: { eval: domEval, invested: domInvested, currency: "KRW" as const, label: "국내 평가금액" },
+    overseas: { eval: ovsEval, invested: ovsInvested, currency: "USD" as const, label: "해외 평가금액" },
+  }[scope];
+  const scopeProfit = scopeView.eval.minus(scopeView.invested);
+  const scopeRate = scopeView.invested.gt(0)
+    ? scopeProfit.div(scopeView.invested).times(100)
     : new Decimal(0);
 
   const autoRows = rows.filter((r) => r.isAuto);
@@ -155,63 +185,72 @@ export default function PortfolioPage() {
       />
 
       <div className="space-y-6">
-        {/* 개요: 요약 + 상태 스트립을 타이트하게 묶고, 아래 보유와 간격 대비로 리듬 */}
-        <div className="space-y-3">
-          {/* 요약 — 브랜드 틴트 단색 표면(그라데이션 폐기). 위계는 타입으로 */}
-          <section className="rounded-2xl bg-brand-surface p-5">
-            <p className="text-sm font-medium text-primary">총 평가금액</p>
+        {/* 개요: 평가금액(전체/국내/해외 토글) + 동선 스트립을 하나의 카드로 */}
+        <section className="overflow-hidden rounded-2xl bg-brand-surface">
+          <div className="p-5">
+            {/* 해외 보유가 있을 때만 범위 토글 노출 */}
+            {hasOverseas && (
+              <SegmentedControl
+                options={SCOPE_OPTIONS}
+                value={scope}
+                onChange={setScope}
+                className="mb-4"
+              />
+            )}
+            <p className="text-sm font-medium text-primary">{scopeView.label}</p>
             <AmountDisplay
-              value={totalEval.toString()}
+              value={scopeView.eval.toString()}
+              currency={scopeView.currency}
               size="xl"
               className="mt-1 block text-foreground"
             />
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <ChangeIndicator
-              value={totalProfit.toNumber()}
-              suffix="원"
-              size="md"
-              showArrow={false}
-            />
-            <ChangeIndicator value={totalRate.toNumber()} percent size="md" />
-          </div>
-          <div className="mt-4 border-t border-primary/10 pt-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-foreground/70">투자원금</span>
-              <span className="font-numeric font-medium text-foreground">
-                {formatKRW(totalInvested.toString())}
-              </span>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <ChangeIndicator
+                value={scopeProfit.toNumber()}
+                suffix={scopeView.currency === "KRW" ? "원" : ""}
+                prefix={scopeView.currency === "USD" ? "$" : ""}
+                size="md"
+                showArrow={false}
+              />
+              <ChangeIndicator value={scopeRate.toNumber()} percent size="md" />
             </div>
           </div>
-        </section>
 
-        {/* 상태 스트립 — 흩어진 동선을 한 줄로 */}
-        {rows.length > 0 && (
-          <div className="flex items-stretch overflow-hidden rounded-xl border border-border bg-card">
-            <StripItem
-              label="주식투자"
-              value="매수매도"
-              chevron
-              accent
-              onClick={() =>
-                router.push(topCode ? `/trading/${topCode}` : "/trading")
-              }
-            />
-            <StripItem
-              label="모으는 중"
-              value={`${autoRows.length}종목`}
-              onClick={() => router.push("/trading")}
-              divider
-            />
-            <StripItem
-              label="주문내역"
-              value="보기"
-              chevron
-              onClick={() => router.push("/history")}
-              divider
-            />
-          </div>
-        )}
-        </div>
+          {/* 동선 스트립 — 카드 하단에 통합 */}
+          {rows.length > 0 && (
+            <div className="flex items-stretch border-t border-primary/10">
+              <StripItem
+                label="주식투자"
+                value="매수매도"
+                chevron
+                accent
+                onClick={() =>
+                  router.push(topCode ? `/trading/${topCode}` : "/trading")
+                }
+              />
+              <StripItem
+                label="모으는 중"
+                value={`${autoRows.length}종목`}
+                onClick={() => router.push("/trading")}
+                divider
+              />
+              <StripItem
+                label="증권 캘린더"
+                value="보기"
+                chevron
+                onClick={() => router.push("/budget?tab=stock")}
+                divider
+              />
+              <StripItem
+                label="주문내역"
+                value="보기"
+                chevron
+                onClick={() => router.push("/history")}
+                divider
+              />
+            </div>
+          )}
+        </section>
 
         {/* 보유 — 렌즈 칩 + 렌즈별 리스트 */}
         {rows.length === 0 ? (

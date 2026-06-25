@@ -4,8 +4,8 @@ import { useState } from "react";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
 import { RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, X } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AppHeader } from "@/components/common/AppHeader";
 import { FinanceCalendar } from "@/components/common/FinanceCalendar";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -20,7 +20,6 @@ import {
 } from "@/hooks/queries/useBudget";
 import { getCategoryIcon } from "./_utils/categoryIcon";
 import { useSpendingAnalysis } from "@/hooks/queries/useSpendingAnalysis";
-import { useTransferAccount } from "@/hooks/queries/useTransferAccount";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useAutoBudgetGoals } from "@/hooks/mutations/useAutoBudgetGoals";
 import { useSetTransferAccount } from "@/hooks/mutations/useSetTransferAccount";
@@ -189,7 +188,11 @@ const TABS: { label: string; value: TabValue }[] = [
 
 function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabValue>("budget");
+  const reduceMotion = useReducedMotion();
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<TabValue>(
+    searchParams.get("tab") === "stock" ? "stock" : "budget",
+  );
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"month" | "day">("month");
@@ -255,7 +258,6 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
       : {},
   );
   const savingsQ = useBudgetSavings();
-  const transferAccountQ = useTransferAccount();
 
   const dayMap = new Map<string, CalendarDayItem>();
   calendarQ.data?.days.forEach((d) => dayMap.set(d.date, d));
@@ -298,7 +300,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             onClick={() => setTab(t.value)}
             className={cn(
               "flex-1 py-3 text-sm font-semibold",
-              tab === t.value ? "text-primary" : "text-[#AAAAAA]",
+              tab === t.value ? "text-primary" : "text-muted-foreground",
             )}
           >
             {t.label}
@@ -308,59 +310,77 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
 
       {tab === "budget" ? (
         <div>
-          {/* ── 월별 요약 (월 네비 포함) ── */}
-          <div className="mt-4">
-            {/* 월 네비게이션 */}
-            <div className="mb-0.5 flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => handleMonthChange(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
-                  aria-label="이전 달"
-                >
-                  <ChevronLeft className="size-5 text-muted-foreground" />
-                </button>
-                <span className="text-base font-bold text-foreground underline decoration-foreground underline-offset-4">
-                  {format(calendarMonth, "yyyy년 M월")}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleMonthChange(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
-                  aria-label="다음 달"
-                >
-                  <ChevronRight className="size-5 text-muted-foreground" />
-                </button>
-              </div>
+          {/* ── 월 네비(위) + 우측 미니 요약(아래) — 증권 캘린더 탭과 동일 배치 ── */}
+          <div className="mb-3 mt-4">
+            <div className="mb-0.5 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handleMonthChange(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
+                aria-label="이전 달"
+              >
+                <ChevronLeft className="size-5 text-muted-foreground" />
+              </button>
+              <span className="text-base font-bold text-foreground">
+                {format(calendarMonth, "M월")}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleMonthChange(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
+                aria-label="다음 달"
+              >
+                <ChevronRight className="size-5 text-muted-foreground" />
+              </button>
             </div>
-            {/* 지출 요약 — 전체 탭 시 내역 페이지로 이동 */}
-            <button
-              type="button"
-              onClick={() =>
-                router.push(
-                  `/budget/${calendarMonth.getFullYear()}/${calendarMonth.getMonth() + 1}`,
-                )
-              }
-              className="w-full text-left"
-            >
-              <div className="flex items-center justify-end">
-                <div className="flex w-36 flex-col gap-1">
-                  <span className="text-right text-[11px] text-muted-foreground underline underline-offset-2">
-                    이번 달 예산 사용률
+
+            {/* 우상단 미니 요약: 사용률·절약 % + 슬림 2색 바 — 탭 시 월 상세 */}
+            <div className="flex flex-col items-end gap-1">
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    `/budget/${calendarMonth.getFullYear()}/${calendarMonth.getMonth() + 1}`,
+                  )
+                }
+                className="flex flex-col items-end gap-1"
+              >
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="text-muted-foreground">
+                    사용률{" "}
+                    <span className="font-numeric font-bold text-primary">{usedPct}%</span>
                   </span>
-                  <div className="flex items-center gap-2">
-                    <div className="h-[7px] flex-1 overflow-hidden rounded-full bg-[#E8F0FB]">
-                      <div
-                        className="h-full rounded-full bg-[#C8DFF8] transition-all"
-                        style={{ width: `${usedPct}%` }}
-                      />
-                    </div>
-                    <span className="font-numeric shrink-0 text-xs font-semibold text-primary">
-                      {usedPct}%
+                  {savingsQ.data?.isCollectAgreed && (
+                    <span className="text-muted-foreground">
+                      절약{" "}
+                      <span className="font-numeric font-bold text-[#0369A1]">
+                        {Math.max(0, 100 - usedPct)}%
+                      </span>
                     </span>
-                  </div>
+                  )}
                 </div>
-              </div>
-            </button>
+                <div className="flex h-1.5 w-32 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary transition-[width]"
+                    style={{ width: `${usedPct}%` }}
+                  />
+                  {savingsQ.data?.isCollectAgreed && (
+                    <>
+                      <div className="h-full w-[2px] shrink-0 bg-background" />
+                      <div className="h-full flex-1 bg-[#38BDF8]" />
+                    </>
+                  )}
+                </div>
+              </button>
+              {!savingsQ.isLoading && !savingsQ.data?.isCollectAgreed && (
+                <button
+                  type="button"
+                  onClick={handleSetupStart}
+                  className="flex items-center gap-0.5 text-[11px] font-medium text-primary"
+                >
+                  절약금 모으기
+                  <ChevronRight className="size-3" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* ── 달력 ── */}
@@ -378,47 +398,77 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
               const info = dayMap.get(key);
               const isFuture = isAfter(startOfDay(date), today);
               const isSelected = isSameDay(date, selectedDate);
+              const isToday = isSameDay(date, today);
               const fillRatio =
                 info && dailyBudget > 0
                   ? Math.min(1.2, info.spent / dailyBudget)
                   : 0;
               const isOver = fillRatio > 1;
+              const fillPct = Math.min(100, Math.round(fillRatio * 100));
+              const hasFill = !!info && !isFuture && fillPct > 0;
+              // 일일예산 대비 많이 쓴 날일수록 진하게 (적게 쓰면 연하게)
+              const intensity = Math.min(1, fillRatio);
+              const fillBottomAlpha = 0.16 + intensity * 0.44; // 연(0.16) → 진(0.60)
+              const fillTopAlpha = fillBottomAlpha * 0.5;
+              const dow = date.getDay(); // 0=일, 6=토
               const dateColor = isFuture
-                ? "#DDDDDD"
+                ? "#B5BBC3"
                 : isOver
                   ? "#FFFFFF"
-                  : "#333333";
-              const fillPct = Math.min(100, fillRatio * 100);
-              const fillColor = `rgba(4,113,233,${isOver ? 0.7 : 0.25})`;
+                  : isToday
+                    ? "#2563EB"
+                    : dow === 0
+                      ? "#F2696B"
+                      : dow === 6
+                        ? "#5B9BF5"
+                        : "#1A1D23";
               return (
                 <span
                   className={cn(
-                    "flex aspect-square w-full flex-col items-center justify-end rounded-lg",
+                    "relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[14px] bg-card transition-shadow",
+                    hasFill
+                      ? "shadow-[0_1px_4px_rgba(0,0,0,0.1)]"
+                      : "shadow-[0_1px_3px_rgba(0,0,0,0.06)]",
                     isSelected && "ring-2 ring-primary",
                   )}
-                  style={
-                    info && !isFuture && fillPct > 0
-                      ? {
-                          background: `linear-gradient(to top, ${fillColor} ${fillPct}%, transparent ${fillPct}%)`,
-                        }
-                      : undefined
-                  }
                 >
+                  {/* 아래서 차오르는 채움: 윗 경계를 페더링해 딱 끊기는 선 없이 부드럽게 */}
+                  {hasFill && (
+                    <span
+                      className="absolute inset-x-0 bottom-0"
+                      style={{
+                        height: `${fillPct}%`,
+                        background: isOver
+                          ? "linear-gradient(to top, rgba(4,113,233,0.95), rgba(4,113,233,0.8))"
+                          : `linear-gradient(to top, rgba(4,113,233,${fillBottomAlpha}), rgba(4,113,233,${fillTopAlpha}))`,
+                        maskImage: isOver
+                          ? undefined
+                          : "linear-gradient(to top, #000 calc(100% - 7px), transparent)",
+                        WebkitMaskImage: isOver
+                          ? undefined
+                          : "linear-gradient(to top, #000 calc(100% - 7px), transparent)",
+                      }}
+                      aria-hidden
+                    />
+                  )}
                   <span
-                    className="pb-1 text-[11px] leading-none"
+                    className={cn(
+                      "font-numeric relative text-[11px] leading-none",
+                      isToday && !isOver && "font-bold",
+                    )}
                     style={{ color: dateColor }}
                   >
                     {date.getDate()}
                   </span>
+                  {isOver && <span className="sr-only">예산 초과</span>}
+                  {isToday && <span className="sr-only">오늘</span>}
                 </span>
               );
             }}
             legend={
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <span className="h-3 w-3 rounded-[3px] bg-primary/70" />
-                  초과
-                </span>
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className="size-3 rounded-[3px]" style={{ background: "#0471E9" }} />
+                예산 초과
               </div>
             }
           />
@@ -426,10 +476,10 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
           <AnimatePresence>
             {viewMode === "day" && (
               <motion.div
-                initial={{ opacity: 0, y: 16 }}
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 8 }}
-                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.32, 0.72, 0, 1] }}
                 className="mt-3"
               >
                 <div className="mb-2 flex items-center justify-between">
@@ -450,22 +500,22 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                 ) : !txQ.data?.transactions.length ? (
                   <EmptyState title="이 날 소비 내역이 없어요" />
                 ) : (
-                  <div className="divide-y divide-border rounded-2xl border border-border">
+                  <div className="divide-y divide-border/50">
                     {txQ.data.transactions.map((tx) => {
                       const Icon = getCategoryIcon(tx.category);
                       return (
                         <div
                           key={tx.transactionId}
-                          className="flex items-center gap-3 px-4 py-3"
+                          className="flex items-center gap-3.5 py-3.5"
                         >
-                          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent">
-                            <Icon className="size-[15px] text-primary" />
+                          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent">
+                            <Icon className="size-[17px] text-primary" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-foreground">
                               {tx.description}
                             </p>
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="mt-0.5 text-xs text-muted-foreground">
                               {tx.category} · {formatTxTime(tx.transactedAt)}
                             </p>
                           </div>
@@ -481,50 +531,6 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             )}
           </AnimatePresence>
 
-          {/* ── 이번 달 절약금 (월 뷰일 때만) ── */}
-          {viewMode === "month" && <>
-          <div className="-mx-5 mt-4 h-2 bg-muted" />
-          <div className="flex items-center justify-between pb-3 pt-[14px]">
-            <span className="text-sm font-medium text-foreground">이번 달 절약금</span>
-            {savingsQ.data?.isCollectAgreed && (
-              <span className="text-xs font-medium text-primary">월말 CMA 이체 예정</span>
-            )}
-          </div>
-          {savingsQ.isLoading || transferAccountQ.isLoading ? (
-            <SkeletonCard lines={2} className="h-20" />
-          ) : !savingsQ.data?.isCollectAgreed ? (
-            <div className="rounded-2xl border border-border bg-accent px-4 py-[14px]">
-              <p className="text-sm font-medium text-foreground">목표 예산 절약 시 CMA로 자동 이체돼요</p>
-              <p className="mt-1 text-xs text-muted-foreground">매월 말일에 절약한 금액이 CMA 계좌로 이체됩니다.</p>
-              <Button
-                size="sm"
-                className="mt-3 h-9 w-full text-xs font-semibold"
-                onClick={handleSetupStart}
-              >
-                절약금 모으기 시작하기
-              </Button>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-[#D1FAE5] bg-[#F0FDF4] px-4 py-[14px]">
-              <p className="font-numeric text-[22px] font-bold text-[#22C55E]">
-                {formatKRW(savingsQ.data.savedAmount)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                목표 예산 대비 절약한 금액 · {format(calendarMonth, "M월")} 말일 이체 예정
-              </p>
-              {!transferAccountQ.data && (
-                <button
-                  type="button"
-                  onClick={() => router.push("/my/savings-transfer")}
-                  className="mt-3 flex w-full items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-left"
-                >
-                  <span className="text-xs font-medium text-amber-700">이체 계좌가 설정되지 않았어요</span>
-                  <ChevronRight className="size-3.5 shrink-0 text-amber-500" />
-                </button>
-              )}
-            </div>
-          )}
-          </>}
         </div>
       ) : (
         <StockCalendarTab />

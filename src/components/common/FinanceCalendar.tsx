@@ -13,7 +13,7 @@ import {
   startOfWeek,
   subMonths,
 } from "date-fns";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -43,6 +43,7 @@ export function FinanceCalendar({
   showHeader = true,
   className,
 }: FinanceCalendarProps) {
+  const reduceMotion = useReducedMotion();
   const gridStart = startOfWeek(startOfMonth(month), { weekStartsOn: 0 });
   const gridEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 0 });
   const allDays = eachDayOfInterval({ start: gridStart, end: gridEnd });
@@ -86,9 +87,19 @@ export function FinanceCalendar({
         legend && <div className="mb-3 flex justify-end">{legend}</div>
       )}
 
-      <div className="grid grid-cols-7 text-center text-xs text-muted-foreground">
-        {WEEKDAYS.map((w) => (
-          <div key={w} className="py-1">
+      <div className="grid grid-cols-7 text-center text-xs">
+        {WEEKDAYS.map((w, i) => (
+          <div
+            key={w}
+            className={cn(
+              "py-1 font-medium",
+              i === 0
+                ? "text-[#F2696B]"
+                : i === 6
+                  ? "text-[#5B9BF5]"
+                  : "text-muted-foreground",
+            )}
+          >
             {w}
           </div>
         ))}
@@ -107,7 +118,7 @@ export function FinanceCalendar({
                 height: visible ? "auto" : 0,
                 opacity: visible ? 1 : 0,
               }}
-              transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+              transition={{ duration: reduceMotion ? 0 : 0.3, ease: [0.32, 0.72, 0, 1] }}
               style={{ willChange: "height, opacity" }}
             >
               {week.map((d) => {
@@ -129,7 +140,7 @@ export function FinanceCalendar({
                     ) : (
                       <span
                         className={cn(
-                          "flex h-full w-full items-center justify-center rounded-lg text-sm text-foreground",
+                          "font-numeric flex h-full w-full items-center justify-center rounded-lg text-sm text-foreground",
                           selected && "ring-2 ring-primary",
                         )}
                       >
