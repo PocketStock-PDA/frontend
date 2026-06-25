@@ -87,9 +87,11 @@ export interface OrderHistoryItem {
   orderId: number;
   stockCode: string;
   side: string; // BUY | SELL
-  orderType: string;
-  quantity: number;
-  price: number;
-  status: string;
+  orderType: string; // QUANTITY | AMOUNT | ALL …
+  /** AMOUNT(금액) 주문은 null */
+  quantity: number | null;
+  /** 체결가 미기록 시 null */
+  price: number | null;
+  status: string; // FILLED | PENDING | QUEUED | REJECTED
   createdAt: string;
 }
