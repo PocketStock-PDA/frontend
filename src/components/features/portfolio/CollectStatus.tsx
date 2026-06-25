@@ -133,7 +133,8 @@ export function CollectStatus({
           <ChangeIndicator
             value={profit}
             subPercent={rate}
-            suffix={currency === "USD" ? "$" : "원"}
+            suffix={currency === "USD" ? "" : "원"}
+            prefix={currency === "USD" ? "$" : ""}
             size="sm"
           />
           <ChevronRight className="size-4 text-muted-foreground" />

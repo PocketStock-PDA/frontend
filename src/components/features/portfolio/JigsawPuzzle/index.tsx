@@ -131,16 +131,17 @@ export function JigsawPuzzle({
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<{ start: number; cur: number } | null>(null);
 
-  const stateOf = (idx: number): "filled" | "recent" | "empty" =>
-    idx < filled ? (idx === recent ? "recent" : "filled") : "empty";
+  // 선택 가능 경계 — 접수 대기(pending) 구간은 reserved로 제외(중복 주문 방지).
+  // 매수=다음 빈칸(filled+pendingBuy 이상) / 매도=보유칸 중 미대기분(filled-pendingSell 미만).
+  const buyStart = filled + pendingBuy;
+  const sellEnd = filled - pendingSell;
+  const modeOf = (idx: number): "buy" | "sell" | null =>
+    idx >= buyStart ? "buy" : idx < sellEnd ? "sell" : null;
 
-  // 시작 조각이 빈칸이면 매수, 채워진 칸이면 매도
-  const modeOf = (idx: number): "buy" | "sell" =>
-    stateOf(idx) === "empty" ? "buy" : "sell";
-
-  // 시작~현재의 사각 범위 내, 모드에 맞는 조각(매수=빈칸 / 매도=채운칸)
+  // 시작~현재의 사각 범위 내, 모드에 맞는 조각(매수=빈칸 / 매도=보유칸). reserved 칸 제외.
   const rectSelection = (start: number, cur: number) => {
     const mode = modeOf(start);
+    if (mode === null) return { mode: "buy" as const, indexes: [] as number[] };
     const sr = Math.floor(start / cols);
     const sc = start % cols;
     const cr = Math.floor(cur / cols);
@@ -154,8 +155,7 @@ export function JigsawPuzzle({
       for (let c = c0; c <= c1; c++) {
         const i = r * cols + c;
         if (i >= total) continue;
-        const match =
-          mode === "buy" ? stateOf(i) === "empty" : stateOf(i) !== "empty";
+        const match = mode === "buy" ? i >= buyStart : i < sellEnd;
         if (match) indexes.push(i);
       }
     }
@@ -186,7 +186,7 @@ export function JigsawPuzzle({
   const handleDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!interactive) return;
     const idx = pieceAt(e.clientX, e.clientY);
-    if (idx === null) return;
+    if (idx === null || modeOf(idx) === null) return; // reserved(대기) 칸은 선택 불가
     svgRef.current?.setPointerCapture(e.pointerId);
     setDrag({ start: idx, cur: idx });
     onSelectionChange?.(rectSelection(idx, idx));

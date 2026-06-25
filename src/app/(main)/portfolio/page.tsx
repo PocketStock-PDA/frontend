@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
@@ -49,6 +49,8 @@ export default function PortfolioPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [lens, setLens] = useState<Lens>("all");
+  // 사용자가 렌즈를 직접 고르기 전까지만 자동 기본값 적용
+  const [lensPicked, setLensPicked] = useState(false);
   const [scope, setScope] = useState<Scope>("all");
   // 해외 평가금액을 원화로 환산해 볼지 (false=달러 $, true=원화 ₩)
   const [ovsKrw, setOvsKrw] = useState(false);
@@ -76,10 +78,11 @@ export default function PortfolioPage() {
   const pendingCodes = pendingAutoStocks.map((s) => s.stockCode);
   const pendingDetails = useStockDetails(pendingCodes);
 
-  // 보유 0인데 모으기 예정만 있으면 기본 렌즈를 '모으기'로(빈 전체 탭에 막히지 않게)
-  useEffect(() => {
-    if (holdings.length === 0 && pendingAutoStocks.length > 0) setLens("auto");
-  }, [holdings.length, pendingAutoStocks.length]);
+  // 보유 0인데 모으기 예정만 있으면 기본 렌즈를 '모으기'로(직접 고르기 전까지). 파생값 — effect 불필요
+  const effLens: Lens =
+    !lensPicked && holdings.length === 0 && pendingAutoStocks.length > 0
+      ? "auto"
+      : lens;
 
   const detailsLoading = codes.length > 0 && details.some((d) => d.isLoading);
   const detailsError = codes.length > 0 && details.some((d) => d.isError);
@@ -251,7 +254,7 @@ export default function PortfolioPage() {
                 className="text-foreground"
               />
               {/* 해외 + 환율 보유 시: 달러 ↔ 원화 표시 토글 */}
-              {scope === "overseas" && fx != null && (
+              {scope === "overseas" && fx !== null && (
                 <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
               )}
             </div>
@@ -310,18 +313,21 @@ export default function PortfolioPage() {
           <section className="space-y-3">
             <SegmentedControl
               options={LENS_OPTIONS}
-              value={lens}
-              onChange={setLens}
+              value={effLens}
+              onChange={(v) => {
+                setLensPicked(true);
+                setLens(v);
+              }}
             />
 
             <motion.div
-              key={lens}
+              key={effLens}
               initial={reduce ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
               className="space-y-3"
             >
-              {lens === "pieces" ? (
+              {effLens === "pieces" ? (
                 pieceRows.length === 0 ? (
                   <EmptyState
                     title="1주 미만 조각이 없어요"
@@ -478,12 +484,12 @@ const FREQ_TEXT: Record<string, string> = {
 function autoScheduleText(s: AutoInvestStock): string {
   const freq = FREQ_TEXT[s.period] ?? "";
   let amt = "";
-  if (s.amountType === "AMOUNT" && s.buyAmount != null) {
+  if (s.amountType === "AMOUNT" && s.buyAmount !== null) {
     amt =
       s.currency === "USD"
         ? `$${s.buyAmount}`
         : `${s.buyAmount.toLocaleString("ko-KR")}원`;
-  } else if (s.buyQuantity != null) {
+  } else if (s.buyQuantity !== null) {
     amt = `${s.buyQuantity}주`;
   }
   return amt ? `${freq} ${amt}씩` : freq;

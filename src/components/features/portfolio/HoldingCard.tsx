@@ -84,7 +84,8 @@ export function HoldingCard({
         <div className="mt-0.5 flex justify-end">
           <ChangeIndicator
             value={profit}
-            suffix={currency === "USD" ? "$" : "원"}
+            suffix={currency === "USD" ? "" : "원"}
+            prefix={currency === "USD" ? "$" : ""}
             subPercent={rate}
             size="sm"
           />

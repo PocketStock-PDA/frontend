@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { ChevronRight, Layers } from "lucide-react";
@@ -126,41 +126,45 @@ export default function StockDetailPage() {
   const hasPending = pendingOrders.length > 0;
   const ordersRefetch = ordersQ.refetch;
   const holdingsRefetch = holdingsQ.refetch;
+  // 폴링 콜백에서 최신 pending을 읽기 위한 ref(이펙트 내부 동기 setState 회피)
+  const pendingRef = useRef(pendingOrders);
+  useEffect(() => {
+    pendingRef.current = pendingOrders;
+  }, [pendingOrders]);
 
-  // 접수 중이면 주문내역 폴링(차수배치 ~1분). 5분 안전망(미해결 시 표시 해제, 거짓 확정 아님).
+  // 접수 중이면 주문내역을 폴링(차수배치 ~1분)하며 reconcile.
+  // FILLED → 보유 갱신 후 해제(확정 스냅) / 실패 → 해제(롤백). 5분 안전망.
   useEffect(() => {
     if (!hasPending) return;
-    const iv = setInterval(() => void ordersRefetch(), 4000);
+    const tick = async () => {
+      const res = await ordersRefetch();
+      const list = res.data ?? [];
+      const resolved = new Set<number>();
+      let anyFilled = false;
+      let anyFailed = false;
+      for (const p of pendingRef.current) {
+        const o = list.find((x) => x.orderId === p.orderId);
+        if (!o) continue;
+        if (o.status === "FILLED") {
+          resolved.add(p.orderId);
+          anyFilled = true;
+        } else if (o.status === "REJECTED" || o.status === "CANCELLED") {
+          resolved.add(p.orderId);
+          anyFailed = true;
+        }
+      }
+      if (resolved.size === 0) return;
+      if (anyFilled) void holdingsRefetch();
+      if (anyFailed) toast.error("체결되지 못한 주문이 있어요.");
+      setPendingOrders((prev) => prev.filter((p) => !resolved.has(p.orderId)));
+    };
+    const iv = setInterval(() => void tick(), 4000);
     const stop = setTimeout(() => setPendingOrders([]), 300_000);
     return () => {
       clearInterval(iv);
       clearTimeout(stop);
     };
-  }, [hasPending, ordersRefetch]);
-
-  // 주문별 상태 반영 — FILLED면 보유 갱신 후 해제(확정 스냅) / 실패면 해제(롤백)
-  useEffect(() => {
-    if (pendingOrders.length === 0) return;
-    const list = ordersQ.data ?? [];
-    const resolved = new Set<number>();
-    let anyFilled = false;
-    let anyFailed = false;
-    for (const p of pendingOrders) {
-      const o = list.find((x) => x.orderId === p.orderId);
-      if (!o) continue;
-      if (o.status === "FILLED") {
-        resolved.add(p.orderId);
-        anyFilled = true;
-      } else if (o.status === "REJECTED" || o.status === "CANCELLED") {
-        resolved.add(p.orderId);
-        anyFailed = true;
-      }
-    }
-    if (resolved.size === 0) return;
-    if (anyFilled) void holdingsRefetch();
-    if (anyFailed) toast.error("체결되지 못한 주문이 있어요.");
-    setPendingOrders((prev) => prev.filter((p) => !resolved.has(p.orderId)));
-  }, [pendingOrders, ordersQ.data, holdingsRefetch]);
+  }, [hasPending, ordersRefetch, holdingsRefetch]);
 
   const pendingBuy = pendingOrders.reduce(
     (s, p) => s + (p.mode === "buy" ? p.count : 0),
@@ -215,7 +219,6 @@ export default function StockDetailPage() {
   const invested = qty.times(toDecimal(holding?.avgBuyPrice));
   const profit = evalAmount.minus(invested);
   const rate = invested.gt(0) ? profit.div(invested).times(100) : new Decimal(0);
-  const wholeQtyD = toDecimal(holding?.wholeQty);
   const fractionalQtyD = toDecimal(holding?.fractionalQty);
   const canConvert = fractionalQtyD.gte(1); // 신탁 소수가 1주 이상이면 온주 전환 가능
   const convHistory = (wholeQ.data ?? []).filter(
@@ -289,7 +292,7 @@ export default function StockDetailPage() {
         );
         // 소수분 접수됨 → 퍼즐에 즉시 손맛 애니메이션(실제 체결 전까지 pending). 동시 다건 누적.
         const fid = data.fractionalOrderId;
-        if (fid != null) {
+        if (fid !== null) {
           setPendingOrders((prev) => [
             ...prev,
             { orderId: fid, mode: committedMode, count: committedIndexes.length },
@@ -555,7 +558,8 @@ export default function StockDetailPage() {
               />
               <ChangeIndicator
                 value={profit.toNumber()}
-                suffix={isUSD ? "$" : "원"}
+                suffix={isUSD ? "" : "원"}
+                prefix={isUSD ? "$" : ""}
                 subPercent={rate.toNumber()}
                 size="md"
                 className="mt-1"

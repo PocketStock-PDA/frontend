@@ -50,7 +50,7 @@ export function WheelPicker<T extends string | number>({
   const handleScroll = () => {
     const el = ref.current;
     if (!el) return;
-    if (raf.current != null) cancelAnimationFrame(raf.current);
+    if (raf.current !== null) cancelAnimationFrame(raf.current);
     raf.current = requestAnimationFrame(() => {
       const idx = Math.min(
         options.length - 1,
@@ -62,6 +62,29 @@ export function WheelPicker<T extends string | number>({
         onChange(opt.value);
       }
     });
+  };
+
+  // 키보드 접근성 — 위/아래 화살표로 값 이동(+해당 위치로 스크롤)
+  const goToOffset = (delta: number) => {
+    const cur = Math.max(
+      0,
+      options.findIndex((o) => o.value === value),
+    );
+    const next = Math.min(options.length - 1, Math.max(0, cur + delta));
+    const opt = options[next];
+    if (!opt) return;
+    lastIdx.current = next;
+    onChange(opt.value);
+    ref.current?.scrollTo({ top: next * ITEM_H, behavior: "smooth" });
+  };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      goToOffset(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      goToOffset(-1);
+    }
   };
 
   return (
@@ -77,7 +100,10 @@ export function WheelPicker<T extends string | number>({
       <div
         ref={ref}
         onScroll={handleScroll}
-        className="scrollbar-none h-full overflow-y-auto"
+        onKeyDown={handleKeyDown}
+        role="listbox"
+        tabIndex={0}
+        className="scrollbar-none h-full overflow-y-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
         style={{
           scrollSnapType: "y mandatory",
           paddingTop: pad,
@@ -93,6 +119,8 @@ export function WheelPicker<T extends string | number>({
           return (
             <div
               key={String(o.value)}
+              role="option"
+              aria-selected={active}
               className={cn(
                 "relative flex items-center justify-center font-numeric transition-colors",
                 active

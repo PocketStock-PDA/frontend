@@ -27,7 +27,7 @@ export function toPieceParts(
   };
 }
 
-/** 조각 수 표기 — 항상 정수(버림). 1주=100조각 기준 0~100. */
+/** 조각 수 표기 — 항상 정수(버림). 1주=100조각 기준(잔여 조각은 0~99). */
 export function formatPieces(pieces: number): string {
   return String(Math.floor(pieces));
 }
