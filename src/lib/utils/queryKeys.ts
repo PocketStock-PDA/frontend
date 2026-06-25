@@ -8,6 +8,7 @@ export const queryKeys = {
       ["asset", "spending", period] as const,
     bankAccounts: ["asset", "bank-accounts"] as const,
     institutions: ["asset", "institutions"] as const,
+    cards: ["asset", "cards"] as const,
     scan: ["asset", "scan"] as const,
     dormant: ["asset", "dormant"] as const,
     externalHoldings: ["asset", "external-holdings"] as const,
@@ -38,6 +39,7 @@ export const queryKeys = {
   cma: {
     all: ["cma"] as const,
     home: ["cma", "home"] as const,
+    collectSettings: ["cma", "collect-settings"] as const,
   },
   exchange: {
     all: ["exchange"] as const,

@@ -27,13 +27,15 @@ import { useInstitutions } from "@/hooks/queries/useInstitutions";
 import { useAssetScan } from "@/hooks/queries/useAssetScan";
 import { useDormantAccounts } from "@/hooks/queries/useDormantAccounts";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
+import { useLinkedCards } from "@/hooks/queries/useLinkedCards";
+import { useCollectSettings } from "@/hooks/queries/useCollectSettings";
 import { useLinkAssets } from "@/hooks/mutations/useLinkAssets";
 import { useCloseDormant } from "@/hooks/mutations/useCloseDormant";
 import { useSaveCollectSettings } from "@/hooks/mutations/useSaveCollectSettings";
 import { formatKRW } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
-import type { BankAccount } from "@/types/domain/account";
+import type { BankAccount, LinkedCard } from "@/types/domain/account";
 import type {
   DormantAccount,
   DormantCloseResult,
@@ -104,6 +106,8 @@ export default function AssetLinkPage() {
   const scan = useAssetScan(step !== "LINK");
   const dormant = useDormantAccounts(dormantActive);
   const bank = useBankAccounts(step === "RESULT" || step === "BANK_SELECT");
+  const linkedCards = useLinkedCards(step === "CARD" || step === "AUTO_AGREE");
+  const collectSettings = useCollectSettings(step === "CARD");
   const close = useCloseDormant();
   const saveSettings = useSaveCollectSettings();
 
@@ -113,6 +117,8 @@ export default function AssetLinkPage() {
   );
   // 은행 계좌 소액 이체 — 완료(20) 표시용으로 이체한 계좌 보관
   const [transferred, setTransferred] = useState<BankAccount[]>([]);
+  // 카드 잔돈 모으기 — 선택된 카드 ID 집합
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
 
   const dormantList = dormant.data ?? [];
   // "총 잠자는 돈"에 휴면계좌 잔액도 포함한다. 발견 시 합산되고, 해지하면 잔액이 CMA로 옮겨가며
@@ -180,11 +186,26 @@ export default function AssetLinkPage() {
     );
   };
 
-  // 자동 적립 동의(16) "동의하고 시작" → 수집은 하지 않고 홈으로.
+  // 자동 적립 동의(16) "동의하고 시작" → 선택된 카드 설정 저장 후 홈으로.
   // 발견한 잔돈은 홈 대시보드에 자원별로 표시되고, 실제 수집은 홈의 "CMA로 모으기" 버튼에서만 실행한다.
   // TODO: 소수점 주식 선택(선물) 화면을 16과 홈 사이에 넣을 예정.
   const finishAndGoHome = () => {
-    router.replace("/home");
+    if (selectedCardIds.size === 0) {
+      router.replace("/home");
+      return;
+    }
+    const cardSettings = [...selectedCardIds].map((cardId) => ({
+      sourceType: "CARD" as const,
+      sourceRefId: cardId,
+      enabled: true,
+    }));
+    saveSettings.mutate(cardSettings, {
+      onSuccess: () => router.replace("/home"),
+      onError: (e) => {
+        toast.error(errMsg(e));
+        router.replace("/home");
+      },
+    });
   };
 
   return (
@@ -221,7 +242,7 @@ export default function AssetLinkPage() {
           // 은행 계좌 잔돈 → 소액 이체(17, 505), 휴면계좌 → 휴면 발견(14)
           onCheckAccount={() => setStep("BANK_SELECT")}
           onCheckDormant={() => setStep("DORMANT_FOUND")}
-          onStart={() => setStep("CARD")}
+          onStart={() => setStep("AUTO_AGREE")}
         />
       )}
 
@@ -273,15 +294,30 @@ export default function AssetLinkPage() {
         <BankDoneView accounts={transferred} onNext={() => setStep("RESULT")} />
       )}
 
-      {step === "CARD" && (
-        <CardSelectView onNext={() => setStep("AUTO_AGREE")} />
-      )}
-
       {step === "AUTO_AGREE" && (
         <AutoAgreeView
           pending={busy}
-          onAgree={finishAndGoHome}
+          onAgree={(collectChecked) =>
+            collectChecked ? setStep("CARD") : router.replace("/home")
+          }
           onLater={() => router.replace("/home")}
+        />
+      )}
+
+      {step === "CARD" && (
+        <CardSelectView
+          cards={linkedCards.data ?? []}
+          isLoading={linkedCards.isLoading}
+          initialSelectedIds={
+            new Set(
+              (collectSettings.data ?? [])
+                .filter((s) => s.sourceType === "CARD" && s.enabled)
+                .map((s) => s.sourceRefId),
+            )
+          }
+          selectedIds={selectedCardIds}
+          onChangeSelected={setSelectedCardIds}
+          onNext={finishAndGoHome}
         />
       )}
     </>
@@ -1141,25 +1177,42 @@ function CleanupDoneView({
 // ── 8. 카드 선택 (잔돈 적립, 15) ───────────────────────────────────────────────
 const CARD_CHIP_COLORS = ["bg-blue-600", "bg-rose-500", "bg-neutral-800"];
 
-function CardSelectView({ onNext }: { onNext: () => void }) {
-  // 연동된 카드 = institutions(CARD·LINKED). 별도 카드 목록 API가 없어 이를 사용(가정).
-  const { data, isLoading } = useInstitutions();
-  const cards = useMemo(
-    () =>
-      (data ?? []).filter(
-        (i) => i.category === "CARD" && i.linkStatus === "LINKED",
-      ),
-    [data],
-  );
-  const [selected, setSelected] = useState<string | null>(null);
-  // 첫 카드 기본 선택
-  const current = selected ?? cards[0]?.companyCode ?? null;
+function CardSelectView({
+  cards,
+  isLoading,
+  initialSelectedIds,
+  selectedIds,
+  onChangeSelected,
+  onNext,
+}: {
+  cards: LinkedCard[];
+  isLoading: boolean;
+  initialSelectedIds: Set<number>;
+  selectedIds: Set<number>;
+  onChangeSelected: (ids: Set<number>) => void;
+  onNext: () => void;
+}) {
+  // 초기값 반영 — collectSettings 로드 완료 시 한 번만 적용
+  useEffect(() => {
+    if (initialSelectedIds.size > 0 && selectedIds.size === 0) {
+      onChangeSelected(new Set(initialSelectedIds));
+    }
+  // 마운트 시 1회만 실행
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSelectedIds.size]);
+
+  const toggle = (cardId: number) => {
+    const next = new Set(selectedIds);
+    if (next.has(cardId)) next.delete(cardId);
+    else next.add(cardId);
+    onChangeSelected(next);
+  };
 
   return (
     <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
       <h2 className="text-xl font-bold text-foreground">결제 잔돈 자동 모으기</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        어떤 카드의 결제 잔돈을 모을까요?
+        잔돈을 모을 카드를 선택해 주세요.
       </p>
 
       <div className="mt-5 space-y-2">
@@ -1171,14 +1224,14 @@ function CardSelectView({ onNext }: { onNext: () => void }) {
           <EmptyState title="연동된 카드가 없어요" />
         ) : (
           cards.map((c, i) => {
-            const on = current === c.companyCode;
+            const on = selectedIds.has(c.cardId);
             return (
               <button
-                key={c.companyCode}
+                key={c.cardId}
                 type="button"
-                role="radio"
+                role="checkbox"
                 aria-checked={on}
-                onClick={() => setSelected(c.companyCode)}
+                onClick={() => toggle(c.cardId)}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors",
                   on ? "border-primary bg-primary/5" : "border-border",
@@ -1190,38 +1243,35 @@ function CardSelectView({ onNext }: { onNext: () => void }) {
                     CARD_CHIP_COLORS[i % CARD_CHIP_COLORS.length],
                   )}
                 >
-                  CARD
+                  {c.cardType === "CREDIT" ? "신용" : "체크"}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-foreground">
-                    {c.companyName}
+                    {c.cardName}
                   </p>
                   <p className="truncate font-numeric text-xs text-muted-foreground">
-                    ····-····-····
+                    {c.maskedNo ?? "····-····-····"}
                   </p>
                 </div>
                 <span
                   className={cn(
                     "flex size-5 shrink-0 items-center justify-center rounded-full border-2",
-                    on ? "border-primary" : "border-muted-foreground/30",
+                    on ? "border-primary bg-primary" : "border-muted-foreground/30",
                   )}
                 >
-                  {on && <span className="size-2.5 rounded-full bg-primary" />}
+                  {on && <Check className="size-3 text-primary-foreground" />}
                 </span>
               </button>
             );
           })
         )}
-
-        <div className="flex items-center justify-center rounded-xl bg-muted/60 px-4 py-3.5 text-sm text-muted-foreground">
-          + 다른 카드 추가
-        </div>
       </div>
 
       <div className="flex-1" />
 
       <Button
         onClick={onNext}
+        disabled={selectedIds.size === 0 && cards.length > 0}
         className="h-12 w-full text-base font-bold"
       >
         선택 완료
@@ -1234,7 +1284,7 @@ function CardSelectView({ onNext }: { onNext: () => void }) {
 const AGREE_ITEMS = [
   {
     key: "collect",
-    required: true,
+    required: false,
     label: "신한카드 결제 잔돈 수집",
     desc: "월 1회 자동으로 잔돈을 모아 포켓스톡 CMA에 입금해요",
   },
@@ -1258,12 +1308,13 @@ function AutoAgreeView({
   onLater,
 }: {
   pending: boolean;
-  onAgree: () => void;
+  /** collect 체크 여부를 전달 — true면 카드 선택으로, false면 홈으로 */
+  onAgree: (collectChecked: boolean) => void;
   onLater: () => void;
 }) {
-  // 필수 항목 기본 체크
+  // 필수 항목(privacy) + collect 기본 체크
   const [checked, setChecked] = useState<Set<string>>(
-    () => new Set(AGREE_ITEMS.filter((i) => i.required).map((i) => i.key)),
+    () => new Set(AGREE_ITEMS.filter((i) => i.required || i.key === "collect").map((i) => i.key)),
   );
   const requiredOk = AGREE_ITEMS.filter((i) => i.required).every((i) =>
     checked.has(i.key),
@@ -1331,7 +1382,7 @@ function AutoAgreeView({
       <div className="flex-1" />
 
       <Button
-        onClick={onAgree}
+        onClick={() => onAgree(checked.has("collect"))}
         disabled={!requiredOk || pending}
         className="mt-6 h-12 w-full text-base font-bold"
       >
