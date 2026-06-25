@@ -330,6 +330,8 @@ export default function AssetLinkPage() {
         <CardSelectView
           cards={linkedCards.data ?? []}
           isLoading={linkedCards.isLoading}
+          isError={linkedCards.isError}
+          onRetry={() => linkedCards.refetch()}
           initialSelectedIds={
             new Set(
               (collectSettings.data ?? [])
@@ -1202,6 +1204,8 @@ const CARD_CHIP_COLORS = ["bg-blue-600", "bg-rose-500", "bg-neutral-800"];
 function CardSelectView({
   cards,
   isLoading,
+  isError,
+  onRetry,
   initialSelectedIds,
   selectedIds,
   onChangeSelected,
@@ -1209,6 +1213,8 @@ function CardSelectView({
 }: {
   cards: LinkedCard[];
   isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
   initialSelectedIds: Set<number>;
   selectedIds: Set<number>;
   onChangeSelected: (ids: Set<number>) => void;
@@ -1242,6 +1248,19 @@ function CardSelectView({
           [0, 1, 2].map((i) => (
             <div key={i} className="h-16 animate-pulse rounded-xl bg-muted" />
           ))
+        ) : isError ? (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="text-sm text-muted-foreground">
+              카드 정보를 불러오지 못했어요.
+            </p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="text-sm font-bold text-primary underline"
+            >
+              다시 시도
+            </button>
+          </div>
         ) : cards.length === 0 ? (
           <EmptyState title="연동된 카드가 없어요" />
         ) : (
@@ -1293,7 +1312,7 @@ function CardSelectView({
 
       <Button
         onClick={onNext}
-        disabled={false}
+        disabled={isError || isLoading}
         className="h-12 w-full text-base font-bold"
       >
         선택 완료
