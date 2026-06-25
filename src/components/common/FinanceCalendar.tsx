@@ -58,7 +58,7 @@ export function FinanceCalendar({
 
   return (
     <div className={cn("bg-background", className)}>
-      {showHeader && (
+      {showHeader ? (
         <div className="mb-3 flex items-center justify-between">
           <div className="flex flex-1 items-center justify-center gap-3">
             <button
@@ -81,6 +81,9 @@ export function FinanceCalendar({
           </div>
           {legend}
         </div>
+      ) : (
+        // 헤더를 숨겨도 legend는 별도 행으로 렌더링
+        legend && <div className="mb-3 flex justify-end">{legend}</div>
       )}
 
       <div className="grid grid-cols-7 text-center text-xs text-muted-foreground">
