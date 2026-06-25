@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export interface JigsawPuzzleProps {
@@ -16,8 +17,24 @@ export interface JigsawPuzzleProps {
   onSelectionCommit?: (
     selection: { mode: "buy" | "sell"; indexes: number[] } | null,
   ) => void;
+  /** 드래그 중 라이브 선택 변화(조각 수·금액 실시간 표시용). 종료/취소 시 null */
+  onSelectionChange?: (
+    selection: { mode: "buy" | "sell"; indexes: number[] } | null,
+  ) => void;
   /** 확정된(하이라이트) 조각 인덱스 */
   selectedIndexes?: number[];
+  /**
+   * 종목 로고 URL. 지정 시 "로고 직소" 모드 — 채운 조각으로 로고가 드러나고,
+   * 빈 영역엔 전체 로고가 희미하게(고스트) 미리보임. null/미지정 시 블루 유리 모드.
+   */
+  logoUrl?: string | null;
+  /**
+   * 접수(체결 대기) 조각 수 — 수량 기반 캐논 채움(위치 미저장).
+   * buy=다음 N칸 채워짐(팝인+펄스) / sell=마지막 N칸 날아감. 동시 다건은 부모가 합산해 전달.
+   * 실제 체결되면 부모가 filled 갱신 + 카운트 감소.
+   */
+  pendingBuy?: number;
+  pendingSell?: number;
   className?: string;
 }
 
@@ -88,13 +105,28 @@ export function JigsawPuzzle({
   columns = 10,
   recentIndex,
   onSelectionCommit,
+  onSelectionChange,
   selectedIndexes,
+  logoUrl,
+  pendingBuy = 0,
+  pendingSell = 0,
   className,
 }: JigsawPuzzleProps) {
   const cols = columns;
   const rows = Math.ceil(total / cols);
   const recent = recentIndex ?? filled - 1;
   const interactive = !!onSelectionCommit;
+  const useLogo = !!logoUrl;
+  const uid = useId();
+  const filledClipId = `jp-fill-${uid}`;
+  const ghostClipId = `jp-ghost-${uid}`;
+  const buyPrevClipId = `jp-buy-${uid}`;
+  const pendingClipId = `jp-pend-${uid}`;
+  const reduce = useReducedMotion();
+  // 조각 path는 두 모드 공용 — 한 번만 만들어 재사용
+  const paths = Array.from({ length: total }, (_, idx) =>
+    piecePath(Math.floor(idx / cols), idx % cols, rows, cols),
+  );
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<{ start: number; cur: number } | null>(null);
@@ -157,6 +189,7 @@ export function JigsawPuzzle({
     if (idx === null) return;
     svgRef.current?.setPointerCapture(e.pointerId);
     setDrag({ start: idx, cur: idx });
+    onSelectionChange?.(rectSelection(idx, idx));
   };
 
   const handleMove = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -164,6 +197,7 @@ export function JigsawPuzzle({
     const idx = pieceAt(e.clientX, e.clientY);
     if (idx !== null && idx !== drag.cur) {
       setDrag({ start: drag.start, cur: idx });
+      onSelectionChange?.(rectSelection(drag.start, idx));
     }
   };
 
@@ -173,9 +207,57 @@ export function JigsawPuzzle({
     const sel = rectSelection(drag.start, drag.cur);
     onSelectionCommit?.(sel.indexes.length ? sel : null);
     setDrag(null);
+    onSelectionChange?.(null);
   };
 
-  const handleCancel = () => setDrag(null);
+  const handleCancel = () => {
+    setDrag(null);
+    onSelectionChange?.(null);
+  };
+
+  // 한 조각의 "채워진 모습"(로고 클립 또는 블루 유리) — 접수 애니메이션 공용 렌더
+  const renderFilled = (i: number) =>
+    useLogo ? (
+      <g filter="url(#jp-lift)">
+        <clipPath id={`${pendingClipId}-${i}`}>
+          <path d={paths[i]} />
+        </clipPath>
+        <image
+          href={logoUrl ?? undefined}
+          x={0}
+          y={0}
+          width={cols * S}
+          height={rows * S}
+          preserveAspectRatio="xMidYMid slice"
+          clipPath={`url(#${pendingClipId}-${i})`}
+        />
+        <path
+          d={paths[i]}
+          fill="none"
+          stroke="rgba(255,255,255,0.55)"
+          strokeWidth={0.9}
+          strokeLinejoin="round"
+        />
+      </g>
+    ) : (
+      <>
+        <path
+          d={paths[i]}
+          transform={`translate(0 ${THICK})`}
+          fill="#1e3a8a"
+          fillOpacity={0.15}
+        />
+        <path
+          d={paths[i]}
+          fill="#3b82f6"
+          fillOpacity={0.92}
+          stroke="rgba(255,255,255,0.75)"
+          strokeWidth={0.75}
+          strokeLinejoin="round"
+          filter="url(#jp-glass)"
+        />
+      </>
+    );
 
   return (
     <svg
@@ -262,21 +344,33 @@ export function JigsawPuzzle({
             <feMergeNode in="ishadowClip" />
           </feMerge>
         </filter>
+
+        {/* 로고 모드: 맞춰진 조각 무리를 살짝 띄우는 부드러운 그림자 */}
+        <filter
+          id="jp-lift"
+          x="-20%"
+          y="-20%"
+          width="140%"
+          height="160%"
+          colorInterpolationFilters="sRGB"
+        >
+          <feDropShadow
+            dx="0"
+            dy="3"
+            stdDeviation="2.4"
+            floodColor="#0b1733"
+            floodOpacity="0.28"
+          />
+        </filter>
       </defs>
 
-      {Array.from({ length: total }).map((_, idx) => {
-        const r = Math.floor(idx / cols);
-        const c = idx % cols;
-        const state =
-          idx < filled ? (idx === recent ? "recent" : "filled") : "empty";
-        const d = piecePath(r, c, rows, cols);
-        const isSelected = highlight.has(idx);
-
-        if (state === "empty") {
-          // 흰 표면에 파인 음각 홈 (인디고 그루브)
-          return (
-            <g key={idx}>
+      {useLogo ? (
+        <>
+          {/* 빈 슬롯 — 흰 표면에 파인 음각 홈 */}
+          {paths.map((d, idx) =>
+            idx >= filled ? (
               <path
+                key={`empty-${idx}`}
                 d={d}
                 fill="#f4f6fb"
                 fillOpacity={0.7}
@@ -285,50 +379,321 @@ export function JigsawPuzzle({
                 strokeLinejoin="round"
                 filter="url(#jp-groove)"
               />
+            ) : null,
+          )}
+
+          {/* 미완성 영역에 전체 로고를 희미하게(고스트) — 완성될 그림 미리보기 */}
+          {filled < total && (
+            <>
+              <clipPath id={ghostClipId}>
+                {paths.map((d, idx) =>
+                  idx >= filled ? <path key={`gc-${idx}`} d={d} /> : null,
+                )}
+              </clipPath>
+              <image
+                href={logoUrl ?? undefined}
+                x={0}
+                y={0}
+                width={cols * S}
+                height={rows * S}
+                preserveAspectRatio="xMidYMid slice"
+                opacity={0.1}
+                clipPath={`url(#${ghostClipId})`}
+              />
+            </>
+          )}
+
+          {/* 채운 조각 = 로고 노출 + 직소 컷선 (살짝 떠 보이는 그림자) */}
+          {filled > 0 && (
+            <>
+              <clipPath id={filledClipId}>
+                {paths.map((d, idx) =>
+                  idx < filled ? <path key={`fc-${idx}`} d={d} /> : null,
+                )}
+              </clipPath>
+              <g filter="url(#jp-lift)">
+                <image
+                  href={logoUrl ?? undefined}
+                  x={0}
+                  y={0}
+                  width={cols * S}
+                  height={rows * S}
+                  preserveAspectRatio="xMidYMid slice"
+                  clipPath={`url(#${filledClipId})`}
+                />
+                {paths.map((d, idx) =>
+                  idx < filled ? (
+                    <path
+                      key={`line-${idx}`}
+                      d={d}
+                      fill="none"
+                      stroke="rgba(255,255,255,0.55)"
+                      strokeWidth={0.9}
+                      strokeLinejoin="round"
+                    />
+                  ) : null,
+                )}
+              </g>
+            </>
+          )}
+
+          {/* 선택 = 라이브 프리뷰(색 비의존). 매수=로고로 채워 보임 / 매도=빈 슬롯으로 비워 보임 */}
+          {(() => {
+            const selArr = paths.map((_, i) => i).filter((i) => highlight.has(i));
+            if (selArr.length === 0) return null;
+            const selEmpty = selArr.filter((i) => i >= filled);
+            const selFilled = selArr.filter((i) => i < filled);
+            return (
+              <>
+                {/* 매수 프리뷰 — 고른 빈칸을 로고로 채워 보임 */}
+                {selEmpty.length > 0 && (
+                  <>
+                    <clipPath id={buyPrevClipId}>
+                      {selEmpty.map((i) => (
+                        <path key={`bp-${i}`} d={paths[i]} />
+                      ))}
+                    </clipPath>
+                    <g filter="url(#jp-lift)">
+                      <image
+                        href={logoUrl ?? undefined}
+                        x={0}
+                        y={0}
+                        width={cols * S}
+                        height={rows * S}
+                        preserveAspectRatio="xMidYMid slice"
+                        clipPath={`url(#${buyPrevClipId})`}
+                      />
+                    </g>
+                  </>
+                )}
+                {/* 매도 프리뷰 — 고른 채운칸을 빈 슬롯으로 비워 보임 */}
+                {selFilled.map((i) => (
+                  <path
+                    key={`sp-${i}`}
+                    d={paths[i]}
+                    fill="#f4f6fb"
+                    fillOpacity={0.95}
+                    stroke="#e9edf4"
+                    strokeWidth={0.75}
+                    strokeLinejoin="round"
+                    filter="url(#jp-groove)"
+                  />
+                ))}
+                {/* 중립 이중 테두리 — 흰색 위 어두운 외곽(어떤 로고색에서도 읽힘) */}
+                {selArr.map((i) => (
+                  <g key={`ring-${i}`}>
+                    <path
+                      d={paths[i]}
+                      fill="none"
+                      stroke="#0b1733"
+                      strokeOpacity={0.45}
+                      strokeWidth={3.4}
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d={paths[i]}
+                      fill="none"
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                      strokeLinejoin="round"
+                    />
+                  </g>
+                ))}
+              </>
+            );
+          })()}
+        </>
+      ) : (
+        paths.map((d, idx) => {
+          const state =
+            idx < filled ? (idx === recent ? "recent" : "filled") : "empty";
+          const isSelected = highlight.has(idx);
+
+          if (state === "empty") {
+            // 흰 표면에 파인 음각 홈 (인디고 그루브)
+            return (
+              <g key={idx}>
+                <path
+                  d={d}
+                  fill="#f4f6fb"
+                  fillOpacity={0.7}
+                  stroke="#e9edf4"
+                  strokeWidth={0.75}
+                  strokeLinejoin="round"
+                  filter="url(#jp-groove)"
+                />
+                {isSelected && (
+                  <path
+                    d={d}
+                    fill="#2563eb"
+                    fillOpacity={0.18}
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                  />
+                )}
+              </g>
+            );
+          }
+
+          // 두꺼운 투명 유리 블록: 아래 side 면(두께) + 위 클리어 유리
+          return (
+            <g key={idx}>
+              <path
+                d={d}
+                transform={`translate(0 ${THICK})`}
+                fill="#1e3a8a"
+                fillOpacity={0.15}
+              />
+              <path
+                d={d}
+                fill={state === "recent" ? "#3b82f6" : "#7dd3fc"}
+                fillOpacity={state === "recent" ? 0.2 : 0.1}
+                stroke="rgba(255,255,255,0.75)"
+                strokeWidth={0.75}
+                strokeLinejoin="round"
+                filter="url(#jp-glass)"
+              />
               {isSelected && (
                 <path
                   d={d}
-                  fill="#2563eb"
-                  fillOpacity={0.18}
-                  stroke="#2563eb"
-                  strokeWidth={2}
+                  fill="none"
+                  stroke="#1d4ed8"
+                  strokeWidth={2.5}
                   strokeLinejoin="round"
                 />
               )}
             </g>
           );
-        }
+        })
+      )}
 
-        // 두꺼운 투명 유리 블록: 아래 side 면(두께) + 위 클리어 유리
-        return (
-          <g key={idx}>
-            <path
-              d={d}
-              transform={`translate(0 ${THICK})`}
-              fill="#1e3a8a"
-              fillOpacity={0.15}
-            />
-            <path
-              d={d}
-              fill={state === "recent" ? "#3b82f6" : "#7dd3fc"}
-              fillOpacity={state === "recent" ? 0.2 : 0.1}
-              stroke="rgba(255,255,255,0.75)"
-              strokeWidth={0.75}
-              strokeLinejoin="round"
-              filter="url(#jp-glass)"
-            />
-            {isSelected && (
+      {/* 접수 손맛 — 수량 기반 캐논 채움. buy=다음 N칸 캐스케이드+스냅+글린트 / sell=마지막 N칸 날아감 */}
+      {pendingBuy > 0 && (
+        <>
+          {Array.from({ length: pendingBuy }, (_, k) => filled + k)
+            .filter((i) => i < total)
+            .map((i, k) => (
+              <motion.g
+                key={`pi-${i}`}
+                style={{ transformBox: "fill-box", transformOrigin: "center" }}
+                initial={reduce ? false : { scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={
+                  reduce
+                    ? { duration: 0 }
+                    : {
+                        delay: k * 0.04,
+                        type: "spring",
+                        stiffness: 520,
+                        damping: 17,
+                        mass: 0.6,
+                      }
+                }
+              >
+                {renderFilled(i)}
+                {/* 락인 글린트 — 박히는 순간 가장자리 한 번 반짝 */}
+                {!reduce && (
+                  <motion.path
+                    d={paths[i]}
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth={2.5}
+                    strokeLinejoin="round"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: [0, 0.95, 0] }}
+                    transition={{
+                      delay: k * 0.04 + 0.14,
+                      duration: 0.4,
+                      ease: "easeOut",
+                      times: [0, 0.35, 1],
+                    }}
+                  />
+                )}
+              </motion.g>
+            ))}
+          {/* 접수=대기 신호 — 은은한 펄스 */}
+          {!reduce && (
+            <motion.g
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0.08, 0.26, 0.08] }}
+              transition={{
+                delay: pendingBuy * 0.04 + 0.3,
+                duration: 1.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              {Array.from({ length: pendingBuy }, (_, k) => filled + k)
+                .filter((i) => i < total)
+                .map((i) => (
+                  <path
+                    key={`pp-${i}`}
+                    d={paths[i]}
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth={1.5}
+                    strokeLinejoin="round"
+                  />
+                ))}
+            </motion.g>
+          )}
+        </>
+      )}
+
+      {pendingSell > 0 && (
+        <>
+          {/* 매도 — 마지막 N칸: 빈 슬롯 드러나고 조각이 회전·확산하며 날아감 */}
+          {Array.from({ length: pendingSell }, (_, k) => filled - 1 - k)
+            .filter((i) => i >= 0)
+            .map((i) => (
               <path
-                d={d}
-                fill="none"
-                stroke="#1d4ed8"
-                strokeWidth={2.5}
+                key={`pg-${i}`}
+                d={paths[i]}
+                fill="#f4f6fb"
+                fillOpacity={0.95}
+                stroke="#e9edf4"
+                strokeWidth={0.75}
                 strokeLinejoin="round"
+                filter="url(#jp-groove)"
               />
-            )}
-          </g>
-        );
-      })}
+            ))}
+          {Array.from({ length: pendingSell }, (_, k) => filled - 1 - k)
+            .filter((i) => i >= 0)
+            .map((i, k) => {
+              const cx = ((i % cols) + 0.5) * S;
+              const cy = (Math.floor(i / cols) + 0.5) * S;
+              const vx = cx - (cols * S) / 2;
+              const vy = cy - (rows * S) / 2;
+              const len = Math.hypot(vx, vy) || 1;
+              const dist = 30;
+              const dx = (vx / len) * dist;
+              const dy = (vy / len) * dist - 10;
+              const rot = (i % 2 ? 1 : -1) * (14 + (i % 3) * 7);
+              return (
+                <motion.g
+                  key={`sf-${i}`}
+                  style={{ transformBox: "fill-box", transformOrigin: "center" }}
+                  initial={
+                    reduce ? false : { x: 0, y: 0, rotate: 0, scale: 1, opacity: 1 }
+                  }
+                  animate={
+                    reduce
+                      ? { opacity: 0 }
+                      : { x: dx, y: dy, rotate: rot, scale: 0.55, opacity: 0 }
+                  }
+                  transition={
+                    reduce
+                      ? { duration: 0 }
+                      : { delay: k * 0.03, duration: 0.5, ease: [0.4, 0, 1, 1] }
+                  }
+                >
+                  {renderFilled(i)}
+                </motion.g>
+              );
+            })}
+        </>
+      )}
     </svg>
   );
 }
