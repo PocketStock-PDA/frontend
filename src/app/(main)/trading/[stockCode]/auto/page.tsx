@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
 import { Stepper } from "@/components/common/Stepper";
-import { WeekdayPicker } from "@/components/common/WeekdayPicker";
+import { WheelPickerSheet } from "@/components/common/WheelPickerSheet";
+import type { WheelPickerOption } from "@/components/common/WheelPicker";
 import { AmountInput } from "@/components/common/AmountInput";
+import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
@@ -43,6 +45,7 @@ import {
   type AutoInvestSetting,
   type BuyCondition,
   type SellCondition,
+  type Weekday,
 } from "@/types/domain/autoInvest";
 
 const FREQ_OPTIONS: { label: string; value: AutoInvestFrequency }[] = [
@@ -57,6 +60,22 @@ const FREQ_LABEL: Record<AutoInvestFrequency, string> = {
 };
 const AMOUNT_CHIPS = [1000, 5000, 10000];
 const QTY_CHIPS = [1, 5, 10];
+const AMOUNT_MODE_OPTIONS: { label: string; value: AmountMode }[] = [
+  { label: "금액으로", value: "AMOUNT" },
+  { label: "수량으로", value: "QTY" },
+];
+// 휠 피커 옵션 — 요일(월~금)·날짜(1~31일)
+const WEEKDAY_OPTIONS: WheelPickerOption<Weekday>[] = [
+  { label: "월요일", value: "MON" },
+  { label: "화요일", value: "TUE" },
+  { label: "수요일", value: "WED" },
+  { label: "목요일", value: "THU" },
+  { label: "금요일", value: "FRI" },
+];
+const DAY_OPTIONS: WheelPickerOption<number>[] = Array.from(
+  { length: 31 },
+  (_, i) => ({ label: `${i + 1}일`, value: i + 1 }),
+);
 
 export default function AutoInvestPage() {
   const { stockCode } = useParams<{ stockCode: string }>();
@@ -93,6 +112,7 @@ export default function AutoInvestPage() {
     <AutoInvestForm
       stockCode={stockCode}
       stockName={detailQ.data.stockName}
+      currency={detailQ.data.currency}
       currentPrice={detailQ.data.price?.currentPrice ?? 0}
       initial={autoQ.setting ?? defaultSetting(stockCode)}
       settingId={autoQ.id}
@@ -105,6 +125,7 @@ export default function AutoInvestPage() {
 function AutoInvestForm({
   stockCode,
   stockName,
+  currency,
   currentPrice,
   initial,
   settingId,
@@ -113,6 +134,7 @@ function AutoInvestForm({
 }: {
   stockCode: string;
   stockName: string;
+  currency: string;
   currentPrice: number;
   initial: AutoInvestSetting;
   settingId: number | null;
@@ -137,7 +159,16 @@ function AutoInvestForm({
   const [sellCondition, setSellCondition] = useState<SellCondition>(initial.sellCondition);
   const [showBuy, setShowBuy] = useState(false);
   const [showSell, setShowSell] = useState(false);
+  const [showWeekday, setShowWeekday] = useState(false);
+  const [showDay, setShowDay] = useState(false);
 
+  const isUSD = currency === "USD";
+  // 모으기도 일반 주문과 동일한 최소주문금액(국내 1,000원 / 해외 $1)
+  const minOrder = isUSD ? 1 : 1000;
+  const minOrderText = isUSD ? `$${minOrder}` : `${minOrder.toLocaleString("ko-KR")}원`;
+  // 신규(모으기 시작) vs 기존(관리) — CTA·헤딩·토글 분기
+  const isNew = settingId === null;
+  const hasAmount = amountMode === "AMOUNT" ? amount > 0 : quantity > 0;
   const price = toDecimal(currentPrice);
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
   const avgPrice = holding ? holding.avgBuyPrice : currentPrice;
@@ -153,9 +184,18 @@ function AutoInvestForm({
 
   const handleSave = () => {
     if (save.isPending) return;
+    // 모으기 최소금액 검증 — 백엔드와 동일 기준(금액 모드만, 국내 1,000원 / 해외 $1)
+    if (amountMode === "AMOUNT" && amount < minOrder) {
+      toast.warning(`모으기 금액은 최소 ${minOrderText} 이상이에요`);
+      return;
+    }
+    if (amountMode === "QTY" && quantity <= 0) {
+      toast.warning("모으기 수량을 입력해 주세요");
+      return;
+    }
     const form: AutoInvestSetting = {
       stockCode,
-      enabled,
+      enabled: isNew ? true : enabled, // 신규는 "모으기" = 시작이므로 활성
       frequency,
       weekdays,
       dayOfMonth,
@@ -168,7 +208,10 @@ function AutoInvestForm({
     save.mutate(
       { form, id: settingId, buyTriggerId, sellTriggerId },
       {
-        onSuccess: () => toast.success("자동모으기 설정을 저장했어요"),
+        onSuccess: () => {
+          toast.success(isNew ? "모으기를 시작했어요" : "설정을 저장했어요");
+          if (isNew) router.back();
+        },
         onError: (err) =>
           toast.error(
             err instanceof ApiError
@@ -198,107 +241,91 @@ function AutoInvestForm({
 
   return (
     <>
-      <AppHeader
-        variant="sub"
-        title={
-          <span className="flex flex-col leading-tight">
-            <span className="text-xs text-muted-foreground">{stockName}</span>
-            <span className="text-[18px] font-bold text-foreground">{summary}</span>
-          </span>
-        }
-      />
+      <AppHeader variant="sub" title={stockName} />
 
       <div className="space-y-6 pb-4">
-        {/* 자동모으기 마스터 토글 */}
-        <label className="flex items-center justify-between rounded-xl border border-border px-4 py-3.5">
-          <span className="text-base font-bold text-foreground">자동모으기</span>
-          <Switch checked={enabled} onCheckedChange={setEnabled} />
-        </label>
+        {/* 헤딩 — 시작(모을까요?) vs 관리(모으는 중) */}
+        <div className="space-y-1">
+          {hasAmount && (
+            <p className="text-base font-bold text-primary">{summary}</p>
+          )}
+          <p className="text-xl font-bold text-foreground">
+            {isNew ? "모을까요?" : "모으는 중이에요"}
+          </p>
+        </div>
 
-        <div className={cn("space-y-6", !enabled && "pointer-events-none opacity-50")}>
-          {/* 주기 (파랑/회색 pill) */}
-          <div className="flex gap-2">
-            {FREQ_OPTIONS.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                onClick={() => {
-                  setFrequency(o.value);
-                  // 주1회 전환 시 요일을 1개로 정규화(중복 방지)
-                  if (o.value === "WEEKLY" && weekdays.length !== 1) {
-                    setWeekdays([weekdays[0] ?? "MON"]);
-                  }
-                }}
-                className={cn(
-                  "h-11 flex-1 rounded-lg text-sm font-bold transition-colors",
-                  frequency === o.value
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
+        {/* 기존 설정만: 일시중지/재개 토글 */}
+        {!isNew && (
+          <label className="flex items-center justify-between rounded-xl border border-border px-4 py-3.5">
+            <span className="text-base font-bold text-foreground">자동모으기</span>
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+          </label>
+        )}
+
+        <div
+          className={cn(
+            "space-y-6",
+            !isNew && !enabled && "pointer-events-none opacity-50",
+          )}
+        >
+          {/* 주기 */}
+          <SegmentedControl
+            options={FREQ_OPTIONS}
+            value={frequency}
+            onChange={(v) => {
+              setFrequency(v);
+              // 주1회 전환 시 요일을 1개로 정규화(중복 방지)
+              if (v === "WEEKLY" && weekdays.length !== 1) {
+                setWeekdays([weekdays[0] ?? "MON"]);
+              }
+            }}
+          />
 
           {/* 요일 선택 (주1회일 때만 · 백엔드 지원 = 월~금) */}
           {frequency === "WEEKLY" && (
-            <section className="space-y-2">
-              <p className="text-sm text-muted-foreground">요일 선택</p>
-              <WeekdayPicker
-                value={weekdays}
-                onChange={setWeekdays}
-                single
-                businessDaysOnly
-              />
-            </section>
+            <button
+              type="button"
+              onClick={() => setShowWeekday(true)}
+              className="flex w-full items-center justify-between rounded-xl border border-border px-4 py-3.5 text-left"
+            >
+              <span className="text-sm font-bold text-foreground">
+                매주{" "}
+                {WEEKDAY_OPTIONS.find((o) => o.value === weekdays[0])?.label ??
+                  "월요일"}
+              </span>
+              <ChevronDown className="size-4 text-muted-foreground" />
+            </button>
           )}
 
           {/* 날짜 선택 (월1회일 때만) */}
           {frequency === "MONTHLY" && (
-            <section className="space-y-2">
-              <p className="text-sm text-muted-foreground">날짜 선택</p>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-foreground">매월</span>
-                <select
-                  value={dayOfMonth}
-                  onChange={(e) => setDayOfMonth(Number(e.target.value))}
-                  aria-label="실행 일자"
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                >
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-sm text-foreground">일</span>
-              </div>
-            </section>
+            <button
+              type="button"
+              onClick={() => setShowDay(true)}
+              className="flex w-full items-center justify-between rounded-xl border border-border px-4 py-3.5 text-left"
+            >
+              <span className="text-sm font-bold text-foreground">
+                매월 {dayOfMonth}일
+              </span>
+              <ChevronDown className="size-4 text-muted-foreground" />
+            </button>
           )}
 
           {/* 매수 금액/수량 (정기적립은 소수점 배치) */}
           <section className="space-y-3">
-            <div className="space-y-3 rounded-2xl bg-muted/50 p-4">
-              <div className="flex items-center gap-2 text-sm font-bold">
-                <button
-                  type="button"
-                  onClick={() => setAmountMode("QTY")}
-                  className={amountMode === "QTY" ? "text-foreground" : "text-muted-foreground"}
-                >
-                  수량으로
-                </button>
-                <span className="text-border">|</span>
-                <button
-                  type="button"
-                  onClick={() => setAmountMode("AMOUNT")}
-                  className={amountMode === "AMOUNT" ? "text-foreground" : "text-muted-foreground"}
-                >
-                  금액으로
-                </button>
-              </div>
+            <SegmentedControl
+              options={AMOUNT_MODE_OPTIONS}
+              value={amountMode}
+              onChange={setAmountMode}
+            />
+            <div className="rounded-2xl bg-muted/50 p-4">
               {amountMode === "AMOUNT" ? (
-                <AmountInput value={amount} onChange={setAmount} placeholder="모으기 금액" />
+                <AmountInput
+                  value={amount}
+                  onChange={setAmount}
+                  suffix={isUSD ? "$" : "원"}
+                  placeholder="모으기 금액"
+                />
               ) : (
                 <Stepper
                   value={quantity}
@@ -311,6 +338,12 @@ function AutoInvestForm({
                 />
               )}
             </div>
+
+            {amountMode === "AMOUNT" && (
+              <p className="px-1 text-xs text-muted-foreground">
+                최소 {minOrderText}부터 모을 수 있어요
+              </p>
+            )}
 
             {/* 빠른 칩 (카드 밖) */}
             {amountMode === "AMOUNT" ? (
@@ -383,13 +416,26 @@ function AutoInvestForm({
           </div>
         </div>
 
-        <Button
-          onClick={handleSave}
-          disabled={save.isPending}
-          className="h-12 w-full text-base font-bold"
-        >
-          {save.isPending ? "저장 중..." : "설정 저장"}
-        </Button>
+        <div className="space-y-2">
+          <Button
+            onClick={handleSave}
+            disabled={save.isPending}
+            className="h-12 w-full text-base font-bold"
+          >
+            {save.isPending
+              ? isNew
+                ? "시작하는 중…"
+                : "저장 중…"
+              : isNew
+                ? "모으기"
+                : "변경 저장"}
+          </Button>
+          {isNew && (
+            <p className="text-center text-xs text-muted-foreground">
+              부족한 금액은 충전계좌에서 자동으로 충전돼요
+            </p>
+          )}
+        </div>
 
         {/* 완전 해제 — 등록된 종목만. 일시중지(토글)와 분리한 파괴적 동작 */}
         {settingId !== null && (
@@ -420,6 +466,24 @@ function AutoInvestForm({
         avgPrice={avgPrice}
         value={sellCondition}
         onApply={setSellCondition}
+      />
+
+      {/* 모을 요일/날짜 — 휠 피커 바텀시트 */}
+      <WheelPickerSheet
+        open={showWeekday}
+        onOpenChange={setShowWeekday}
+        title="모을 요일을 선택해주세요"
+        options={WEEKDAY_OPTIONS}
+        value={weekdays[0] ?? "MON"}
+        onConfirm={(v) => setWeekdays([v])}
+      />
+      <WheelPickerSheet
+        open={showDay}
+        onOpenChange={setShowDay}
+        title="모을 날짜를 선택해주세요"
+        options={DAY_OPTIONS}
+        value={dayOfMonth}
+        onConfirm={setDayOfMonth}
       />
 
       {/* 해제 확인 — pause(토글)와 명확히 구분하는 마이크로카피 */}

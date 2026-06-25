@@ -146,3 +146,12 @@
     @apply font-sans;
   }
 }
+
+/* 휠 피커 등 스크롤바 숨김 */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

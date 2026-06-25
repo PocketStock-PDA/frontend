@@ -6,7 +6,7 @@ export const PIECES_PER_SHARE = 100;
 export interface PieceParts {
   /** 정수 주(온주분) */
   whole: number;
-  /** 소수 잔여분을 조각으로 환산(0~100, 소수 가능) */
+  /** 소수 잔여분을 조각으로 환산 — 정수 버림(0~99). 표시는 항상 정수 조각. */
   pieces: number;
   /** 소수 잔여분이 있는지 — 조각 렌즈 대상 여부 */
   hasFraction: boolean;
@@ -21,15 +21,15 @@ export function toPieceParts(
   const fracPieces = q.minus(whole).times(PIECES_PER_SHARE);
   return {
     whole: whole.toNumber(),
-    pieces: fracPieces.toNumber(),
+    // 조각은 정수로 버림(floor) — 0.7338주 → 73조각(73.38 아님). 보유 주수는 별도로 소수 유지.
+    pieces: fracPieces.floor().toNumber(),
     hasFraction: fracPieces.gt(0),
   };
 }
 
-/** 조각 수 표기 — 정수면 정수, 아니면 1자리(0.4조각). 1주=100조각 기준 0~100. */
+/** 조각 수 표기 — 항상 정수(버림). 1주=100조각 기준(잔여 조각은 0~99). */
 export function formatPieces(pieces: number): string {
-  const rounded = Math.round(pieces * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return String(Math.floor(pieces));
 }
 
 /** "5주 11조각" / "0주 0.4조각" — 보유량 정직 표기(온주+조각). */
