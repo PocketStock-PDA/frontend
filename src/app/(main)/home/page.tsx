@@ -16,6 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { WelcomeEventDialog } from "@/components/features/onboarding/WelcomeEventDialog";
 import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import { useMyProfile } from "@/hooks/queries/useMyProfile";
+import { useNotifications } from "@/hooks/queries/useNotifications";
 import { useWelcomeRewards } from "@/hooks/queries/useWelcomeRewards";
 import { useCollectChange } from "@/hooks/mutations/useCollectChange";
 import {
@@ -58,6 +59,7 @@ export default function HomePage() {
   // 인사말 이름은 /home 응답에 없어 마이페이지 프로필(GET /api/users/me/mypage)에서 가져온다.
   const { data, isLoading, isError, error, refetch } = useCmaHome();
   const { data: profile } = useMyProfile();
+  const { data: notifications } = useNotifications();
   const collect = useCollectChange();
   const linkOrder = useHomeLayoutStore((s) => s.order);
   const hiddenLinks = useHomeLayoutStore((s) => s.hidden);
@@ -168,6 +170,7 @@ export default function HomePage() {
       <HomeHeader
         userName={profile?.name ?? "회원"}
         onBellClick={() => router.push("/notifications")}
+        unreadCount={notifications?.unreadCount ?? 0}
       />
       <div className="space-y-4">
         {/* TODO: usdToKrwRate는 환율 API 연동 시 전달(펼침 시 'N원 기준' 표기) */}

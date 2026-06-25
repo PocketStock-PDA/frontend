@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_KR } from "next/font/google";
 import { Providers } from "./providers";
+import { InstallGate } from "@/components/common/InstallGate";
 import "./globals.css";
 
 // 숫자/금액 표기용
@@ -46,7 +47,9 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <body className={`${notoSansKr.variable} ${inter.variable}`}>
-        <Providers>{children}</Providers>
+        <Providers>
+          <InstallGate>{children}</InstallGate>
+        </Providers>
       </body>
     </html>
   );
