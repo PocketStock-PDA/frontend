@@ -34,7 +34,6 @@ type Method = "FRACTION" | "WHOLE"; // 소수점 / 온주
 type InputMode = "QTY" | "AMOUNT"; // 수량으로 / 금액으로
 type Side = "BUY" | "SELL";
 
-const FEE_RATE = 0.001; // 수수료 0.1%
 const AMOUNT_CHIPS = [5000, 10000, 50000, 100000]; // 금액 빠른 추가(원)
 
 function formatShares(q: Decimal) {
@@ -143,10 +142,9 @@ export default function TradePage() {
     resetKeys();
   };
 
-  // 주문 금액 (수수료·AMOUNT 주문용)
+  // 주문 금액 (AMOUNT 주문·예상 주문금액 표시용)
   const orderAmount =
     inputMode === "AMOUNT" ? new Decimal(amount) : new Decimal(qty).times(price);
-  const fee = orderAmount.times(FEE_RATE);
 
   const pending =
     buyOrder.isPending || sellOrder.isPending || wholeOrder.isPending;
@@ -393,31 +391,13 @@ export default function TradePage() {
           </div>
         </div>
 
-        {/* 예상 주문금액 / 수수료 / 결제액 (수량·금액 바꿀 때 실시간 갱신) */}
+        {/* 예상 주문금액 (수량·금액 바꿀 때 실시간 갱신) */}
         {valid && (
-          <div className="space-y-1.5 rounded-xl bg-muted/40 px-4 py-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">예상 주문금액</span>
-              <span className="font-numeric font-bold text-foreground">
-                {fmtAmount(orderAmount.toDecimalPlaces(amountDp).toNumber())}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">
-                예상 수수료 ({FEE_RATE * 100}%)
-              </span>
-              <span className="font-numeric text-muted-foreground">
-                {fmtAmount(fee.toDecimalPlaces(amountDp).toNumber())}
-              </span>
-            </div>
-            <div className="flex items-center justify-between border-t border-border pt-1.5">
-              <span className="text-muted-foreground">매수 시 예상 결제액</span>
-              <span className="font-numeric font-bold text-primary">
-                {fmtAmount(
-                  orderAmount.plus(fee).toDecimalPlaces(amountDp).toNumber(),
-                )}
-              </span>
-            </div>
+          <div className="flex items-center justify-between rounded-xl bg-muted/40 px-4 py-3 text-sm">
+            <span className="text-muted-foreground">예상 주문금액</span>
+            <span className="font-numeric font-bold text-primary">
+              {fmtAmount(orderAmount.toDecimalPlaces(amountDp).toNumber())}
+            </span>
           </div>
         )}
 

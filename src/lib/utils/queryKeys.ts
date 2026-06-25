@@ -38,6 +38,8 @@ export const queryKeys = {
   cma: {
     all: ["cma"] as const,
     home: ["cma", "home"] as const,
+    transactions: (page: number, size: number) =>
+      ["cma", "transactions", page, size] as const,
   },
   exchange: {
     all: ["exchange"] as const,

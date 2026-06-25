@@ -22,7 +22,7 @@ const MENU: RecentMenu[] = [
   { label: "가계부", href: "/budget" },
   { label: "포트폴리오", href: "/portfolio" },
   { label: "주식 자동모으기 설정", href: "/trading/auto" },
-  { label: "거래 내역", href: "#" },
+  { label: "거래 내역", href: "/history" },
   { label: "내 자산", href: "/asset" },
   { label: "포인트", href: "/points" },
   { label: "마이페이지", href: "/my" },
