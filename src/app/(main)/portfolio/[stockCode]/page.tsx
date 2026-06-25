@@ -512,33 +512,33 @@ export default function StockDetailPage() {
                   </div>
                 )}
               </div>
+              {/* 보유 / 1주 완성까지 — 퍼즐 바로 아래 캡션(테두리 없음) */}
+              <div className="mt-3 flex flex-col gap-2.5 border-t border-border pt-3">
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="text-muted-foreground">내 보유</span>
+                  <span className="font-numeric font-bold text-foreground">
+                    {bojuText}
+                    <span className="ml-1.5 text-xs font-medium text-muted-foreground">
+                      {fmtAmount(evalAmount.toString())}
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="text-muted-foreground">1주 완성까지</span>
+                  <span className="font-numeric font-bold text-foreground">
+                    {PIECES_PER_SHARE - pieces}조각
+                    <span className="ml-1.5 text-xs font-medium text-muted-foreground">
+                      ≈ {fmtAmount(remainAmount.toString())}
+                    </span>
+                  </span>
+                </div>
+              </div>
               <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="inline-block size-2 rounded-full bg-primary" />
                 빈 조각 탭 → 매수 · 채운 조각 탭 → 매도
               </p>
             </section>
 
-            {/* 보유 / 남은 금액 */}
-            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border p-4">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">내 보유</p>
-                <p className="font-numeric text-lg font-bold text-foreground">
-                  {formatShares(qty)}주
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  = {fmtAmount(evalAmount.toString())}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">1주까지 남은 금액</p>
-                <AmountDisplay
-                  value={remainAmount.toString()}
-                  currency={isUSD ? "USD" : "KRW"}
-                  size="lg"
-                  className="font-bold"
-                />
-              </div>
-            </div>
           </>
         ) : (
           <>
