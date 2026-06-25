@@ -184,18 +184,16 @@ function TradeHistoryTab() {
     return m;
   }, [codes, detailQueries]);
 
-  // 한 주문의 통화·체결금액(소수점은 price 비어 현재가로 추정).
+  // 한 주문의 통화·체결금액 — 확정 체결가(o.price)가 있을 때만 산출.
+  // 소수점 미체결은 price가 없어 amount=null(시세로 환산하면 과거 금액이 시세 따라 변해 부정확).
   const amountOf = (o: OrderHistoryItem) => {
-    const detail = detailMap.get(o.stockCode);
-    const currency = detail?.currency ?? "KRW";
-    const qty = toDecimal(o.quantity);
+    const currency = detailMap.get(o.stockCode)?.currency ?? "KRW";
     const px = toDecimal(o.price);
-    // 소수점 주문은 체결 전 price가 비어 현재가로 환산.
-    const unit = px.gt(0) ? px : toDecimal(detail?.price.currentPrice);
-    return { currency, amount: unit.times(qty) };
+    const amount = px.gt(0) ? px.times(toDecimal(o.quantity)) : null;
+    return { currency, amount };
   };
 
-  // 이번 달 총 매수 (KRW 매수 합계)
+  // 이번 달 총 매수 (KRW 확정 매수 합계)
   const totalBuy = useMemo(() => {
     const now = new Date();
     return orders.reduce((sum, o) => {
@@ -204,7 +202,7 @@ function TradeHistoryTab() {
       if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear())
         return sum;
       const { currency, amount } = amountOf(o);
-      return currency === "KRW" ? sum.plus(amount) : sum;
+      return currency === "KRW" && amount ? sum.plus(amount) : sum;
     }, new Decimal(0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders, detailMap]);
@@ -238,6 +236,12 @@ function TradeHistoryTab() {
 
       {ordersQ.isLoading ? (
         <ListSkeleton />
+      ) : ordersQ.isError ? (
+        <EmptyState
+          title="불러오지 못했어요"
+          description="잠시 후 다시 시도해 주세요."
+          className="py-16"
+        />
       ) : filtered.length === 0 ? (
         <EmptyState title="매매 내역이 없어요" className="py-16" />
       ) : (
@@ -278,9 +282,14 @@ function TradeHistoryTab() {
                         {isBuy ? "+" : "-"}
                         {formatShares(qty)}주
                       </p>
-                      <p className="font-numeric text-[11px] text-muted-foreground">
-                        {fmtMoney(currency, amount.toDecimalPlaces(currency === "USD" ? 2 : 0))}
-                      </p>
+                      {amount && (
+                        <p className="font-numeric text-[11px] text-muted-foreground">
+                          {fmtMoney(
+                            currency,
+                            amount.toDecimalPlaces(currency === "USD" ? 2 : 0),
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
@@ -329,7 +338,6 @@ function CmaHistoryTab() {
   const txQ = useCmaTransactions();
   const homeQ = useCmaHome();
   const txs = txQ.data ?? [];
-  const balance = homeQ.data?.cmaBalance.KRW ?? 0;
 
   const matches = (t: CmaTransaction) => {
     if (filter === "all") return true;
@@ -360,11 +368,20 @@ function CmaHistoryTab() {
       </div>
 
       <div className="mt-3">
-        <SummaryCard label="CMA 현재 잔액" value={formatKRW(balance)} />
+        <SummaryCard
+          label="CMA 현재 잔액"
+          value={homeQ.data ? formatKRW(homeQ.data.cmaBalance.KRW) : "—"}
+        />
       </div>
 
       {txQ.isLoading ? (
         <ListSkeleton />
+      ) : txQ.isError ? (
+        <EmptyState
+          title="불러오지 못했어요"
+          description="잠시 후 다시 시도해 주세요."
+          className="py-16"
+        />
       ) : filtered.length === 0 ? (
         <EmptyState title="계좌 내역이 없어요" className="py-16" />
       ) : (
