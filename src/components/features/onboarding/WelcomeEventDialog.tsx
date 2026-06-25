@@ -39,7 +39,7 @@ export function WelcomeEventDialog({
     candidatesQ.data?.[0];
   const repDetailQ = useStockDetail(rep?.stockCode ?? "");
   const estimate =
-    rep && repDetailQ.data
+    rep && repDetailQ.data?.price
       ? new Decimal(repDetailQ.data.price.currentPrice).times(REWARD_QTY)
       : null;
 

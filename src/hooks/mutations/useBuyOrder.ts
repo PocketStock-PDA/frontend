@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { queryKeys } from "@/lib/utils/queryKeys";
-import type { BuyOrderRequest, OrderResult } from "@/types/domain/order";
+import type { BuyOrderRequest, SplitOrderResponse } from "@/types/domain/order";
 
 /**
  * 소수점 매수 (POST /api/trading/orders/fractional, side=BUY).
@@ -12,7 +12,7 @@ export function useBuyOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (req: BuyOrderRequest) =>
-      api.post<OrderResult>("/api/trading/orders/fractional", {
+      api.post<SplitOrderResponse>("/api/trading/orders/fractional", {
         clientOrderId: req.clientOrderId,
         stockCode: req.stockCode,
         side: "BUY",

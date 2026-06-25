@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -13,18 +13,18 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { EmptyState } from "@/components/common/EmptyState";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
-import { useAutoInvestList } from "@/hooks/queries/useAutoInvest";
-import { useSaveAutoInvestList } from "@/hooks/mutations/useSaveAutoInvest";
+import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
+import { useSetAutoInvestStatusList } from "@/hooks/mutations/useSaveAutoInvest";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
-import type {
-  AutoInvestFrequency,
-  AutoInvestSetting,
-  SaveAutoInvestRequest,
-  Weekday,
+import {
+  intToWeekday,
+  type AutoInvestPeriod,
+  type AutoInvestStock,
+  type Weekday,
 } from "@/types/domain/autoInvest";
 
-const FREQ_LABEL: Record<AutoInvestFrequency, string> = {
+const FREQ_LABEL: Record<AutoInvestPeriod, string> = {
   DAILY: "매일",
   WEEKLY: "주1회",
   MONTHLY: "월1회",
@@ -40,30 +40,33 @@ const WEEKDAY_KO: Record<Weekday, string> = {
 };
 
 /** "주1회 · 월요일 · 10,000원" */
-function settingSummary(s: AutoInvestSetting): string {
+function settingSummary(s: AutoInvestStock): string {
   const when =
-    s.frequency === "WEEKLY"
-      ? ` · ${WEEKDAY_KO[s.weekdays[0] ?? "MON"]}`
-      : s.frequency === "MONTHLY"
-        ? ` · 매월 ${s.dayOfMonth}일`
+    s.period === "WEEKLY"
+      ? ` · ${WEEKDAY_KO[intToWeekday(s.periodDay)]}`
+      : s.period === "MONTHLY"
+        ? ` · 매월 ${s.periodDay}일`
         : "";
   const amt =
-    s.amountMode === "QTY" ? `${s.quantity}주` : formatKRW(s.amount);
-  return `${FREQ_LABEL[s.frequency]}${when} · ${amt}`;
+    s.amountType === "QUANTITY"
+      ? `${s.buyQuantity ?? 0}주`
+      : s.currency === "USD"
+        ? `$${s.buyAmount ?? 0}`
+        : formatKRW(String(s.buyAmount ?? 0));
+  return `${FREQ_LABEL[s.period]}${when} · ${amt}`;
 }
 
 interface Row {
   code: string;
   name: string;
   logoUrl: string | null;
-  setting: AutoInvestSetting | null;
+  setting: AutoInvestStock | null;
   enabled: boolean;
 }
 
 /**
  * 주식 모으기 종합 설정 (시안 270-7107) — 보유 종목을 모으기 중/안 함으로 나눠 관리.
- * 개별 구성·저장은 /trading/{code}/auto에서. 여기선 on/off 토글 + 진입.
- * ⚠️ 자동모으기 API 미구현 → 스텁(AUTO_INVEST_API_READY). 현재 설정은 모두 null로 와 "모으기 안 함"에 표시.
+ * 개별 구성·저장은 /trading/{code}/auto에서. 여기선 on/off 토글(PATCH status) + 진입.
  */
 export default function AutoInvestManagePage() {
   const router = useRouter();
@@ -71,15 +74,22 @@ export default function AutoInvestManagePage() {
   const holdings = holdingsQ.data ?? [];
   const codes = holdings.map((h) => h.stockCode);
   const details = useStockDetails(codes);
-  const settings = useAutoInvestList(codes);
-  const save = useSaveAutoInvestList();
+  const summaryQ = useAutoInvestSummary();
+  const save = useSetAutoInvestStatusList();
+
+  // 종합조회 stocks를 code로 인덱싱
+  const stocksByCode = useMemo(() => {
+    const m = new Map<string, AutoInvestStock>();
+    summaryQ.data?.stocks.forEach((s) => m.set(s.stockCode, s));
+    return m;
+  }, [summaryQ.data]);
 
   // 토글 로컬 오버라이드(코드→enabled)
   const [enabledMap, setEnabledMap] = useState<Record<string, boolean>>({});
 
   const detailsLoading =
     codes.length > 0 &&
-    (details.some((d) => d.isLoading) || settings.some((s) => s.isLoading));
+    (details.some((d) => d.isLoading) || summaryQ.isLoading);
 
   if (holdingsQ.isLoading || detailsLoading) {
     return (
@@ -112,9 +122,9 @@ export default function AutoInvestManagePage() {
   }
 
   const rows: Row[] = holdings.map((h, i) => {
-    const setting = settings[i]?.data ?? null;
+    const setting = stocksByCode.get(h.stockCode) ?? null;
     const detail = details[i]?.data;
-    const enabled = enabledMap[h.stockCode] ?? setting?.enabled ?? false;
+    const enabled = enabledMap[h.stockCode] ?? setting?.isActive ?? false;
     return {
       code: h.stockCode,
       name: detail?.stockName ?? h.stockCode,
@@ -139,27 +149,10 @@ export default function AutoInvestManagePage() {
 
   const handleSave = () => {
     if (save.isPending) return;
-    // 설정 보유 + enabled 변경분만 저장(미설정 종목은 개별 페이지에서 구성)
+    // 등록된 종목 중 활성 상태가 바뀐 것만 PATCH (PAUSE/RESUME)
     const items = rows
-      .filter((r) => r.setting && r.enabled !== r.setting.enabled)
-      .map((r) => {
-        const s = r.setting as AutoInvestSetting;
-        const setting: SaveAutoInvestRequest = {
-          enabled: r.enabled,
-          frequency: s.frequency,
-          weekdays: s.weekdays,
-          dayOfMonth: s.dayOfMonth,
-          method: s.method,
-          amountMode: s.amountMode,
-          amount: s.amount,
-          quantity: s.quantity,
-          autoCharge: s.autoCharge,
-          executeTime: s.executeTime,
-          buyCondition: s.buyCondition,
-          sellCondition: s.sellCondition,
-        };
-        return { stockCode: r.code, setting };
-      });
+      .filter((r) => r.setting && r.enabled !== r.setting.isActive)
+      .map((r) => ({ id: (r.setting as AutoInvestStock).id, active: r.enabled }));
     save.mutate(items, {
       onSuccess: () => {
         toast.success("설정을 저장했어요");

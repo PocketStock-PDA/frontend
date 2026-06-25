@@ -13,7 +13,10 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { HoldingCard } from "@/components/features/portfolio/HoldingCard";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
-import { useAutoInvestList } from "@/hooks/queries/useAutoInvest";
+import {
+  useAutoInvestSummary,
+  countActiveAutoInvest,
+} from "@/hooks/queries/useAutoInvest";
 import { formatKRW } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { queryKeys } from "@/lib/utils/queryKeys";
@@ -27,9 +30,9 @@ export default function PortfolioPage() {
   const holdings = holdingsQ.data ?? [];
   const codes = holdings.map((h) => h.stockCode);
   const details = useStockDetails(codes);
-  const autoSettings = useAutoInvestList(codes);
-  // 실제 자동모으기 활성 종목 수 (백엔드 미구현 동안은 0)
-  const autoActiveCount = autoSettings.filter((s) => s.data?.enabled).length;
+  const autoSummaryQ = useAutoInvestSummary();
+  // 실제 자동모으기 활성 종목 수 (GET /api/trading/auto-invest 종합조회)
+  const autoActiveCount = countActiveAutoInvest(autoSummaryQ.data);
 
   const detailsLoading = codes.length > 0 && details.some((d) => d.isLoading);
   const detailsError = codes.length > 0 && details.some((d) => d.isError);
@@ -74,7 +77,7 @@ export default function PortfolioPage() {
   const rows = holdings.map((h, i) => {
     const detail = details[i]?.data;
     const qty = toDecimal(h.quantity);
-    const price = toDecimal(detail?.price.currentPrice);
+    const price = toDecimal(detail?.price?.currentPrice);
     const evalAmount = qty.times(price);
     const invested = qty.times(toDecimal(h.avgBuyPrice));
     const profit = evalAmount.minus(invested);

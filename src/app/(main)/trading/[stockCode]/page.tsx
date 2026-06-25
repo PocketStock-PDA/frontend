@@ -28,7 +28,12 @@ import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
+import { splitOrderToast, wholeOrderToast } from "@/lib/utils/orderResult";
 import { cn } from "@/lib/utils";
+import type {
+  SplitOrderResponse,
+  WholeOrderResponse,
+} from "@/types/domain/order";
 
 type Method = "FRACTION" | "WHOLE"; // 소수점 / 온주
 type InputMode = "QTY" | "AMOUNT"; // 수량으로 / 금액으로
@@ -103,7 +108,7 @@ export default function TradePage() {
   const minOrder = isUSD ? 0.01 : 1000; // 소수점 최소 주문금액 (국내 1,000원 / 해외 $0.01)
 
   // 금액 계산은 decimal.js 필수 (README 가이드라인). API 값은 toDecimal로 안전 변환(null→0)
-  const price = toDecimal(detail.price.currentPrice);
+  const price = toDecimal(detail.price?.currentPrice);
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
   const holdingQty = toDecimal(holding?.quantity);
   const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
@@ -150,11 +155,14 @@ export default function TradePage() {
     buyOrder.isPending || sellOrder.isPending || wholeOrder.isPending;
   const valid = inputMode === "AMOUNT" ? amount > 0 : qty > 0;
 
+  const resetAfterSuccess = (side: Side) => {
+    orderKeys.current[side] = null; // 키 폐기 → 다음 주문은 새 키
+    setQty(0);
+    setAmount(0);
+  };
   const makeOpts = (side: Side) => ({
     onSuccess: () => {
-      orderKeys.current[side] = null; // 키 폐기 → 다음 주문은 새 키
-      setQty(0);
-      setAmount(0);
+      resetAfterSuccess(side);
       toast.success(`${side === "BUY" ? "매수" : "매도"} 주문이 접수됐어요`);
     },
     // 실패 시 키 유지 → 같은 주문 재시도 시 동일 키(멱등)
@@ -186,7 +194,17 @@ export default function TradePage() {
       // 온주 간편 = 시장가. 지정가(호가창)는 '주문방법 변경하기'에서 (이슈 ②)
       wholeOrder.mutate(
         { clientOrderId, stockCode, market, side, orderType: "MARKET", quantity: qty },
-        opts,
+        {
+          ...opts,
+          onSuccess: (data: WholeOrderResponse) => {
+            resetAfterSuccess(side);
+            const t = wholeOrderToast(data, fmtAmount);
+            toast.success(
+              t.title,
+              t.description ? { description: t.description } : undefined,
+            );
+          },
+        },
       );
       return;
     }
@@ -239,10 +257,22 @@ export default function TradePage() {
       inputMode === "AMOUNT"
         ? ({ orderType: "AMOUNT", amount: correctedAmount } as const)
         : ({ orderType: "QUANTITY", quantity: correctedQty } as const);
+    // 소수점 응답(split)은 결과를 보여준다 — 온주분 즉시체결 / 소수분 차수대기
+    const fracOpts = {
+      ...opts,
+      onSuccess: (data: SplitOrderResponse) => {
+        resetAfterSuccess(side);
+        const t = splitOrderToast(side, data);
+        toast.success(
+          t.title,
+          t.description ? { description: t.description } : undefined,
+        );
+      },
+    };
     if (side === "BUY") {
-      buyOrder.mutate({ clientOrderId, stockCode, market, ...orderDetail }, opts);
+      buyOrder.mutate({ clientOrderId, stockCode, market, ...orderDetail }, fracOpts);
     } else {
-      sellOrder.mutate({ clientOrderId, stockCode, market, ...orderDetail }, opts);
+      sellOrder.mutate({ clientOrderId, stockCode, market, ...orderDetail }, fracOpts);
     }
   };
 
@@ -266,7 +296,7 @@ export default function TradePage() {
               </span>
               <span className="flex items-baseline gap-1.5">
                 <AmountDisplay value={price.toString()} size="md" className="font-bold" />
-                <ChangeIndicator value={detail.price.changeRate} percent size="sm" />
+                <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
               </span>
             </span>
           </span>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { ChevronRight } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -18,6 +19,10 @@ import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useOrders } from "@/hooks/queries/useOrders";
+import {
+  useAutoInvest,
+  useAutoInvestExecutions,
+} from "@/hooks/queries/useAutoInvest";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { useCancelOrder } from "@/hooks/mutations/useCancelOrder";
@@ -25,8 +30,30 @@ import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { genClientOrderId } from "@/lib/utils/idempotency";
+import { splitOrderToast } from "@/lib/utils/orderResult";
+import type { SplitOrderResponse } from "@/types/domain/order";
+import { cn } from "@/lib/utils";
+import type {
+  AutoInvestExecStatus,
+  AutoInvestTriggerSource,
+} from "@/types/domain/autoInvest";
 
 const PIECES_PER_SHARE = 100; // 1주 = 100조각
+
+const FREQ_LABEL = { DAILY: "매일", WEEKLY: "주1회", MONTHLY: "월1회" } as const;
+const EXEC_SOURCE_LABEL: Record<AutoInvestTriggerSource, string> = {
+  PERIODIC: "정기",
+  BUY: "물타기",
+  SELL: "익절",
+};
+// 회차 상태 칩 — 실패 계열만 destructive, 나머지는 muted/brand
+const EXEC_STATUS: Record<AutoInvestExecStatus, { label: string; tone: string }> = {
+  FILLED: { label: "체결", tone: "bg-brand-surface text-primary" },
+  QUEUED: { label: "대기", tone: "bg-muted text-muted-foreground" },
+  CANCELLED: { label: "취소", tone: "bg-muted text-muted-foreground" },
+  REJECTED: { label: "실패", tone: "bg-destructive/10 text-destructive" },
+  FAILED: { label: "실패", tone: "bg-destructive/10 text-destructive" },
+};
 
 // 미체결/종결 상태 라벨 (FILLED는 칩 미표시). 취소 가능 = QUEUED(소수점)·PENDING(온주).
 const ORDER_STATUS_LABEL: Record<string, string> = {
@@ -51,9 +78,13 @@ interface Selection {
 
 export default function StockPuzzlePage() {
   const { stockCode } = useParams<{ stockCode: string }>();
+  const router = useRouter();
   const holdingsQ = useHoldings();
   const detailQ = useStockDetail(stockCode);
   const ordersQ = useOrders();
+  // 자동모으기 종목인지 + 회차 내역 (모으기 종목일 때만 의미)
+  const auto = useAutoInvest(stockCode);
+  const execQ = useAutoInvestExecutions(auto.id);
   const buyOrder = useBuyOrder();
   const sellOrder = useSellOrder();
   const cancelOrder = useCancelOrder();
@@ -97,7 +128,7 @@ export default function StockPuzzlePage() {
 
   // 금액·수량 계산은 decimal.js 필수 (README 가이드라인). API 값은 toDecimal로 안전 변환(null→0)
   const qty = toDecimal(holding?.quantity);
-  const price = toDecimal(detail.price.currentPrice);
+  const price = toDecimal(detail.price?.currentPrice);
   const frac = qty.minus(qty.floor());
   const pieces = frac
     .times(PIECES_PER_SHARE)
@@ -166,8 +197,12 @@ export default function StockPuzzlePage() {
     // sel.clientOrderId 재사용 → 따닥 탭/재시도해도 동일 키 = 멱등 (성공 시에만 폐기)
     const clientOrderId = sel.clientOrderId;
     const opts = {
-      onSuccess: () => {
-        toast.success(`${isBuy ? "매수" : "매도"} 주문이 접수됐어요`);
+      onSuccess: (data: SplitOrderResponse) => {
+        const t = splitOrderToast(isBuy ? "BUY" : "SELL", data);
+        toast.success(
+          t.title,
+          t.description ? { description: t.description } : undefined,
+        );
         setSel(null); // 키 폐기 → 다음 주문은 새 멱등키
       },
       // 실패 시 sel 유지 → 같은 멱등키로 재시도 가능 (시트도 열린 채)
@@ -231,8 +266,36 @@ export default function StockPuzzlePage() {
         {/* 현재가 + 등락 */}
         <div className="flex items-baseline gap-2">
           <AmountDisplay value={price.toString()} size="lg" />
-          <ChangeIndicator value={detail.price.changeRate} percent size="md" />
+          <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="md" />
         </div>
+
+        {/* 자동모으기 상태 — 모으기 종목일 때만. 탭 → 설정 */}
+        {auto.id !== null && auto.setting && (
+          <button
+            type="button"
+            onClick={() => router.push(`/trading/${stockCode}/auto`)}
+            className="flex w-full items-center justify-between rounded-xl bg-brand-surface px-4 py-3 text-left"
+          >
+            <span className="flex min-w-0 items-center gap-2 text-sm">
+              <span
+                className={cn(
+                  "inline-block size-2 shrink-0 rounded-full",
+                  auto.setting.enabled ? "bg-primary" : "bg-muted-foreground/40",
+                )}
+              />
+              <span className="shrink-0 font-bold text-primary">
+                {auto.setting.enabled ? "모으기 중" : "모으기 일시중지"}
+              </span>
+              <span className="truncate text-muted-foreground">
+                {FREQ_LABEL[auto.setting.frequency]} ·{" "}
+                {auto.setting.amountMode === "AMOUNT"
+                  ? fmtAmount(auto.setting.amount)
+                  : `${auto.setting.quantity}주`}
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-primary" />
+          </button>
+        )}
 
         {/* 퍼즐 현황 (조각 탭 → 매수/매도 선택) */}
         <section>
@@ -275,6 +338,63 @@ export default function StockPuzzlePage() {
             {/* TODO: "≈ N일 (정기 적립식 기준)" — 적립식 설정 API 연동 후 */}
           </div>
         </div>
+
+        {/* 모으기 내역 (회차) — 자동모으기 종목만 노출 */}
+        {auto.id !== null && (
+          <section>
+            <h2 className="mb-3 text-base font-bold text-foreground">모으기 내역</h2>
+            {execQ.isLoading ? (
+              <SkeletonCard lines={2} />
+            ) : (execQ.data ?? []).length === 0 ? (
+              <EmptyState title="아직 모으기 내역이 없어요" className="py-6" />
+            ) : (
+              <div className="divide-y divide-border">
+                {(execQ.data ?? []).map((e) => {
+                  const st = EXEC_STATUS[e.status];
+                  const q = toDecimal(e.execQuantity);
+                  const a = toDecimal(e.execAmount);
+                  return (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between gap-3 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          {e.roundNo}회차
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {EXEC_SOURCE_LABEL[e.triggerSource]}
+                          </span>
+                          <span
+                            className={cn(
+                              "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                              st.tone,
+                            )}
+                          >
+                            {st.label}
+                          </span>
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {e.execDate}
+                          {e.status === "FAILED" && e.failReason
+                            ? ` · ${e.failReason}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="font-numeric text-sm font-bold text-foreground">
+                          {q.gt(0) ? `${formatShares(q)}주` : "—"}
+                        </p>
+                        <p className="font-numeric text-xs text-muted-foreground">
+                          {a.gt(0) ? fmtAmount(a.toString()) : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* 최근 내역 */}
         <section>
