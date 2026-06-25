@@ -24,7 +24,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "trading", label: "주식 모으기", icon: TrendingUp, href: "/trading", highlight: true },
   { id: "trading-auto", label: "모으기 설정", icon: Settings, href: "/trading/auto" },
   { id: "portfolio", label: "포트폴리오", icon: PieChart, href: "/portfolio" },
-  { id: "history", label: "거래 내역", icon: Receipt, href: "#" },
+  { id: "history", label: "거래 내역", icon: Receipt, href: "/history" },
   { id: "asset", label: "자산", icon: Wallet, href: "/asset" },
   { id: "budget", label: "가계부", icon: BookText, href: "/budget" },
   { id: "exchange", label: "환전", icon: ArrowLeftRight, href: "/exchange" },

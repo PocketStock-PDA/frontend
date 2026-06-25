@@ -46,3 +46,22 @@ export interface CollectSourceResult {
 
 /** POST /api/cma/collect 응답 = 소스별 결과 배열 */
 export type CollectResult = CollectSourceResult[];
+
+// CMA 계좌내역 (GET /api/cma/transactions) — CmaTransactionResponse와 1:1
+/**
+ * CMA 거래 한 건.
+ * txType 어휘 — 입금(+): DEPOSIT, COLLECT, INTEREST, BANK_IN, DORMANT, SAVINGS, SELL_RETURN, FX_IN
+ *               출금(−): BUY_TRANSFER, FX_OUT / 정정: REVERT
+ * amount는 부호 포함(입금 +, 출금 −). sourceType: ACCOUNT/CARD/POINT/MANUAL/SYSTEM.
+ */
+export interface CmaTransaction {
+  id: number;
+  txType: string;
+  sourceType: string;
+  currency: Currency;
+  /** 부호 포함 금액 (입금 +, 출금 −) */
+  amount: number;
+  /** 거래 후 잔액 */
+  balanceAfter: number;
+  createdAt: string;
+}
