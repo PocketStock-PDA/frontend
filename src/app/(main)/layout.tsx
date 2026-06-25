@@ -1,6 +1,7 @@
 import { BottomTabBar } from "@/components/common/BottomTabBar";
 import { Sidebar } from "@/components/common/Sidebar";
 import { PageContainer } from "@/components/common/PageContainer";
+import { PushSync } from "@/components/common/PushSync";
 import { RequireAuth } from "@/lib/auth/AuthProvider";
 
 export default function MainLayout({
@@ -17,6 +18,7 @@ export default function MainLayout({
         </main>
         <BottomTabBar />
         <Sidebar />
+        <PushSync />
       </div>
     </RequireAuth>
   );
