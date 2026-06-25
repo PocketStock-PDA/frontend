@@ -23,22 +23,11 @@ import type { OrderHistoryItem } from "@/types/domain/order";
 const TRADE_BUY = "#F04452";
 const TRADE_SELL = "#3182F6";
 
-const EVENT_COLORS: Record<
-  StockEventType,
-  { bg: string; border: string; dateColor: string; badgeBg: string; chipBg: string; chipText: string }
-> = {
-  RECOMMEND: {
-    bg: "#F0F6FF", border: "#C8DFF8", dateColor: "#0471E9",
-    badgeBg: "#0471E9", chipBg: "#F0F6FF", chipText: "#0471E9",
-  },
-  DIVIDEND: {
-    bg: "#F0FDF4", border: "#BBF7D0", dateColor: "#22C55E",
-    badgeBg: "#22C55E", chipBg: "#F0FDF4", chipText: "#22C55E",
-  },
-  EARNINGS: {
-    bg: "#FEF9EC", border: "#FDE68A", dateColor: "#F59E0B",
-    badgeBg: "#F59E0B", chipBg: "#FEF3C7", chipText: "#F59E0B",
-  },
+// 이벤트 뱃지/범례 색 (배당 green, 실적 amber)
+const EVENT_COLORS: Record<StockEventType, string> = {
+  RECOMMEND: "#0471E9",
+  DIVIDEND: "#22C55E",
+  EARNINGS: "#F59E0B",
 };
 
 const EVENT_LABELS: Record<StockEventType, string> = {
@@ -56,7 +45,10 @@ export function StockCalendarTab() {
     calendarMonth.getFullYear(),
     calendarMonth.getMonth() + 1,
   );
-  const events = calendarQ.data?.events ?? [];
+  // 추천(RECOMMEND) 이벤트는 캘린더에서 노출하지 않음 — 배당·실적만 표시
+  const events = (calendarQ.data?.events ?? []).filter(
+    (e) => e.eventType !== "RECOMMEND",
+  );
   const eventMap = new Map<string, StockEvent[]>();
   events.forEach((e) => {
     const list = eventMap.get(e.eventDate) ?? [];
@@ -129,7 +121,7 @@ export function StockCalendarTab() {
   return (
     <div>
       {/* ── 상단 요약 (월 네비 + 총 수익률) — 가계부 탭과 동일 레이아웃 ── */}
-      <div className="mt-4">
+      <div className="mb-3 mt-4">
         <div className="mb-0.5 flex items-center justify-between">
           <div className="flex items-center gap-1">
             <button
@@ -163,36 +155,27 @@ export function StockCalendarTab() {
         <button
           type="button"
           onClick={() => router.push("/portfolio")}
-          className="w-full text-left"
+          className="flex min-h-[40px] w-full flex-col items-end gap-1"
         >
-          <div className="flex items-center justify-end">
-            <div className="flex flex-col items-end gap-1">
-              <span className="text-[11px] text-muted-foreground underline underline-offset-2">
-                내 보유주식 수익률
+          <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
+            내 보유주식 수익률
+            <ChevronRight className="size-3" />
+          </span>
+          {returnLoading ? (
+            <span className="font-numeric text-xs text-muted-foreground">
+              계산 중...
+            </span>
+          ) : hasHoldings ? (
+            <div className="flex items-baseline gap-1.5">
+              <ChangeIndicator value={totalRate.toNumber()} percent size="sm" />
+              <span className="font-numeric text-[11px] text-muted-foreground">
+                {totalProfit.gte(0) ? "+" : "-"}
+                {formatKRW(totalProfit.abs().toString())}
               </span>
-              {returnLoading ? (
-                <span className="font-numeric text-xs text-muted-foreground">
-                  계산 중...
-                </span>
-              ) : hasHoldings ? (
-                <div className="flex items-baseline gap-1.5">
-                  <ChangeIndicator
-                    value={totalRate.toNumber()}
-                    percent
-                    size="sm"
-                  />
-                  <span className="font-numeric text-[11px] text-muted-foreground">
-                    {totalProfit.gte(0) ? "+" : "-"}
-                    {formatKRW(totalProfit.abs().toString())}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  보유 종목 없음
-                </span>
-              )}
             </div>
-          </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">보유 종목 없음</span>
+          )}
         </button>
       </div>
 
@@ -232,71 +215,60 @@ export function StockCalendarTab() {
             </span>
           ) : null;
 
-          if (first) {
-            const c = EVENT_COLORS[first.eventType];
-            return (
-              <span
-                className={cn(
-                  "relative flex aspect-square w-full flex-col items-center justify-center gap-[3px] rounded-[10px] border",
-                  isSelected && "ring-2 ring-primary ring-offset-1",
-                )}
-                style={{ background: c.bg, borderColor: c.border }}
-              >
-                {tradeDots}
-                <span
-                  className="font-numeric text-[11px] leading-none"
-                  style={{ color: c.dateColor }}
-                >
-                  {date.getDate()}
-                </span>
-                <span
-                  className="font-numeric rounded-[3px] px-1 py-px text-[9px] leading-none text-white"
-                  style={{ background: c.badgeBg }}
-                >
-                  {dayEvents.length > 1 ? `+${dayEvents.length}` : first.stockCode}
-                </span>
-              </span>
-            );
-          }
+          // 가계부 탭과 동일: 주말(일 빨강/토 파랑)·오늘·미래 날짜색
+          const dow = date.getDay(); // 0=일, 6=토
+          const dateColor = isFuture
+            ? "#B5BBC3"
+            : isToday
+              ? "#2563EB"
+              : dow === 0
+                ? "#F2696B"
+                : dow === 6
+                  ? "#5B9BF5"
+                  : "#1A1D23";
 
           return (
             <span
               className={cn(
-                "relative flex aspect-square w-full items-center justify-center rounded-[10px]",
-                isSelected && "ring-2 ring-primary ring-offset-1",
+                "relative flex aspect-square w-full flex-col items-center justify-center gap-[3px] rounded-[14px] bg-card transition-shadow",
+                first
+                  ? "shadow-[0_1px_4px_rgba(0,0,0,0.1)]"
+                  : "shadow-[0_1px_3px_rgba(0,0,0,0.06)]",
+                isSelected && "ring-2 ring-primary",
               )}
             >
               {tradeDots}
               <span
                 className={cn(
-                  "font-numeric text-[11px]",
-                  isFuture
-                    ? "text-muted-foreground/40"
-                    : isToday
-                      ? "font-bold text-primary"
-                      : "text-muted-foreground",
+                  "font-numeric text-[11px] leading-none",
+                  isToday && "font-bold",
                 )}
+                style={{ color: dateColor }}
               >
                 {date.getDate()}
               </span>
+              {first && (
+                <span
+                  className="font-numeric rounded-[3px] px-1 py-px text-[9px] leading-none text-white"
+                  style={{ background: EVENT_COLORS[first.eventType] }}
+                >
+                  {dayEvents && dayEvents.length > 1
+                    ? `+${dayEvents.length}`
+                    : first.stockCode}
+                </span>
+              )}
             </span>
           );
         }}
         legend={
-          <div className="flex flex-wrap items-center gap-1.5">
-            {(["RECOMMEND", "DIVIDEND", "EARNINGS"] as StockEventType[]).map((type) => {
-              const c = EVENT_COLORS[type];
-              return (
-                <span
-                  key={type}
-                  className="rounded-full px-2 py-[3px] text-[11px]"
-                  style={{ background: c.chipBg, color: c.chipText }}
-                >
-                  {EVENT_LABELS[type]}
-                </span>
-              );
-            })}
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
+            {(["DIVIDEND", "EARNINGS"] as StockEventType[]).map((type) => (
+              <span key={type} className="flex items-center gap-1">
+                <span className="size-3 rounded-[3px]" style={{ background: EVENT_COLORS[type] }} />
+                {EVENT_LABELS[type]}
+              </span>
+            ))}
+            <span className="flex items-center gap-1">
               <span className="size-1.5 rounded-full" style={{ background: TRADE_BUY }} />
               매수
               <span className="ml-0.5 size-1.5 rounded-full" style={{ background: TRADE_SELL }} />
@@ -379,7 +351,7 @@ function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
 }
 
 function EventRow({ event }: { event: StockEvent }) {
-  const c = EVENT_COLORS[event.eventType];
+  const badgeColor = EVENT_COLORS[event.eventType];
 
   return (
     <div className="space-y-2 py-3">
@@ -387,7 +359,7 @@ function EventRow({ event }: { event: StockEvent }) {
         <div className="flex items-center gap-2.5">
           <span
             className="shrink-0 rounded-full px-2 py-[3px] text-[11px] text-white"
-            style={{ background: c.badgeBg }}
+            style={{ background: badgeColor }}
           >
             {EVENT_LABELS[event.eventType]}
           </span>
