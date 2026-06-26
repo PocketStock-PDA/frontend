@@ -4,17 +4,22 @@ import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, CreditCard } from "lucide-react";
+import { ChevronDown, ChevronRight, CreditCard, CheckCircle2, Check } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   useBudgetGoals,
   useBudgetCalendar,
   useBudgetSavings,
 } from "@/hooks/queries/useBudget";
 import { useTransferAccount } from "@/hooks/queries/useTransferAccount";
+import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
+import { useSetTransferAccount } from "@/hooks/mutations/useSetTransferAccount";
+import { useAgreeCollect } from "@/hooks/mutations/useAgreeCollect";
 import { api } from "@/lib/api/client";
 import { queryKeys } from "@/lib/utils/queryKeys";
 import { formatKRW, parseAmount } from "@/lib/utils/currency";
@@ -40,6 +45,9 @@ export default function BudgetMonthPage() {
   const calendarQ = useBudgetCalendar(year, month);
   const savingsQ = useBudgetSavings();
   const transferAccountQ = useTransferAccount();
+  const bankAccountsQ = useBankAccounts();
+  const setTransferAccount = useSetTransferAccount();
+  const agreeCollect = useAgreeCollect();
 
   const now = current;
   const isCurrentMonth =
@@ -81,6 +89,9 @@ export default function BudgetMonthPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [budgets, setBudgets] = useState<Record<string, string>>({});
   const [showAllCategories, setShowAllCategories] = useState(false);
+  const [showSetupSheet, setShowSetupSheet] = useState(false);
+  const [setupAccountId, setSetupAccountId] = useState<number | null>(null);
+  const [agreeChecked, setAgreeChecked] = useState(false);
 
   // 지난달 카테고리별 지출 — 목표 설정 시 참고용 (편집 중에만 로드)
   const prevDate = new Date(year, month - 2, 1);
@@ -120,6 +131,22 @@ export default function BudgetMonthPage() {
       };
     });
     setGoals.mutate(parsed, { onSuccess: () => setIsEditing(false) });
+  };
+
+  const handleSetupStart = () => {
+    setSetupAccountId(null);
+    setAgreeChecked(false);
+    setShowSetupSheet(true);
+  };
+
+  const handleSetupSave = () => {
+    if (setupAccountId === null || !agreeChecked) return;
+    setTransferAccount.mutate(setupAccountId, {
+      onSuccess: () =>
+        agreeCollect.mutate(undefined, {
+          onSuccess: () => setShowSetupSheet(false),
+        }),
+    });
   };
 
   // 지출/목표 있는 것만, 금액 큰 순. 상위 N개 + 더보기.
@@ -196,22 +223,11 @@ export default function BudgetMonthPage() {
             </p>
             {isCurrentMonth && (
               <p className="mt-1 text-[13px]">
-                {agreed ? (
-                  <>
-                    <span className="text-muted-foreground">절약금 </span>
-                    <span className="font-numeric font-semibold text-[#0471E9]">
-                      {formatKRW(savedAmount)}
-                    </span>
-                    <span className="text-muted-foreground"> · 월말 CMA 이체</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-muted-foreground">남은 예산 </span>
-                    <span className="font-numeric font-semibold text-foreground">
-                      {formatKRW(remaining)}
-                    </span>
-                  </>
-                )}
+                <span className="text-muted-foreground">절약금 </span>
+                <span className="font-numeric font-semibold text-[#0471E9]">
+                  {formatKRW(savedAmount)}
+                </span>
+                <span className="text-muted-foreground"> · 월말 CMA 이체</span>
               </p>
             )}
             {noAccount && (
@@ -222,6 +238,21 @@ export default function BudgetMonthPage() {
               >
                 이체 계좌가 설정되지 않았어요
                 <ChevronRight className="size-4 shrink-0" />
+              </button>
+            )}
+            {isCurrentMonth && !agreed && (
+              <button
+                type="button"
+                onClick={handleSetupStart}
+                className="mt-3 flex w-full items-center justify-between gap-2 rounded-xl bg-accent px-3.5 py-3 text-left"
+              >
+                <span className="text-[12px] leading-snug">
+                  <span className="font-semibold text-[#0471E9]">절약금 모으기</span>
+                  <span className="text-muted-foreground">
+                    로 남은 예산을 매달 CMA에 모아드려요
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-[#0471E9]" />
               </button>
             )}
           </section>
@@ -375,6 +406,85 @@ export default function BudgetMonthPage() {
           </button>
         </div>
       )}
+
+      <Sheet open={showSetupSheet} onOpenChange={setShowSetupSheet}>
+        <SheetContent side="bottom" className="rounded-t-2xl px-5 pb-10">
+          <SheetHeader className="pb-4">
+            <SheetTitle className="text-left text-base">절약금 이체 설정</SheetTitle>
+          </SheetHeader>
+          <p className="mb-4 text-sm text-muted-foreground">
+            절약금을 받을 입출금 계좌를 선택해 주세요.
+          </p>
+          {bankAccountsQ.isLoading ? (
+            <SkeletonCard lines={3} />
+          ) : (
+            <div className="space-y-2.5">
+              {(bankAccountsQ.data ?? [])
+                .filter(
+                  (a) =>
+                    a.currency === "KRW" &&
+                    a.accountType === "DEMAND" &&
+                    !a.isDormant,
+                )
+                .map((a) => (
+                  <button
+                    key={a.accountId}
+                    type="button"
+                    onClick={() => setSetupAccountId(a.accountId)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-2xl border p-4 text-left transition-colors",
+                      setupAccountId === a.accountId
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-background",
+                    )}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{a.bankName}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{a.accountName}</p>
+                    </div>
+                    {setupAccountId === a.accountId && (
+                      <CheckCircle2 className="size-5 shrink-0 text-primary" />
+                    )}
+                  </button>
+                ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setAgreeChecked((v) => !v)}
+            className="mt-4 flex w-full items-start gap-2.5 text-left"
+          >
+            <span
+              className={cn(
+                "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border",
+                agreeChecked
+                  ? "border-primary bg-primary text-white"
+                  : "border-border bg-background",
+              )}
+            >
+              {agreeChecked && <Check className="size-3.5" />}
+            </span>
+            <span className="text-[13px] leading-snug text-muted-foreground">
+              매달 쓰고 남은 예산을 선택한 계좌로 자동 이체하는 절약금 모으기
+              서비스 이용에 동의합니다.
+            </span>
+          </button>
+          <Button
+            className="mt-5 h-14 w-full text-base font-bold"
+            disabled={
+              setupAccountId === null ||
+              !agreeChecked ||
+              setTransferAccount.isPending ||
+              agreeCollect.isPending
+            }
+            onClick={handleSetupSave}
+          >
+            {setTransferAccount.isPending || agreeCollect.isPending
+              ? "처리 중..."
+              : "동의하고 시작"}
+          </Button>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

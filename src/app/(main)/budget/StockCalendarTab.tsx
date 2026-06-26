@@ -166,10 +166,11 @@ export function StockCalendarTab() {
           </div>
         </div>
         {/* 총 수익률 — 탭 시 포트폴리오로 이동 */}
+        {/* h-[52px] 고정: 가계부 탭과 달력 시작 y 정렬용 (양 탭 동일 높이) */}
         <button
           type="button"
           onClick={() => router.push("/portfolio")}
-          className="flex min-h-[40px] w-full flex-col items-end gap-1"
+          className="flex h-[52px] w-full flex-col items-end justify-center gap-1"
         >
           <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
             내 보유주식 수익률
@@ -239,13 +240,13 @@ export function StockCalendarTab() {
               : dow === 0
                 ? "#F2696B"
                 : dow === 6
-                  ? "#5B9BF5"
+                  ? "#1D4ED8"
                   : "#1A1D23";
 
           return (
             <span
               className={cn(
-                "relative flex aspect-square w-full flex-col items-center justify-center gap-[3px] rounded-[14px] bg-card transition-shadow",
+                "relative flex aspect-square w-full flex-col items-center justify-center overflow-hidden rounded-[14px] bg-card transition-shadow",
                 first
                   ? "shadow-[0_1px_4px_rgba(0,0,0,0.1)]"
                   : "shadow-[0_1px_3px_rgba(0,0,0,0.06)]",
@@ -255,7 +256,7 @@ export function StockCalendarTab() {
               {tradeDots}
               <span
                 className={cn(
-                  "font-numeric text-[11px] leading-none",
+                  "font-numeric relative text-[11px] leading-none",
                   isToday && "font-bold",
                 )}
                 style={{ color: dateColor }}
@@ -264,7 +265,7 @@ export function StockCalendarTab() {
               </span>
               {first && (
                 <span
-                  className="block w-full overflow-hidden whitespace-nowrap text-clip rounded-[3px] px-0.5 py-px text-center text-[8px] leading-none text-white"
+                  className="absolute inset-x-0.5 bottom-1 overflow-hidden whitespace-nowrap text-clip rounded-[3px] px-0.5 py-px text-center text-[8px] leading-none text-white"
                   style={{ background: EVENT_COLORS[first.eventType] }}
                 >
                   {dayEvents && dayEvents.length > 1
