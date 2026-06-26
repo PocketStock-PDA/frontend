@@ -13,7 +13,7 @@ import { useStockCalendar } from "@/hooks/queries/useStockCalendar";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useOrders } from "@/hooks/queries/useOrders";
-import { formatKRW } from "@/lib/utils/currency";
+import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
 import type { StockEvent, StockEventType } from "@/types/domain/stockCalendar";
@@ -335,7 +335,21 @@ export function StockCalendarTab() {
 function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
   const isBuy = order.side !== "SELL";
   const quantity = toDecimal(order.quantity);
+  const hasQty = quantity.gt(0);
   const hasPrice = order.price !== null && order.price !== undefined;
+  // 금액(AMOUNT) 주문은 수량 대신 주문 금액 표시 — 해외는 $, 국내는 원
+  const amountText =
+    order.orderAmount !== null && order.orderAmount !== undefined
+      ? order.currency === "USD"
+        ? formatUSD(order.orderAmount)
+        : formatKRW(order.orderAmount)
+      : null;
+  // 수량 주문: "X주 · 체결가" / 금액 주문: 금액만
+  const detail = hasQty
+    ? [`${quantity.toString()}주`, hasPrice ? formatKRW(order.price) : null]
+        .filter(Boolean)
+        .join(" · ")
+    : amountText;
 
   return (
     <div className="flex items-center justify-between py-3">
@@ -348,15 +362,8 @@ function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
         </span>
         <div className="space-y-[2px]">
           <p className="text-xs font-medium text-foreground">{name}</p>
-          {(quantity.gt(0) || hasPrice) && (
-            <p className="font-numeric text-[11px] text-muted-foreground">
-              {[
-                quantity.gt(0) ? `${quantity.toString()}주` : null,
-                hasPrice ? formatKRW(order.price) : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
+          {detail && (
+            <p className="font-numeric text-[11px] text-muted-foreground">{detail}</p>
           )}
         </div>
       </div>

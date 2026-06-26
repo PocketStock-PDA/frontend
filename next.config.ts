@@ -3,6 +3,8 @@ import withPWA from "@ducanh2912/next-pwa";
 
 const nextConfig: NextConfig = {
   output: "export",
+  // 정적 export(S3+CloudFront)는 이미지 최적화 서버가 없어 기본 로더 사용 불가 → 최적화 비활성화
+  images: { unoptimized: true },
   reactCompiler: true,
   turbopack: {},
   distDir: ".next",

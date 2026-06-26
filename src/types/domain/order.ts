@@ -90,8 +90,12 @@ export interface OrderHistoryItem {
   orderType: string; // QUANTITY | AMOUNT | ALL …
   /** AMOUNT(금액) 주문은 null */
   quantity: number | null;
+  /** 금액(AMOUNT) 주문의 주문 금액. 수량 주문은 null */
+  orderAmount: number | null;
   /** 체결가 미기록 시 null */
   price: number | null;
   status: string; // FILLED | PENDING | QUEUED | REJECTED
+  /** KRW | USD */
+  currency: string;
   createdAt: string;
 }
