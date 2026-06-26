@@ -150,6 +150,11 @@ export default function BudgetMonthPage() {
     });
   };
 
+  // 절약금 이체 가능 계좌: 원화 입출금(비휴면)만
+  const eligibleAccounts = (bankAccountsQ.data ?? []).filter(
+    (a) => a.currency === "KRW" && a.accountType === "DEMAND" && !a.isDormant,
+  );
+
   // 지출/목표 있는 것만, 금액 큰 순. 상위 N개 + 더보기.
   // 편집 중엔 전체 노출(모든 비목에 목표를 설정할 수 있어야 함).
   const TOP_CATEGORY_COUNT = 3;
@@ -418,36 +423,56 @@ export default function BudgetMonthPage() {
           </p>
           {bankAccountsQ.isLoading ? (
             <SkeletonCard lines={3} />
+          ) : bankAccountsQ.isError ? (
+            <div className="py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                계좌 정보를 불러오지 못했어요.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => bankAccountsQ.refetch()}
+              >
+                다시 시도
+              </Button>
+            </div>
+          ) : eligibleAccounts.length === 0 ? (
+            <div className="py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                절약금을 받을 입출금 통장이 없어요.
+              </p>
+              <Button
+                size="sm"
+                className="mt-3"
+                onClick={() => router.push("/asset-link")}
+              >
+                계좌 연동하기
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2.5">
-              {(bankAccountsQ.data ?? [])
-                .filter(
-                  (a) =>
-                    a.currency === "KRW" &&
-                    a.accountType === "DEMAND" &&
-                    !a.isDormant,
-                )
-                .map((a) => (
-                  <button
-                    key={a.accountId}
-                    type="button"
-                    onClick={() => setSetupAccountId(a.accountId)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-2xl border p-4 text-left transition-colors",
-                      setupAccountId === a.accountId
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-background",
-                    )}
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{a.bankName}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{a.accountName}</p>
-                    </div>
-                    {setupAccountId === a.accountId && (
-                      <CheckCircle2 className="size-5 shrink-0 text-primary" />
-                    )}
-                  </button>
-                ))}
+              {eligibleAccounts.map((a) => (
+                <button
+                  key={a.accountId}
+                  type="button"
+                  onClick={() => setSetupAccountId(a.accountId)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-2xl border p-4 text-left transition-colors",
+                    setupAccountId === a.accountId
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-background",
+                  )}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{a.bankName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{a.accountName}</p>
+                  </div>
+                  {setupAccountId === a.accountId && (
+                    <CheckCircle2 className="size-5 shrink-0 text-primary" />
+                  )}
+                </button>
+              ))}
             </div>
           )}
           <button
