@@ -95,6 +95,32 @@ export default function HomePage() {
     [linkOrder, hiddenLinks],
   );
 
+  // SOL트래블(FX)은 백엔드가 0원이면 collectSources에서 빼므로, 없으면 0원 타일로 보강.
+  // 타일 위치가 바뀌지 않도록 고정 순서(계좌 → 카드 → 포인트 → 외화)로 정렬한다.
+  const displayedCollectSources = useMemo(() => {
+    const sources = data?.collectSources ?? [];
+    const withFx = sources.some((s) => s.sourceType === "FX")
+      ? sources
+      : [
+          ...sources,
+          {
+            sourceType: "FX" as const,
+            name: "SOL트래블",
+            amount: 0,
+            currency: "USD" as const,
+          },
+        ];
+    const order: Record<CollectSourceType, number> = {
+      ACCOUNT: 0,
+      CARD: 1,
+      POINT: 2,
+      FX: 3,
+    };
+    return [...withFx].sort(
+      (a, b) => order[a.sourceType] - order[b.sourceType],
+    );
+  }, [data]);
+
   // 신규 회원 = CMA 계좌 미개설(/home 404). 첫 가입 이벤트 팝업을 먼저 띄운다.
   // (rewards용 localStorage dismiss와 분리 — 계좌 없으면 진입 시 매번 노출)
   const noCmaAccount = isNoCmaAccount(error);
@@ -248,11 +274,11 @@ export default function HomePage() {
           <p className="mb-2 mt-4 text-[13px] font-medium text-muted-foreground">
             수집 가능한 잔돈
           </p>
-          {data.collectSources.length === 0 ? (
+          {displayedCollectSources.length === 0 ? (
             <EmptyState title="수집 가능한 잔돈이 없어요" />
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              {data.collectSources.map((s) => {
+              {displayedCollectSources.map((s) => {
                 const Icon = SOURCE_ICON[s.sourceType];
                 return (
                   <StatCard
