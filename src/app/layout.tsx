@@ -4,18 +4,16 @@ import { Providers } from "./providers";
 import { InstallGate } from "@/components/common/InstallGate";
 import "./globals.css";
 
-// 숫자/금액 표기용
-const inter = Inter({
+const notoSansKr = Noto_Sans_KR({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: "variable",
+  variable: "--font-noto-sans-kr",
   display: "swap",
 });
 
-// 본문/한글 기본 폰트
-const notoSansKr = Noto_Sans_KR({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  variable: "--font-noto-sans-kr",
+  variable: "--font-inter",
   display: "swap",
 });
 

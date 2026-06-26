@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
@@ -14,7 +14,10 @@ import { Stepper } from "@/components/common/Stepper";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
-import { OrderBook, type OrderPrice } from "@/components/features/trading/OrderBook";
+import {
+  OrderBook,
+  type OrderPrice,
+} from "@/components/features/trading/OrderBook";
 import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useHoldings } from "@/hooks/queries/useHoldings";
@@ -35,7 +38,41 @@ type Side = "BUY" | "SELL";
 const RATIO_CHIPS = [10, 25, 50, 100];
 
 export default function OrderbookPage() {
-  const { stockCode } = useParams<{ stockCode: string }>();
+  const searchParams = useSearchParams();
+  const stockCode = searchParams.get("stockCode");
+
+  if (!stockCode) {
+    return <MissingStockCodeState />;
+  }
+
+  return <OrderbookContent stockCode={stockCode} />;
+}
+
+function MissingStockCodeState() {
+  const router = useRouter();
+
+  return (
+    <>
+      <AppHeader variant="sub" title="호가 주문" />
+      <EmptyState
+        title="종목 정보가 없어요"
+        description="호가를 확인할 종목을 다시 선택해 주세요."
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/trading/search")}
+          >
+            종목 선택
+          </Button>
+        }
+        className="mt-8"
+      />
+    </>
+  );
+}
+
+function OrderbookContent({ stockCode }: { stockCode: string }) {
   const detailQ = useStockDetail(stockCode);
   const holdingsQ = useHoldings();
   const cmaQ = useCmaHome();
@@ -54,7 +91,7 @@ export default function OrderbookPage() {
   const basePrice = detailQ.data?.price?.currentPrice ?? 0;
   const obQ = useOrderBook(stockCode);
   // 실시간 호가: 스냅샷 위에 STOMP 틱으로 사다리·총잔량 갱신 (issue #2)
-  useStockQuoteSocket(stockCode);
+  useStockQuoteSocket(stockCode, !!stockCode);
   // 실시간 시세(체결) → 헤더 현재가 갱신 (issue #10)
   useStockTradeSocket(stockCode, {
     overseas: detailQ.data?.currency === "USD",

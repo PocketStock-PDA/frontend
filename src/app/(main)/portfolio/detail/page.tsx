@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { ChevronRight, Layers } from "lucide-react";
 import Decimal from "decimal.js";
@@ -41,6 +41,11 @@ import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { splitOrderToast } from "@/lib/utils/orderResult";
+import {
+  portfolioDetailPath,
+  tradingAutoDetailPath,
+  tradingDetailPath,
+} from "@/lib/navigation/routes";
 import type { SplitOrderResponse } from "@/types/domain/order";
 import { cn } from "@/lib/utils";
 import type {
@@ -87,13 +92,58 @@ interface Selection {
 }
 
 export default function StockDetailPage() {
-  const { stockCode } = useParams<{ stockCode: string }>();
-  const router = useRouter();
   const searchParams = useSearchParams();
-  // view=pieces → 퍼즐 / view=collect → 모으기 현황 / 그 외 → 종목 현황
+  const stockCode = searchParams.get("stockCode");
   const isPieces = searchParams.get("view") === "pieces";
   const isCollect = searchParams.get("view") === "collect";
 
+  if (!stockCode) {
+    return <MissingStockCodeState />;
+  }
+
+  return (
+    <StockDetailContent
+      stockCode={stockCode}
+      isPieces={isPieces}
+      isCollect={isCollect}
+    />
+  );
+}
+
+function MissingStockCodeState() {
+  const router = useRouter();
+
+  return (
+    <>
+      <AppHeader variant="sub" title="내 조각" />
+      <EmptyState
+        title="종목 정보가 없어요"
+        description="보유 종목을 다시 선택해 주세요."
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/portfolio")}
+          >
+            보유 종목 보기
+          </Button>
+        }
+        className="mt-8"
+      />
+    </>
+  );
+}
+
+function StockDetailContent({
+  stockCode,
+  isPieces,
+  isCollect,
+}: {
+  stockCode: string;
+  isPieces: boolean;
+  isCollect: boolean;
+}) {
+  const router = useRouter();
   const holdingsQ = useHoldings();
   const detailQ = useStockDetail(stockCode);
   const ordersQ = useOrders();
@@ -372,7 +422,7 @@ export default function StockDetailPage() {
       description: "조금 더 모으면 온주로 굳힐 수 있어요.",
       action: {
         label: "매매창으로",
-        onClick: () => router.push(`/trading/${stockCode}`),
+        onClick: () => router.push(tradingDetailPath(stockCode)),
       },
     });
   };
@@ -427,10 +477,12 @@ export default function StockDetailPage() {
             rate={rate.toNumber()}
             currency={isUSD ? "USD" : "KRW"}
             showPieces={pieces > 0}
-            onEdit={() => router.push(`/trading/${stockCode}/auto`)}
-            onPieces={() => router.push(`/portfolio/${stockCode}?view=pieces`)}
-            onStatus={() => router.push(`/portfolio/${stockCode}`)}
-            onBuyNow={() => router.push(`/trading/${stockCode}`)}
+            onEdit={() => router.push(tradingAutoDetailPath(stockCode))}
+            onPieces={() =>
+              router.push(portfolioDetailPath(stockCode, { view: "pieces" }))
+            }
+            onStatus={() => router.push(portfolioDetailPath(stockCode))}
+            onBuyNow={() => router.push(tradingDetailPath(stockCode))}
           />
         ) : (
           <>
@@ -454,7 +506,9 @@ export default function StockDetailPage() {
         {isPieces && auto.id !== null && auto.setting && (
           <button
             type="button"
-            onClick={() => router.push(`/portfolio/${stockCode}?view=collect`)}
+            onClick={() =>
+              router.push(portfolioDetailPath(stockCode, { view: "collect" }))
+            }
             className="flex w-full items-center justify-between rounded-xl bg-brand-surface px-4 py-3 text-left"
           >
             <span className="flex min-w-0 items-center gap-2 text-sm">
@@ -610,7 +664,7 @@ export default function StockDetailPage() {
                 }
                 cta={pieces > 0 ? null : "담기"}
                 onClick={() =>
-                  router.push(`/portfolio/${stockCode}?view=pieces`)
+                  router.push(portfolioDetailPath(stockCode, { view: "pieces" }))
                 }
               />
               <FacetCard
@@ -633,8 +687,8 @@ export default function StockDetailPage() {
                 onClick={() =>
                   router.push(
                     auto.id !== null
-                      ? `/portfolio/${stockCode}?view=collect`
-                      : `/trading/${stockCode}/auto`,
+                      ? portfolioDetailPath(stockCode, { view: "collect" })
+                      : tradingAutoDetailPath(stockCode),
                   )
                 }
               />
@@ -805,13 +859,13 @@ export default function StockDetailPage() {
         <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-[env(safe-area-inset-bottom)] pt-3">
           <div className="flex gap-2.5 pb-3">
             <Button
-              onClick={() => router.push(`/trading/${stockCode}`)}
+              onClick={() => router.push(tradingDetailPath(stockCode))}
               className="h-12 flex-1 bg-up text-base font-bold text-white hover:bg-up/90"
             >
               매수
             </Button>
             <Button
-              onClick={() => router.push(`/trading/${stockCode}`)}
+              onClick={() => router.push(tradingDetailPath(stockCode))}
               className="h-12 flex-1 bg-down text-base font-bold text-white hover:bg-down/90"
             >
               매도

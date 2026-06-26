@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import withPWA from "@ducanh2912/next-pwa";
 
 const nextConfig: NextConfig = {
+  output: "export",
   reactCompiler: true,
   turbopack: {},
   distDir: ".next",
@@ -38,16 +39,7 @@ export default withPWA({
     skipWaiting: true,
     runtimeCaching: [
       {
-        urlPattern: /\/api\/(cma|portfolio|asset|budget)/,
-        handler: "NetworkFirst",
-        options: {
-          cacheName: "api-cache",
-          networkTimeoutSeconds: 5,
-          expiration: { maxEntries: 50, maxAgeSeconds: 5 * 60 },
-        },
-      },
-      {
-        urlPattern: /\/api\/(trading|exchange)/,
+        urlPattern: /\/api\/.*/,
         handler: "NetworkOnly",
       },
     ],

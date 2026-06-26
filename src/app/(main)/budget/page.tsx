@@ -26,6 +26,7 @@ import { useSetTransferAccount } from "@/hooks/mutations/useSetTransferAccount";
 import { useAgreeCollect } from "@/hooks/mutations/useAgreeCollect";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
+import { budgetMonthPath } from "@/lib/navigation/routes";
 import { StockCalendarTab } from "./StockCalendarTab";
 import type { BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
 import { LiquidFill } from "@/components/features/budget/LiquidFill";
@@ -210,7 +211,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   };
 
   const handleSetupSave = () => {
-    if (setupAccountId == null) return;
+    if (setupAccountId === null) return;
     setTransferAccount.mutate(setupAccountId, {
       onSuccess: () => agreeCollect.mutate(undefined, {
         onSuccess: () => setShowSetupSheet(false),
@@ -341,7 +342,10 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                 type="button"
                 onClick={() =>
                   router.push(
-                    `/budget/${calendarMonth.getFullYear()}/${calendarMonth.getMonth() + 1}`,
+                    budgetMonthPath(
+                      calendarMonth.getFullYear(),
+                      calendarMonth.getMonth() + 1,
+                    ),
                   )
                 }
                 className="flex flex-col items-end gap-1"
@@ -591,7 +595,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
           )}
           <Button
             className="mt-5 h-14 w-full text-base font-bold"
-            disabled={setupAccountId == null || setTransferAccount.isPending || agreeCollect.isPending}
+            disabled={setupAccountId === null || setTransferAccount.isPending || agreeCollect.isPending}
             onClick={handleSetupSave}
           >
             {setTransferAccount.isPending || agreeCollect.isPending ? "처리 중..." : "시작하기"}
@@ -661,4 +665,3 @@ function CategoryBar({
     </div>
   );
 }
-

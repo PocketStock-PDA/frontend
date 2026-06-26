@@ -24,6 +24,10 @@ import {
 import { usePortfolioSummary } from "@/hooks/queries/usePortfolioSummary";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
+import {
+  portfolioDetailPath,
+  tradingDetailPath,
+} from "@/lib/navigation/routes";
 import type { AutoInvestStock } from "@/types/domain/autoInvest";
 import { toPieceParts } from "@/lib/utils/pieces";
 import { queryKeys } from "@/lib/utils/queryKeys";
@@ -222,11 +226,11 @@ export default function PortfolioPage() {
       : null;
 
   // 전체 렌즈 → 종목 현황(기본) / 모으기·조각 렌즈 → 퍼즐(?view=pieces)
-  const goDetail = (code: string) => router.push(`/portfolio/${code}`);
+  const goDetail = (code: string) => router.push(portfolioDetailPath(code));
   const goPieces = (code: string) =>
-    router.push(`/portfolio/${code}?view=pieces`);
+    router.push(portfolioDetailPath(code, { view: "pieces" }));
   const goCollect = (code: string) =>
-    router.push(`/portfolio/${code}?view=collect`);
+    router.push(portfolioDetailPath(code, { view: "collect" }));
 
   return (
     <>
@@ -276,7 +280,7 @@ export default function PortfolioPage() {
                 icon={<StockIcon className="size-8" />}
                 label="주식 투자"
                 onClick={() =>
-                  router.push(topCode ? `/trading/${topCode}` : "/trading")
+                  router.push(topCode ? tradingDetailPath(topCode) : "/trading")
                 }
               />
               <ActionTile

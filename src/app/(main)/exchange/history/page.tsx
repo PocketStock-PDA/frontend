@@ -30,8 +30,9 @@ function groupByDate(items: FxHistoryItem[]) {
   const map = new Map<string, FxHistoryItem[]>();
   for (const item of items) {
     const date = fmtDate(item.exchangedAt);
-    if (!map.has(date)) map.set(date, []);
-    map.get(date)!.push(item);
+    const rows = map.get(date);
+    if (rows) rows.push(item);
+    else map.set(date, [item]);
   }
   return Array.from(map.entries()).map(([date, rows]) => ({ date, rows }));
 }

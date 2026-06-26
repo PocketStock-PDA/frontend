@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
@@ -49,13 +49,12 @@ export default function SavingsTransferPage() {
   const currentAccount = useTransferAccount();
   const setAccount = useSetTransferAccount();
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (currentAccount.data?.accountId != null) {
-      setSelectedId(currentAccount.data.accountId);
-    }
-  }, [currentAccount.data]);
+  const initialSelectedId = currentAccount.data?.accountId ?? null;
+  const [selectedOverride, setSelectedOverride] = useState<
+    number | null | undefined
+  >(undefined);
+  const selectedId =
+    selectedOverride !== undefined ? selectedOverride : initialSelectedId;
 
   // 절약금 이체는 입출금(DEMAND)·비휴면 원화 계좌만 가능 (예금/적금 제외)
   const krwAccounts = (bankAccounts.data ?? []).filter(
@@ -66,7 +65,7 @@ export default function SavingsTransferPage() {
   const isError = bankAccounts.isError;
 
   const handleSave = () => {
-    if (selectedId == null) return;
+    if (selectedId === null) return;
     setAccount.mutate(selectedId, {
       onSuccess: () => router.back(),
     });
@@ -118,7 +117,7 @@ export default function SavingsTransferPage() {
                 key={account.accountId}
                 account={account}
                 selected={selectedId === account.accountId}
-                onSelect={() => setSelectedId(account.accountId)}
+                onSelect={() => setSelectedOverride(account.accountId)}
               />
             ))}
           </div>
@@ -128,7 +127,7 @@ export default function SavingsTransferPage() {
       <div className="fixed bottom-20 left-0 right-0 px-5">
         <Button
           className="h-14 w-full text-base font-bold"
-          disabled={selectedId == null || isError || isLoading || setAccount.isPending}
+          disabled={selectedId === null || isError || isLoading || setAccount.isPending}
           onClick={handleSave}
         >
           {setAccount.isPending ? "저장 중..." : "저장"}

@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, CreditCard } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
@@ -21,22 +21,27 @@ import { formatKRW, parseAmount } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import type { SpendingResponse } from "@/types/domain/asset";
 
-interface Props {
-  params: Promise<{ year: string; month: string }>;
-}
-
-export default function BudgetMonthPage({ params }: Props) {
+export default function BudgetMonthPage() {
   const router = useRouter();
-  const { year: yearStr, month: monthStr } = use(params);
-  const year = Number(yearStr);
-  const month = Number(monthStr);
+  const searchParams = useSearchParams();
+  const current = new Date();
+  const yearParam = Number(searchParams.get("year"));
+  const monthParam = Number(searchParams.get("month"));
+  const year =
+    Number.isInteger(yearParam) && yearParam > 0
+      ? yearParam
+      : current.getFullYear();
+  const month =
+    Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12
+      ? monthParam
+      : current.getMonth() + 1;
 
   const goalsQ = useBudgetGoals();
   const calendarQ = useBudgetCalendar(year, month);
   const savingsQ = useBudgetSavings();
   const transferAccountQ = useTransferAccount();
 
-  const now = new Date();
+  const now = current;
   const isCurrentMonth =
     now.getFullYear() === year && now.getMonth() + 1 === month;
 
@@ -411,7 +416,7 @@ function CategoryGoalRow({
           {dot}
           <span className="flex flex-col">
             <span>{category}</span>
-            {prevSpent != null && prevSpent > 0 && (
+            {prevSpent !== undefined && prevSpent > 0 && (
               <span className="text-[11px] font-normal text-muted-foreground">
                 지난달 {formatKRW(prevSpent)}
               </span>

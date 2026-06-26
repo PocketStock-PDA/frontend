@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/common/AppHeader";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SearchInput } from "@/components/common/SearchInput";
 import { useStockSearch } from "@/hooks/queries/useStockSearch";
+import { tradingDetailPath } from "@/lib/navigation/routes";
 
 /**
  * 종목 검색 전용 화면 (/trading/search).
@@ -21,7 +22,7 @@ export default function StockSearchPage() {
   const trimmed = query.trim();
 
   // 종목 선택 → 매수매도로. replace라 거기서 뒤로가기 시 검색이 아닌 직전 화면으로
-  const pick = (code: string) => router.replace(`/trading/${code}`);
+  const pick = (code: string) => router.replace(tradingDetailPath(code));
 
   return (
     <>

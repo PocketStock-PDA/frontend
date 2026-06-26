@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
+import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -16,41 +17,90 @@ import {
 import { useRouter } from "next/navigation";
 import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
 import { useUpdateAutoSettings } from "@/hooks/mutations/useUpdateAutoSettings";
+import type { FxAutoSetting } from "@/types/domain/exchange";
 
 // residualHandling 백엔드 enum 값
 const RESIDUAL_CONVERT = "CONVERT_TO_KRW";
 const RESIDUAL_KEEP = "KEEP_AS_USD";
+const DEFAULT_SETTINGS: FxAutoSetting = {
+  autoEnabled: false,
+  useDollarFirst: true,
+  maxAmountPerTx: null,
+  residualHandling: RESIDUAL_CONVERT,
+};
 
 function fmtKRW(v: number) {
   return v.toLocaleString("ko-KR");
 }
 
 export default function AutoSettingsPage() {
+  const {
+    data: settings,
+    isError,
+    isLoading,
+    refetch,
+  } = useExchangeAutoSettings();
+
+  if (isLoading) {
+    return (
+      <>
+        <AppHeader variant="sub" title="자동환전 설정" />
+        <div className="flex flex-col gap-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />
+          ))}
+        </div>
+      </>
+    );
+  }
+
+  if (isError) {
+    return (
+      <>
+        <AppHeader variant="sub" title="자동환전 설정" />
+        <EmptyState
+          title="설정을 불러오지 못했어요"
+          description="저장된 설정을 확인한 뒤 다시 시도해 주세요."
+          action={
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              다시 시도
+            </Button>
+          }
+          className="mt-8"
+        />
+      </>
+    );
+  }
+
+  return <AutoSettingsForm initialSettings={settings ?? DEFAULT_SETTINGS} />;
+}
+
+function AutoSettingsForm({
+  initialSettings,
+}: {
+  initialSettings: FxAutoSetting;
+}) {
   const router = useRouter();
-  const { data: settings, isLoading } = useExchangeAutoSettings();
   const update = useUpdateAutoSettings();
 
-  const [autoEnabled, setAutoEnabled] = useState(false);
-  const [useDollarFirst, setUseDollarFirst] = useState(true);
-  const [maxAmount, setMaxAmount] = useState<number | null>(null);
-  const [residual, setResidual] = useState<string>(RESIDUAL_CONVERT);
+  const [autoEnabled, setAutoEnabled] = useState(initialSettings.autoEnabled);
+  const [useDollarFirst, setUseDollarFirst] = useState(
+    initialSettings.useDollarFirst,
+  );
+  const [maxAmount, setMaxAmount] = useState<number | null>(
+    initialSettings.maxAmountPerTx,
+  );
+  const [residual, setResidual] = useState<string>(
+    initialSettings.residualHandling ?? RESIDUAL_CONVERT,
+  );
 
   // 한도 시트
   const [limitSheetOpen, setLimitSheetOpen] = useState(false);
-  const [limitInputRaw, setLimitInputRaw] = useState("");
-
-  useEffect(() => {
-    if (!settings) return;
-    setAutoEnabled(settings.autoEnabled);
-    setUseDollarFirst(settings.useDollarFirst);
-    setMaxAmount(settings.maxAmountPerTx);
-    setResidual(settings.residualHandling ?? RESIDUAL_CONVERT);
-    setLimitInputRaw(
-      settings.maxAmountPerTx != null
-        ? fmtKRW(settings.maxAmountPerTx)
-        : ""
-    );
-  }, [settings]);
+  const [limitInputRaw, setLimitInputRaw] = useState(
+    initialSettings.maxAmountPerTx !== null
+      ? fmtKRW(initialSettings.maxAmountPerTx)
+      : "",
+  );
 
   function handleLimitInput(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value.replace(/,/g, "").replace(/[^0-9]/g, "");
@@ -77,19 +127,6 @@ export default function AutoSettingsPage() {
     } catch {
       toast.error("저장에 실패했어요. 다시 시도해 주세요.");
     }
-  }
-
-  if (isLoading) {
-    return (
-      <>
-        <AppHeader variant="sub" title="자동환전 설정" />
-        <div className="flex flex-col gap-3">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />
-          ))}
-        </div>
-      </>
-    );
   }
 
   return (
@@ -164,7 +201,7 @@ export default function AutoSettingsPage() {
             >
               <span className="text-[13px] text-muted-foreground">한도</span>
               <span className="flex items-center gap-1 text-[13px] font-semibold text-foreground">
-                {maxAmount != null ? `${fmtKRW(maxAmount)}원` : "제한 없음"}
+                {maxAmount !== null ? `${fmtKRW(maxAmount)}원` : "제한 없음"}
                 <ChevronRight className="size-4 text-muted-foreground" />
               </span>
             </button>

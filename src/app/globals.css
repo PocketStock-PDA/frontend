@@ -55,6 +55,9 @@
 }
 
 :root {
+  --font-noto-sans-kr: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic";
+  --font-inter: "Inter", "SF Pro Display", "Segoe UI";
+
   /* 브랜드 / 등락 토큰 (Figma 디자인 시스템) */
   --brand: #2563eb;
   --brand-surface: #f0f6ff;
@@ -146,7 +149,6 @@
     @apply font-sans;
   }
 }
-
 /* 휠 피커 등 스크롤바 숨김 */
 .scrollbar-none {
   -ms-overflow-style: none;

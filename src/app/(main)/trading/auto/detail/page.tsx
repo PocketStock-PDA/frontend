@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
@@ -78,7 +78,41 @@ const DAY_OPTIONS: WheelPickerOption<number>[] = Array.from(
 );
 
 export default function AutoInvestPage() {
-  const { stockCode } = useParams<{ stockCode: string }>();
+  const searchParams = useSearchParams();
+  const stockCode = searchParams.get("stockCode");
+
+  if (!stockCode) {
+    return <MissingStockCodeState />;
+  }
+
+  return <AutoInvestContent stockCode={stockCode} />;
+}
+
+function MissingStockCodeState() {
+  const router = useRouter();
+
+  return (
+    <>
+      <AppHeader variant="sub" title="자동모으기" />
+      <EmptyState
+        title="종목 정보가 없어요"
+        description="자동모으기를 설정할 종목을 다시 선택해 주세요."
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/trading/search")}
+          >
+            종목 선택
+          </Button>
+        }
+        className="mt-8"
+      />
+    </>
+  );
+}
+
+function AutoInvestContent({ stockCode }: { stockCode: string }) {
   const detailQ = useStockDetail(stockCode);
   const autoQ = useAutoInvest(stockCode);
 

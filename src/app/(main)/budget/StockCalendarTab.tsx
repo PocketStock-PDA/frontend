@@ -333,6 +333,9 @@ export function StockCalendarTab() {
 
 function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
   const isBuy = order.side !== "SELL";
+  const quantity = toDecimal(order.quantity);
+  const hasPrice = order.price !== null && order.price !== undefined;
+
   return (
     <div className="flex items-center justify-between py-3">
       <div className="flex items-center gap-2.5">
@@ -344,13 +347,11 @@ function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
         </span>
         <div className="space-y-[2px]">
           <p className="text-xs font-medium text-foreground">{name}</p>
-          {(toDecimal(order.quantity).gt(0) || order.price != null) && (
+          {(quantity.gt(0) || hasPrice) && (
             <p className="font-numeric text-[11px] text-muted-foreground">
               {[
-                toDecimal(order.quantity).gt(0)
-                  ? `${toDecimal(order.quantity).toString()}주`
-                  : null,
-                order.price != null ? formatKRW(order.price) : null,
+                quantity.gt(0) ? `${quantity.toString()}주` : null,
+                hasPrice ? formatKRW(order.price) : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
