@@ -247,12 +247,17 @@ export default function MyPage() {
           onClick={SOON}
         />
       </div>
-      <div onClick={handleLogout} className="flex gap-1">
+      <button
+        type="button"
+        onClick={handleLogout}
+        disabled={logout.isPending}
+        className="flex items-center gap-1 disabled:opacity-50"
+      >
         <span className="block text-[12px] text-muted-foreground">
           로그아웃
         </span>
-        <LogOut className="size-3.5 text-muted-foreground"></LogOut>
-      </div>
+        <LogOut className="size-3.5 text-muted-foreground" />
+      </button>
     </>
   );
 }
