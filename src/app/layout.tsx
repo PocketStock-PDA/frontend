@@ -1,18 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Noto_Sans_KR } from "next/font/google";
+import localFont from "next/font/local";
 import { Providers } from "./providers";
 import { InstallGate } from "@/components/common/InstallGate";
 import "./globals.css";
 
-const notoSansKr = Noto_Sans_KR({
-  subsets: ["latin"],
-  weight: "variable",
+// 셀프호스팅(오프라인 빌드 대응) — Google Fonts 빌드타임 다운로드 제거.
+// 한글은 기존(subsets: latin)과 동일하게 시스템 폰트로 폴백된다.
+const notoSansKr = localFont({
+  src: "./fonts/noto-sans-kr-latin.woff2",
+  weight: "400 700",
   variable: "--font-noto-sans-kr",
   display: "swap",
 });
 
-const inter = Inter({
-  subsets: ["latin"],
+const inter = localFont({
+  src: "./fonts/inter-latin.woff2",
+  weight: "400 700",
   variable: "--font-inter",
   display: "swap",
 });
