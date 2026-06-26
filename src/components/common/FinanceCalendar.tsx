@@ -84,7 +84,12 @@ export function FinanceCalendar({
         </div>
       ) : (
         // 헤더를 숨겨도 legend는 별도 행으로 렌더링
-        legend && <div className="mb-3 flex justify-end">{legend}</div>
+        // min-h: 탭별 legend 높이차(물결 토글 vs 칩)로 캘린더가 밀리지 않도록 고정
+        legend && (
+          <div className="mb-3 flex min-h-[28px] items-center justify-end">
+            {legend}
+          </div>
+        )
       )}
 
       <div className="grid grid-cols-7 text-center text-xs">
