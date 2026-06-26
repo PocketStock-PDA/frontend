@@ -560,7 +560,12 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
           ) : (
             <div className="space-y-2.5">
               {(bankAccountsQ.data ?? [])
-                .filter((a) => a.currency === "KRW")
+                .filter(
+                  (a) =>
+                    a.currency === "KRW" &&
+                    a.accountType === "DEMAND" &&
+                    !a.isDormant,
+                )
                 .map((a) => (
                   <button
                     key={a.accountId}
