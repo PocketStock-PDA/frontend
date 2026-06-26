@@ -11,9 +11,11 @@ export function useLinkAssets() {
   return useMutation({
     mutationFn: (companyCodes: string[]) =>
       api.post<unknown>("/api/assets/links", { institutions: companyCodes }),
-    // 연동 후 기관 목록·스캔·잔액 등 자산 캐시 갱신
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.asset.all }),
+    // 연동 후 기관 목록·스캔·잔액 등 자산 캐시 + 마이페이지(연동기관·카드 토글) 갱신
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.asset.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.profile });
+    },
     retry: false,
   });
 }

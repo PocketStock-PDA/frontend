@@ -10,6 +10,8 @@ export interface StatCardProps {
   /** row: 가로(카드 사용 잔돈) / tile: 세로 타일(포인트 등) */
   orientation?: Orientation;
   onClick?: () => void;
+  /** 우측 끝 액션 슬롯(설정 버튼 등) — row일 때 value 뒤에 배치 */
+  action?: React.ReactNode;
   className?: string;
 }
 
@@ -21,6 +23,7 @@ export function StatCard({
   value,
   orientation = "row",
   onClick,
+  action,
   className,
 }: StatCardProps) {
   const interactive = !!onClick;
@@ -76,6 +79,7 @@ export function StatCard({
       <span className="shrink-0 text-base font-bold text-foreground">
         {value}
       </span>
+      {action && <span className="shrink-0">{action}</span>}
     </Tag>
   );
 }
