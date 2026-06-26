@@ -141,6 +141,7 @@ export default function BudgetMonthPage() {
 
   const handleSetupSave = () => {
     if (setupAccountId === null || !agreeChecked) return;
+    if (setTransferAccount.isPending || agreeCollect.isPending) return; // 따닥 클릭 중복 호출 방지
     setTransferAccount.mutate(setupAccountId, {
       onSuccess: () =>
         agreeCollect.mutate(undefined, {
