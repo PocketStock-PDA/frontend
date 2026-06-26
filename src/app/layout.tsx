@@ -1,7 +1,21 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Noto_Sans_KR } from "next/font/google";
 import { Providers } from "./providers";
 import { InstallGate } from "@/components/common/InstallGate";
 import "./globals.css";
+
+const notoSansKr = Noto_Sans_KR({
+  subsets: ["latin"],
+  weight: "variable",
+  variable: "--font-noto-sans-kr",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: { default: "PocketStock", template: "%s | PocketStock" },
@@ -30,7 +44,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body>
+      <body className={`${notoSansKr.variable} ${inter.variable}`}>
         <Providers>
           <InstallGate>{children}</InstallGate>
         </Providers>

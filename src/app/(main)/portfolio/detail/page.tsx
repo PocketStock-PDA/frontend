@@ -92,13 +92,58 @@ interface Selection {
 }
 
 export default function StockDetailPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const stockCode = searchParams.get("stockCode") ?? "";
-  // view=pieces → 퍼즐 / view=collect → 모으기 현황 / 그 외 → 종목 현황
+  const stockCode = searchParams.get("stockCode");
   const isPieces = searchParams.get("view") === "pieces";
   const isCollect = searchParams.get("view") === "collect";
 
+  if (!stockCode) {
+    return <MissingStockCodeState />;
+  }
+
+  return (
+    <StockDetailContent
+      stockCode={stockCode}
+      isPieces={isPieces}
+      isCollect={isCollect}
+    />
+  );
+}
+
+function MissingStockCodeState() {
+  const router = useRouter();
+
+  return (
+    <>
+      <AppHeader variant="sub" title="내 조각" />
+      <EmptyState
+        title="종목 정보가 없어요"
+        description="보유 종목을 다시 선택해 주세요."
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/portfolio")}
+          >
+            보유 종목 보기
+          </Button>
+        }
+        className="mt-8"
+      />
+    </>
+  );
+}
+
+function StockDetailContent({
+  stockCode,
+  isPieces,
+  isCollect,
+}: {
+  stockCode: string;
+  isPieces: boolean;
+  isCollect: boolean;
+}) {
+  const router = useRouter();
   const holdingsQ = useHoldings();
   const detailQ = useStockDetail(stockCode);
   const ordersQ = useOrders();

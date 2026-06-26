@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
+import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -33,7 +34,12 @@ function fmtKRW(v: number) {
 }
 
 export default function AutoSettingsPage() {
-  const { data: settings, isLoading } = useExchangeAutoSettings();
+  const {
+    data: settings,
+    isError,
+    isLoading,
+    refetch,
+  } = useExchangeAutoSettings();
 
   if (isLoading) {
     return (
@@ -44,6 +50,24 @@ export default function AutoSettingsPage() {
             <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted" />
           ))}
         </div>
+      </>
+    );
+  }
+
+  if (isError) {
+    return (
+      <>
+        <AppHeader variant="sub" title="자동환전 설정" />
+        <EmptyState
+          title="설정을 불러오지 못했어요"
+          description="저장된 설정을 확인한 뒤 다시 시도해 주세요."
+          action={
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              다시 시도
+            </Button>
+          }
+          className="mt-8"
+        />
       </>
     );
   }

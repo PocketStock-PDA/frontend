@@ -50,9 +50,42 @@ function formatShares(q: Decimal) {
 }
 
 export default function TradePage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const stockCode = searchParams.get("stockCode") ?? "";
+  const stockCode = searchParams.get("stockCode");
+
+  if (!stockCode) {
+    return <MissingStockCodeState />;
+  }
+
+  return <TradeContent stockCode={stockCode} />;
+}
+
+function MissingStockCodeState() {
+  const router = useRouter();
+
+  return (
+    <>
+      <AppHeader variant="sub" title="주문하기" />
+      <EmptyState
+        title="종목 정보가 없어요"
+        description="주문할 종목을 다시 선택해 주세요."
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/trading/search")}
+          >
+            종목 선택
+          </Button>
+        }
+        className="mt-8"
+      />
+    </>
+  );
+}
+
+function TradeContent({ stockCode }: { stockCode: string }) {
+  const router = useRouter();
   const detailQ = useStockDetail(stockCode);
   const holdingsQ = useHoldings();
   const cmaQ = useCmaHome();

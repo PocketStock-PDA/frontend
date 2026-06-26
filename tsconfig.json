@@ -43,7 +43,7 @@
   ],
   "exclude": [
     "node_modules",
-    ".next/dev",
+    ".next/dev/types/validator.ts",
     ".next-dev.nosync"
   ]
 }

@@ -54,7 +54,7 @@ export default function CardCollectSettingPage() {
   };
 
   const isLoading = linkedCards.isLoading || collectSettings.isLoading;
-  const isError = linkedCards.isError;
+  const isError = linkedCards.isError || collectSettings.isError;
   const shinhanCheckCards = (linkedCards.data ?? []).filter(isShinhanCheck);
 
   return (
@@ -74,11 +74,14 @@ export default function CardCollectSettingPage() {
           ) : isError ? (
             <div className="flex flex-col items-center gap-3 py-10 text-center">
               <p className="text-sm text-muted-foreground">
-                카드 정보를 불러오지 못했어요.
+                카드 설정을 불러오지 못했어요.
               </p>
               <button
                 type="button"
-                onClick={() => linkedCards.refetch()}
+                onClick={() => {
+                  linkedCards.refetch();
+                  collectSettings.refetch();
+                }}
                 className="text-sm font-bold text-primary underline"
               >
                 다시 시도

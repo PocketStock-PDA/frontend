@@ -17,6 +17,7 @@ concurrency:
 jobs:
   deploy:
     name: Build and deploy static frontend
+    if: github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     env:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
@@ -31,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Validate deployment configuration
         shell: bash
@@ -53,7 +54,7 @@ jobs:
           done
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: npm
@@ -71,7 +72,7 @@ jobs:
         run: npm run build
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
