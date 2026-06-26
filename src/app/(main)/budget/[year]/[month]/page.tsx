@@ -66,6 +66,9 @@ export default function BudgetMonthPage({ params }: Props) {
 
   const agreed = isCurrentMonth && !!savingsQ.data?.isCollectAgreed;
   const noAccount = agreed && !transferAccountQ.data;
+  const remaining = Math.max(0, monthlyBudget - spentAmount);
+  // 절약금: 저금 설정 시 실제 아낀 돈(→CMA), 미설정이면 남은 예산
+  const savedAmount = agreed ? (savingsQ.data?.savedAmount ?? 0) : remaining;
 
   const isLoading = goalsQ.isLoading || calendarQ.isLoading;
   const isError = goalsQ.isError;
@@ -186,6 +189,26 @@ export default function BudgetMonthPage({ params }: Props) {
                 </>
               )}
             </p>
+            {isCurrentMonth && (
+              <p className="mt-1 text-[13px]">
+                {agreed ? (
+                  <>
+                    <span className="text-muted-foreground">절약금 </span>
+                    <span className="font-numeric font-semibold text-[#0471E9]">
+                      {formatKRW(savedAmount)}
+                    </span>
+                    <span className="text-muted-foreground"> · 월말 CMA 이체</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-muted-foreground">남은 예산 </span>
+                    <span className="font-numeric font-semibold text-foreground">
+                      {formatKRW(remaining)}
+                    </span>
+                  </>
+                )}
+              </p>
+            )}
             {noAccount && (
               <button
                 type="button"
