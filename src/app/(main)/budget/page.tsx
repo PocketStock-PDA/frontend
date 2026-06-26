@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { budgetMonthPath } from "@/lib/navigation/routes";
 import { StockCalendarTab } from "./StockCalendarTab";
 import type { BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
+import { LiquidFill } from "@/components/features/budget/LiquidFill";
 
 // ── 페이지 진입점 ──────────────────────────────────────────────────────────────
 
@@ -197,6 +198,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"month" | "day">("month");
+  const [waveOn, setWaveOn] = useState(true);
   const [showSetupSheet, setShowSetupSheet] = useState(false);
   const [setupAccountId, setSetupAccountId] = useState<number | null>(null);
   const bankAccountsQ = useBankAccounts();
@@ -356,23 +358,22 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                   {savingsQ.data?.isCollectAgreed && (
                     <span className="text-muted-foreground">
                       절약{" "}
-                      <span className="font-numeric font-bold text-[#0369A1]">
+                      <span className="font-numeric font-bold text-[#7DB2F4]">
                         {Math.max(0, 100 - usedPct)}%
                       </span>
                     </span>
                   )}
                 </div>
-                <div className="flex h-1.5 w-32 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn(
+                    "h-1.5 w-32 overflow-hidden rounded-full",
+                    savingsQ.data?.isCollectAgreed ? "bg-[#DBEAFE]" : "bg-muted",
+                  )}
+                >
                   <div
-                    className="h-full bg-primary transition-[width]"
+                    className="h-full rounded-full bg-primary transition-[width]"
                     style={{ width: `${usedPct}%` }}
                   />
-                  {savingsQ.data?.isCollectAgreed && (
-                    <>
-                      <div className="h-full w-[2px] shrink-0 bg-background" />
-                      <div className="h-full flex-1 bg-[#38BDF8]" />
-                    </>
-                  )}
                 </div>
               </button>
               {!savingsQ.isLoading && !savingsQ.data?.isCollectAgreed && (
@@ -389,6 +390,11 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
           </div>
 
           {/* ── 달력 ── */}
+          <style>{`
+            @keyframes budgetWaveDrift { from { transform: translateX(0); } to { transform: translateX(-50px); } }
+            .bw-front { animation: budgetWaveDrift 3.2s linear infinite; }
+            .bw-back { animation: budgetWaveDrift 5s linear infinite; }
+          `}</style>
           <FinanceCalendar
             month={calendarMonth}
             onMonthChange={handleMonthChange}
@@ -411,49 +417,32 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
               const isOver = fillRatio > 1;
               const fillPct = Math.min(100, Math.round(fillRatio * 100));
               const hasFill = !!info && !isFuture && fillPct > 0;
-              // 일일예산 대비 많이 쓴 날일수록 진하게 (적게 쓰면 연하게)
-              const intensity = Math.min(1, fillRatio);
-              const fillBottomAlpha = 0.16 + intensity * 0.44; // 연(0.16) → 진(0.60)
-              const fillTopAlpha = fillBottomAlpha * 0.5;
               const dow = date.getDay(); // 0=일, 6=토
               const dateColor = isFuture
                 ? "#B5BBC3"
-                : isOver
-                  ? "#FFFFFF"
-                  : isToday
-                    ? "#2563EB"
-                    : dow === 0
-                      ? "#F2696B"
-                      : dow === 6
-                        ? "#5B9BF5"
-                        : "#1A1D23";
+                : isToday
+                  ? "#2563EB"
+                  : dow === 0
+                    ? "#F2696B"
+                    : dow === 6
+                      ? "#5B9BF5"
+                      : "#1A1D23";
               return (
                 <span
                   className={cn(
-                    "relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[14px] bg-card transition-shadow",
-                    hasFill
+                    "relative flex aspect-square w-full flex-col items-center justify-center overflow-hidden rounded-[14px] bg-card transition-shadow",
+                    waveOn && hasFill
                       ? "shadow-[0_1px_4px_rgba(0,0,0,0.1)]"
                       : "shadow-[0_1px_3px_rgba(0,0,0,0.06)]",
-                    isSelected && "ring-2 ring-primary",
+                    isSelected && "ring-1 ring-[#0471E9]",
                   )}
                 >
-                  {/* 아래서 차오르는 채움: 윗 경계를 페더링해 딱 끊기는 선 없이 부드럽게 */}
-                  {hasFill && (
-                    <span
-                      className="absolute inset-x-0 bottom-0"
-                      style={{
-                        height: `${fillPct}%`,
-                        background: isOver
-                          ? "linear-gradient(to top, rgba(4,113,233,0.95), rgba(4,113,233,0.8))"
-                          : `linear-gradient(to top, rgba(4,113,233,${fillBottomAlpha}), rgba(4,113,233,${fillTopAlpha}))`,
-                        maskImage: isOver
-                          ? undefined
-                          : "linear-gradient(to top, #000 calc(100% - 7px), transparent)",
-                        WebkitMaskImage: isOver
-                          ? undefined
-                          : "linear-gradient(to top, #000 calc(100% - 7px), transparent)",
-                      }}
-                      aria-hidden
+                  {/* 아래서 차오르는 채움: sin 기반 다층 파도 (토글 ON) */}
+                  {waveOn && hasFill && (
+                    <LiquidFill
+                      progress={fillRatio}
+                      animate={!reduceMotion}
+                      className="absolute inset-0 h-full w-full"
                     />
                   )}
                   <span
@@ -465,16 +454,36 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                   >
                     {date.getDate()}
                   </span>
+                  {/* 토글 OFF: 일별 소비금액 표시 */}
+                  {!waveOn && hasFill && (
+                    <span className="font-numeric absolute inset-x-0 bottom-1 text-center text-[8.5px] leading-none text-muted-foreground">
+                      -{(info?.spent ?? 0).toLocaleString()}
+                    </span>
+                  )}
                   {isOver && <span className="sr-only">예산 초과</span>}
                   {isToday && <span className="sr-only">오늘</span>}
                 </span>
               );
             }}
             legend={
-              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span className="size-3 rounded-[3px]" style={{ background: "#0471E9" }} />
-                예산 초과
-              </div>
+              <button
+                type="button"
+                onClick={() => setWaveOn((v) => !v)}
+                aria-pressed={waveOn}
+                aria-label={waveOn ? "금액으로 보기" : "물결로 보기"}
+                className={cn(
+                  "relative size-7 overflow-hidden rounded-full border transition-colors",
+                  waveOn
+                    ? "border-[#0471E9]/30 bg-[#EAF3FE] shadow-sm"
+                    : "border-border bg-background",
+                )}
+              >
+                <LiquidFill
+                  progress={waveOn ? 0.72 : 0.28}
+                  animate={!reduceMotion}
+                  className="absolute inset-0 h-full w-full"
+                />
+              </button>
             }
           />
 
@@ -555,7 +564,12 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
           ) : (
             <div className="space-y-2.5">
               {(bankAccountsQ.data ?? [])
-                .filter((a) => a.currency === "KRW")
+                .filter(
+                  (a) =>
+                    a.currency === "KRW" &&
+                    a.accountType === "DEMAND" &&
+                    !a.isDormant,
+                )
                 .map((a) => (
                   <button
                     key={a.accountId}

@@ -56,8 +56,9 @@ export default function SavingsTransferPage() {
   const selectedId =
     selectedOverride !== undefined ? selectedOverride : initialSelectedId;
 
+  // 절약금 이체는 입출금(DEMAND)·비휴면 원화 계좌만 가능 (예금/적금 제외)
   const krwAccounts = (bankAccounts.data ?? []).filter(
-    (a) => a.currency === "KRW",
+    (a) => a.currency === "KRW" && a.accountType === "DEMAND" && !a.isDormant,
   );
 
   const isLoading = bankAccounts.isLoading || currentAccount.isLoading;
@@ -98,7 +99,15 @@ export default function SavingsTransferPage() {
         )}
 
         {!isLoading && !isError && krwAccounts.length === 0 && (
-          <EmptyState title="연동된 은행 계좌가 없어요" />
+          <EmptyState
+            title="받을 수 있는 입출금통장이 없어요"
+            description="절약금은 입출금통장으로만 받을 수 있어요. 통장을 연동하고 다시 시도해 주세요."
+            action={
+              <Button size="sm" onClick={() => router.push("/asset-link")}>
+                계좌 연동하기
+              </Button>
+            }
+          />
         )}
 
         {!isLoading && !isError && krwAccounts.length > 0 && (
