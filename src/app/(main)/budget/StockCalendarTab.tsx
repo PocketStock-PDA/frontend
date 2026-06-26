@@ -61,6 +61,11 @@ export function StockCalendarTab() {
   const holdings = holdingsQ.data ?? [];
   const codes = holdings.map((h) => h.stockCode);
   const details = useStockDetails(codes);
+  // 캘린더 이벤트 종목명 조회용 (보유에 없는 코드만 추가 조회) — 셀에 코드 대신 이름 표시
+  const eventCodes = [...new Set(events.map((e) => e.stockCode))].filter(
+    (c) => !codes.includes(c),
+  );
+  const eventDetails = useStockDetails(eventCodes);
   const detailsLoading = codes.length > 0 && details.some((d) => d.isLoading);
   const returnLoading = holdingsQ.isLoading || detailsLoading;
 
@@ -104,11 +109,20 @@ export function StockCalendarTab() {
     tradeMap.set(key, cur);
   });
 
-  // 종목코드 → 이름 (보유 상세에서, 없으면 코드 폴백)
+  // 선택한 날짜의 거래만 (달력에서 날짜 클릭 시 해당 일자 거래 노출)
+  const selectedDayTrades = monthTrades.filter((o) =>
+    isSameDay(new Date(o.createdAt), selectedDate),
+  );
+
+  // 종목코드 → 이름 (보유 + 이벤트 상세에서, 없으면 코드 폴백)
   const nameByCode = new Map<string, string>();
   holdings.forEach((h, i) => {
     const n = details[i]?.data?.stockName;
     if (n) nameByCode.set(h.stockCode, n);
+  });
+  eventCodes.forEach((c, i) => {
+    const n = eventDetails[i]?.data?.stockName;
+    if (n) nameByCode.set(c, n);
   });
 
   const changeMonth = (m: Date) => {
@@ -216,8 +230,9 @@ export function StockCalendarTab() {
           ) : null;
 
           // 가계부 탭과 동일: 주말(일 빨강/토 파랑)·오늘·미래 날짜색
+          // 단, 이벤트(배당/실적)가 있는 날은 미래여도 회색 처리하지 않고 정상 색 유지
           const dow = date.getDay(); // 0=일, 6=토
-          const dateColor = isFuture
+          const dateColor = isFuture && !first
             ? "#B5BBC3"
             : isToday
               ? "#2563EB"
@@ -234,7 +249,7 @@ export function StockCalendarTab() {
                 first
                   ? "shadow-[0_1px_4px_rgba(0,0,0,0.1)]"
                   : "shadow-[0_1px_3px_rgba(0,0,0,0.06)]",
-                isSelected && "ring-2 ring-primary",
+                isSelected && "ring-1 ring-[#0471E9]",
               )}
             >
               {tradeDots}
@@ -249,12 +264,12 @@ export function StockCalendarTab() {
               </span>
               {first && (
                 <span
-                  className="font-numeric rounded-[3px] px-1 py-px text-[9px] leading-none text-white"
+                  className="block w-full overflow-hidden whitespace-nowrap text-clip rounded-[3px] px-0.5 py-px text-center text-[8px] leading-none text-white"
                   style={{ background: EVENT_COLORS[first.eventType] }}
                 >
                   {dayEvents && dayEvents.length > 1
                     ? `+${dayEvents.length}`
-                    : first.stockCode}
+                    : (nameByCode.get(first.stockCode) ?? first.stockCode)}
                 </span>
               )}
             </span>
@@ -295,14 +310,14 @@ export function StockCalendarTab() {
         </div>
       )}
 
-      {/* ── 이번 달 거래(매수/매도) ── */}
-      {monthTrades.length > 0 && (
+      {/* ── 선택한 날 거래(매수/매도) — 거래 있을 때만 노출 ── */}
+      {selectedDayTrades.length > 0 && (
         <>
           <p className="pb-2 pt-5 text-xs font-medium text-muted-foreground">
-            이번 달 거래
+            {format(selectedDate, "M월 d일")} 거래
           </p>
           <div className="divide-y divide-border">
-            {monthTrades.map((o) => (
+            {selectedDayTrades.map((o) => (
               <TradeRow
                 key={o.orderId}
                 order={o}
@@ -344,7 +359,7 @@ function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
         </div>
       </div>
       <span className="shrink-0 text-[11px] text-muted-foreground">
-        {format(new Date(order.createdAt), "M.d")}
+        {format(new Date(order.createdAt), "HH:mm")}
       </span>
     </div>
   );
