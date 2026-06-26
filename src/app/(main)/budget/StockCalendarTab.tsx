@@ -104,6 +104,11 @@ export function StockCalendarTab() {
     tradeMap.set(key, cur);
   });
 
+  // 선택한 날짜의 거래만 (달력에서 날짜 클릭 시 해당 일자 거래 노출)
+  const selectedDayTrades = monthTrades.filter((o) =>
+    isSameDay(new Date(o.createdAt), selectedDate),
+  );
+
   // 종목코드 → 이름 (보유 상세에서, 없으면 코드 폴백)
   const nameByCode = new Map<string, string>();
   holdings.forEach((h, i) => {
@@ -295,14 +300,14 @@ export function StockCalendarTab() {
         </div>
       )}
 
-      {/* ── 이번 달 거래(매수/매도) ── */}
-      {monthTrades.length > 0 && (
+      {/* ── 선택한 날 거래(매수/매도) — 거래 있을 때만 노출 ── */}
+      {selectedDayTrades.length > 0 && (
         <>
           <p className="pb-2 pt-5 text-xs font-medium text-muted-foreground">
-            이번 달 거래
+            {format(selectedDate, "M월 d일")} 거래
           </p>
           <div className="divide-y divide-border">
-            {monthTrades.map((o) => (
+            {selectedDayTrades.map((o) => (
               <TradeRow
                 key={o.orderId}
                 order={o}
@@ -344,7 +349,7 @@ function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
         </div>
       </div>
       <span className="shrink-0 text-[11px] text-muted-foreground">
-        {format(new Date(order.createdAt), "M.d")}
+        {format(new Date(order.createdAt), "HH:mm")}
       </span>
     </div>
   );
