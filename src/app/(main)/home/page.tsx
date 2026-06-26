@@ -3,10 +3,20 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUp, Coins, CreditCard, Globe, Landmark } from "lucide-react";
+import {
+  ArrowUp,
+  Coins,
+  CreditCard,
+  Globe,
+  Landmark,
+  Settings2,
+} from "lucide-react";
 import { HomeHeader } from "@/components/common/HomeHeader";
 import { CmaBalanceCard } from "@/components/features/cma/CmaBalanceCard";
 import { CollectCoinsOverlay } from "@/components/features/cma/CollectCoinsOverlay";
+import { PartnerPointSheet } from "@/components/features/points/PartnerPointSheet";
+import { AccountLinkSheet } from "@/components/features/collect/AccountLinkSheet";
+import { CardLinkSheet } from "@/components/features/collect/CardLinkSheet";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
@@ -54,7 +64,6 @@ const sourceTitle = (sourceType: CollectSourceType, name: string) =>
       ? "포인트"
       : name;
 
-
 export default function HomePage() {
   const router = useRouter();
   // 인사말 이름은 /home 응답에 없어 마이페이지 프로필(GET /api/users/me/mypage)에서 가져온다.
@@ -67,6 +76,9 @@ export default function HomePage() {
   const sourcesRef = useRef<HTMLDivElement>(null);
   const collectBtnRef = useRef<HTMLDivElement>(null);
 
+  const [pointSheetOpen, setPointSheetOpen] = useState(false);
+  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
+  const [cardSheetOpen, setCardSheetOpen] = useState(false);
   const [collectAnim, setCollectAnim] = useState<{
     id: number;
     origin: DOMRect;
@@ -204,6 +216,22 @@ export default function HomePage() {
   const collectLabel =
     collectAmounts.length > 0 ? collectAmounts.join(" · ") : formatKRW(0);
 
+  // 수집 가능 잔돈 표시 — 은행 | 쏠트래블(한 줄) + 포인트(마이신한/제휴사 분리, 좌우 full 한 줄).
+  const accountSource = displayedCollectSources.find(
+    (s) => s.sourceType === "ACCOUNT",
+  );
+  const fxSource = displayedCollectSources.find((s) => s.sourceType === "FX");
+  const pointSources = displayedCollectSources.filter(
+    (s) => s.sourceType === "POINT",
+  );
+  // 마이신한포인트(자사) vs 제휴사 포인트 — 기관명에 '신한' 포함 여부로 구분.
+  const myShinhanTotal = pointSources
+    .filter((s) => s.name.includes("신한"))
+    .reduce((sum, s) => sum + s.amount, 0);
+  const partnerPointTotal = pointSources
+    .filter((s) => !s.name.includes("신한"))
+    .reduce((sum, s) => sum + s.amount, 0);
+
   return (
     <>
       {collectAnim && (
@@ -265,42 +293,108 @@ export default function HomePage() {
                         className="font-bold"
                       />
                     }
-                  />
-                );
-              })}
-            </div>
-          )}
-
-          <p className="mb-2 mt-4 text-[13px] font-medium text-muted-foreground">
-            수집 가능한 잔돈
-          </p>
-          {displayedCollectSources.length === 0 ? (
-            <EmptyState title="수집 가능한 잔돈이 없어요" />
-          ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {displayedCollectSources.map((s) => {
-                const Icon = SOURCE_ICON[s.sourceType];
-                return (
-                  <StatCard
-                    key={`${s.sourceType}-${s.name}`}
-                    orientation="tile"
-                    icon={<Icon className="size-4" />}
-                    title={sourceTitle(s.sourceType, s.name)}
-                    subtitle={SOURCE_LABEL[s.sourceType]}
-                    value={
-                      <AmountDisplay
-                        value={s.amount}
-                        currency={s.currency}
-                        size="sm"
-                        className="font-bold"
-                      />
+                    action={
+                      s.sourceType === "CARD" ? (
+                        <button
+                          type="button"
+                          aria-label="연동 카드 변경"
+                          onClick={() => setCardSheetOpen(true)}
+                          className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <Settings2 className="size-4" />
+                        </button>
+                      ) : undefined
                     }
                   />
                 );
               })}
             </div>
           )}
+
+          <p className="mb-2 mt-4 text-[14px] font-medium text-muted-foreground">
+            수집 가능한 잔돈
+          </p>
+          {/* 은행 잔돈 · 쏠트래블 · 포인트 — 한 줄 3단 컴팩트 타일 */}
+          <div className="grid grid-cols-3 gap-2">
+            {accountSource && (
+              <div className="relative flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
+                <span className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <Landmark className="size-3.5" />
+                </span>
+                <p className="truncate text-xs text-muted-foreground">
+                  은행 잔돈
+                </p>
+                <AmountDisplay
+                  value={accountSource.amount}
+                  currency={accountSource.currency}
+                  size="sm"
+                  className="font-semibold"
+                />
+                <button
+                  type="button"
+                  aria-label="수집 계좌 설정"
+                  onClick={() => setAccountSheetOpen(true)}
+                  className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <Settings2 className="size-4" />
+                </button>
+              </div>
+            )}
+            {fxSource && (
+              <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
+                <span className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <Globe className="size-3.5" />
+                </span>
+                <p className="truncate text-xs text-muted-foreground">
+                  SOL트래블
+                </p>
+                <AmountDisplay
+                  value={fxSource.amount}
+                  currency={fxSource.currency}
+                  size="sm"
+                  className="font-semibold"
+                />
+              </div>
+            )}
+            {/* 포인트 — 마이신한+제휴사 합산. 탭하면 제휴사 연동 팝업 */}
+            <button
+              type="button"
+              onClick={() => setPointSheetOpen(true)}
+              className="relative flex flex-col gap-2 rounded-xl border border-border bg-card p-3 text-left"
+            >
+              <span className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <Coins className="size-3.5" />
+              </span>
+              <div className="space-y-1.5">
+                <div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    마이신한포인트
+                  </p>
+                  <p className="text-xs font-bold text-foreground">
+                    {myShinhanTotal.toLocaleString()}P
+                  </p>
+                </div>
+                <div>
+                  <p className="truncate text-xs text-muted-foreground">제휴</p>
+                  <p className="text-xs font-bold text-foreground">
+                    {partnerPointTotal.toLocaleString()}P
+                  </p>
+                </div>
+              </div>
+              <Settings2 className="absolute right-2 top-2.5 size-4 text-muted-foreground" />
+            </button>
+          </div>
         </div>
+
+        <PartnerPointSheet
+          open={pointSheetOpen}
+          onOpenChange={setPointSheetOpen}
+        />
+        <AccountLinkSheet
+          open={accountSheetOpen}
+          onOpenChange={setAccountSheetOpen}
+        />
+        <CardLinkSheet open={cardSheetOpen} onOpenChange={setCardSheetOpen} />
 
         <div>
           <div ref={collectBtnRef}>

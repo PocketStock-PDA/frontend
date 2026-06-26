@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   turbopack: {},
   distDir: ".next",
+  // output: export 는 이미지 최적화 API(서버)가 없으므로 next/image를 비최적화로 사용.
+  images: { unoptimized: true },
   // 개발용 same-origin 프록시: 브라우저 /api/* → 백엔드로 포워딩 (CORS 회피).
   // afterFiles 단계라 로컬 라우트(/api/push/*)가 우선 매칭되어 보존됨.
   // 운영(S3+CloudFront)은 이 rewrite가 아니라 CloudFront 경로 라우팅이 담당.
