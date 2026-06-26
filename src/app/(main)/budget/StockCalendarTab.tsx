@@ -337,16 +337,17 @@ function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
   const quantity = toDecimal(order.quantity);
   const hasQty = quantity.gt(0);
   const hasPrice = order.price !== null && order.price !== undefined;
-  // 금액(AMOUNT) 주문은 수량 대신 주문 금액 표시 — 해외는 $, 국내는 원
+  // 통화에 맞춰 포맷 — 해외(USD)는 $·소수 2자리, 국내(KRW)는 원
+  const fmtMoney = (v: number | string | null | undefined) =>
+    order.currency === "USD" ? formatUSD(v) : formatKRW(v);
+  // 금액(AMOUNT) 주문은 수량 대신 주문 금액 표시
   const amountText =
     order.orderAmount !== null && order.orderAmount !== undefined
-      ? order.currency === "USD"
-        ? formatUSD(order.orderAmount)
-        : formatKRW(order.orderAmount)
+      ? fmtMoney(order.orderAmount)
       : null;
   // 수량 주문: "X주 · 체결가" / 금액 주문: 금액만
   const detail = hasQty
-    ? [`${quantity.toString()}주`, hasPrice ? formatKRW(order.price) : null]
+    ? [`${quantity.toString()}주`, hasPrice ? fmtMoney(order.price) : null]
         .filter(Boolean)
         .join(" · ")
     : amountText;
