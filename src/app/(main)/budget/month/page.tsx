@@ -223,22 +223,11 @@ export default function BudgetMonthPage() {
             </p>
             {isCurrentMonth && (
               <p className="mt-1 text-[13px]">
-                {agreed ? (
-                  <>
-                    <span className="text-muted-foreground">절약금 </span>
-                    <span className="font-numeric font-semibold text-[#0471E9]">
-                      {formatKRW(savedAmount)}
-                    </span>
-                    <span className="text-muted-foreground"> · 월말 CMA 이체</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-muted-foreground">남은 예산 </span>
-                    <span className="font-numeric font-semibold text-foreground">
-                      {formatKRW(remaining)}
-                    </span>
-                  </>
-                )}
+                <span className="text-muted-foreground">절약금 </span>
+                <span className="font-numeric font-semibold text-[#0471E9]">
+                  {formatKRW(savedAmount)}
+                </span>
+                <span className="text-muted-foreground"> · 월말 CMA 이체</span>
               </p>
             )}
             {noAccount && (
@@ -260,7 +249,7 @@ export default function BudgetMonthPage() {
                 <span className="text-[12px] leading-snug">
                   <span className="font-semibold text-[#0471E9]">절약금 모으기</span>
                   <span className="text-muted-foreground">
-                    로 안 쓴 예산을 매달 CMA에 모아보세요
+                    로 남은 예산을 매달 CMA에 모아드려요
                   </span>
                 </span>
                 <ChevronRight className="size-4 shrink-0 text-[#0471E9]" />

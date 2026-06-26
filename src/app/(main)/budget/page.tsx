@@ -428,8 +428,8 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                   </span>
                   {/* 토글 OFF: 일별 소비금액 표시 */}
                   {!waveOn && hasFill && (
-                    <span className="font-numeric absolute inset-x-0 bottom-1 text-center text-[8.5px] leading-none text-muted-foreground">
-                      -{(info?.spent ?? 0).toLocaleString()}
+                    <span className="font-numeric absolute inset-x-0 bottom-1 text-center text-[8.5px] leading-none text-[#0471E9]">
+                      {(info?.spent ?? 0).toLocaleString()}
                     </span>
                   )}
                   {isOver && <span className="sr-only">예산 초과</span>}
