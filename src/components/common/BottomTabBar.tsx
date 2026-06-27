@@ -34,6 +34,7 @@ export function BottomTabBar() {
           <Link
             key={href}
             href={href}
+            aria-current={isActive ? "page" : undefined}
             className={cn(
               "flex h-16 flex-1 flex-col items-center justify-center gap-1 text-[11px]",
               isActive ? "text-primary" : "text-muted-foreground",
