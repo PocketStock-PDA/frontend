@@ -30,7 +30,9 @@ const handleEnablePush = async () => {
     else if (result === "denied")
       toast.error("알림 권한이 거부됐어요. 기기 설정에서 허용해 주세요.");
     else
-      toast.info("이 환경에서는 푸시를 사용할 수 없어요. 앱 설치 후 이용해 주세요.");
+      toast.info(
+        "이 환경에서는 푸시를 사용할 수 없어요. 앱 설치 후 이용해 주세요.",
+      );
   } catch {
     // 구독/토큰 등록 중 네트워크·API 실패
     toast.error("푸시 알림 설정에 실패했어요. 잠시 후 다시 시도해 주세요.");
@@ -140,26 +142,24 @@ export default function MyPage() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold text-foreground">{profile.name}</p>
-          <p className="text-[11px] text-muted-foreground">
-            {profile.username}
-          </p>
+          <p className="text-sm text-muted-foreground">{profile.username}</p>
         </div>
       </div>
 
       {/* 요약 카드 (CMA / 퍼즐판 총 평가) */}
       <div
-        className="mt-2 flex items-center justify-between rounded-2xl px-4 py-3.5 text-white"
+        className="mt-2 flex items-center justify-between rounded-xl p-5 text-white"
         style={{ backgroundImage: "var(--grad-1)" }}
       >
         <div>
-          <p className="text-[11px] text-white/80">포켓스톡 CMA</p>
-          <p className="mt-0.5 text-[22px] font-bold">
+          <p className="text-[12px] text-white/80">포켓스톡 CMA</p>
+          <p className="mt-0.5 text-2xl font-semibold">
             {formatKRW(profile.cmaBalance)}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[11px] text-white/80">퍼즐판 총 평가</p>
-          <p className="mt-0.5 text-[22px] font-bold">
+          <p className="text-[12px] text-white/80">퍼즐판 총 평가</p>
+          <p className="mt-0.5 text-2xl font-semibold">
             {formatKRW(profile.puzzleValuation)}
           </p>
         </div>
@@ -194,7 +194,7 @@ export default function MyPage() {
       <p className="mb-2 mt-5 text-xs font-medium text-muted-foreground">
         설정
       </p>
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5 mb-4">
         {/* 토글 2개 */}
         <div className="flex flex-col gap-2 rounded-2xl border border-border px-[15px] py-3.5">
           <p className="text-xs font-medium leading-snug text-foreground">
@@ -240,20 +240,24 @@ export default function MyPage() {
           title="절약금 이체되는 계좌 변경"
           onClick={() => router.push("/my/savings-transfer")}
         />
-        <SettingLinkCard title="주단위 적립 금액 하한선 설정" onClick={SOON} />
         <SettingLinkCard title="알림 설정" onClick={handleEnablePush} />
         <SettingLinkCard
           title="회원정보 수정"
           subtitle="비밀번호 변경"
           onClick={SOON}
         />
-        <SettingLinkCard
-          title="로그아웃"
-          danger
-          icon={LogOut}
-          onClick={handleLogout}
-        />
       </div>
+      <button
+        type="button"
+        onClick={handleLogout}
+        disabled={logout.isPending}
+        className="flex items-center gap-1 disabled:opacity-50"
+      >
+        <span className="block text-[12px] text-muted-foreground">
+          로그아웃
+        </span>
+        <LogOut className="size-3.5 text-muted-foreground" />
+      </button>
     </>
   );
 }

@@ -17,6 +17,9 @@
 /.next/
 /.next-dev.nosync/
 /out/
+/public/sw.js
+/public/workbox-*.js
+/public/worker-*.js
 
 # production
 /build
@@ -43,6 +46,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 개인 참고용 md 폴더
+docs/
 
 # impeccable (design tooling — local only)
 .github/hooks/

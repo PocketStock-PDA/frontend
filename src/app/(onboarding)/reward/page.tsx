@@ -19,6 +19,7 @@ import { useClaimWelcomeReward } from "@/hooks/mutations/useClaimWelcomeReward";
 import { toDecimal } from "@/lib/utils/decimal";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
+import { tradingAutoDetailPath } from "@/lib/navigation/routes";
 import type { WelcomeReward, WelcomeRewardCandidate } from "@/types/domain/reward";
 
 /** 지급 예산(원) — 백엔드 BUDGET_KRW와 동일 */
@@ -61,6 +62,8 @@ export default function RewardPage() {
   const codes = candidates.map((c) => c.stockCode);
   // 후보별 현재가(받을 양 추정용). 해외는 price=null(백엔드 명세)
   const details = useStockDetails(codes);
+  // 현재가 변동만 메모 재계산 트리거로 — 의존성은 단순 문자열로 추출.
+  const priceSig = details.map((d) => d.data?.price?.currentPrice).join(",");
 
   const estByCode = useMemo(() => {
     const m = new Map<string, string>();
@@ -72,7 +75,7 @@ export default function RewardPage() {
     });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candidates, details.map((d) => d.data?.price?.currentPrice).join(",")]);
+  }, [candidates, priceSig]);
 
   // 국내(KRW) / 해외(USD)로 분리 — 각 거래대금 상위
   const kr = candidates.filter((c) => c.currency !== "USD");
@@ -241,7 +244,7 @@ export default function RewardPage() {
         <GrantedOverlay
           reward={granted}
           reduce={!!reduce}
-          onAuto={() => router.replace(`/trading/${granted.stockCode}/auto`)}
+          onAuto={() => router.replace(tradingAutoDetailPath(granted.stockCode))}
           onLater={() => router.replace("/home")}
         />
       )}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
-import { RefreshCcw, ChevronLeft, ChevronRight, CheckCircle2, X } from "lucide-react";
+import { RefreshCcw, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AppHeader } from "@/components/common/AppHeader";
@@ -11,21 +11,17 @@ import { FinanceCalendar } from "@/components/common/FinanceCalendar";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   useBudgetGoals,
   useBudgetCalendar,
   useBudgetTransactions,
-  useBudgetSavings,
 } from "@/hooks/queries/useBudget";
 import { getCategoryIcon } from "./_utils/categoryIcon";
 import { useSpendingAnalysis } from "@/hooks/queries/useSpendingAnalysis";
-import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useAutoBudgetGoals } from "@/hooks/mutations/useAutoBudgetGoals";
-import { useSetTransferAccount } from "@/hooks/mutations/useSetTransferAccount";
-import { useAgreeCollect } from "@/hooks/mutations/useAgreeCollect";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
+import { budgetMonthPath } from "@/lib/navigation/routes";
 import { StockCalendarTab } from "./StockCalendarTab";
 import type { BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
 import { LiquidFill } from "@/components/features/budget/LiquidFill";
@@ -198,25 +194,6 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"month" | "day">("month");
   const [waveOn, setWaveOn] = useState(true);
-  const [showSetupSheet, setShowSetupSheet] = useState(false);
-  const [setupAccountId, setSetupAccountId] = useState<number | null>(null);
-  const bankAccountsQ = useBankAccounts();
-  const setTransferAccount = useSetTransferAccount();
-  const agreeCollect = useAgreeCollect();
-
-  const handleSetupStart = () => {
-    setSetupAccountId(null);
-    setShowSetupSheet(true);
-  };
-
-  const handleSetupSave = () => {
-    if (setupAccountId == null) return;
-    setTransferAccount.mutate(setupAccountId, {
-      onSuccess: () => agreeCollect.mutate(undefined, {
-        onSuccess: () => setShowSetupSheet(false),
-      }),
-    });
-  };
 
   const handleMonthChange = (newMonth: Date) => {
     setViewMode("month");
@@ -259,8 +236,6 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
         }
       : {},
   );
-  const savingsQ = useBudgetSavings();
-
   const dayMap = new Map<string, CalendarDayItem>();
   calendarQ.data?.days.forEach((d) => dayMap.set(d.date, d));
 
@@ -335,13 +310,16 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             </div>
 
             {/* 우상단 미니 요약: 사용률·절약 % + 슬림 2색 바 — 탭 시 월 상세 */}
-            {/* min-h: 증권 캘린더 탭과 달력 시작 y 정렬용 (요약 높이 고정) */}
-            <div className="flex min-h-[40px] flex-col items-end gap-1">
+            {/* h-[52px] 고정: 증권 캘린더 탭과 달력 시작 y 정렬용 (양 탭 동일 높이) */}
+            <div className="flex h-[52px] flex-col items-end justify-center gap-1">
               <button
                 type="button"
                 onClick={() =>
                   router.push(
-                    `/budget/${calendarMonth.getFullYear()}/${calendarMonth.getMonth() + 1}`,
+                    budgetMonthPath(
+                      calendarMonth.getFullYear(),
+                      calendarMonth.getMonth() + 1,
+                    ),
                   )
                 }
                 className="flex flex-col items-end gap-1"
@@ -351,37 +329,35 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                     사용률{" "}
                     <span className="font-numeric font-bold text-primary">{usedPct}%</span>
                   </span>
-                  {savingsQ.data?.isCollectAgreed && (
-                    <span className="text-muted-foreground">
-                      절약{" "}
-                      <span className="font-numeric font-bold text-[#7DB2F4]">
-                        {Math.max(0, 100 - usedPct)}%
-                      </span>
+                  <span className="text-muted-foreground">
+                    절약{" "}
+                    <span className="font-numeric font-bold text-[#7DB2F4]">
+                      {Math.max(0, 100 - usedPct)}%
                     </span>
-                  )}
+                  </span>
                 </div>
-                <div
-                  className={cn(
-                    "h-1.5 w-32 overflow-hidden rounded-full",
-                    savingsQ.data?.isCollectAgreed ? "bg-[#DBEAFE]" : "bg-muted",
-                  )}
-                >
+                <div className="h-1.5 w-32 overflow-hidden rounded-full bg-[#DBEAFE]">
                   <div
                     className="h-full rounded-full bg-primary transition-[width]"
                     style={{ width: `${usedPct}%` }}
                   />
                 </div>
               </button>
-              {!savingsQ.isLoading && !savingsQ.data?.isCollectAgreed && (
-                <button
-                  type="button"
-                  onClick={handleSetupStart}
-                  className="flex items-center gap-0.5 text-[11px] font-medium text-primary"
-                >
-                  절약금 모으기
-                  <ChevronRight className="size-3" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    budgetMonthPath(
+                      calendarMonth.getFullYear(),
+                      calendarMonth.getMonth() + 1,
+                    ),
+                  )
+                }
+                className="flex items-center gap-0.5 text-[11px] font-medium text-primary"
+              >
+                내 절약금
+                <ChevronRight className="size-3" />
+              </button>
             </div>
           </div>
 
@@ -421,7 +397,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                   : dow === 0
                     ? "#F2696B"
                     : dow === 6
-                      ? "#5B9BF5"
+                      ? "#1D4ED8"
                       : "#1A1D23";
               return (
                 <span
@@ -452,8 +428,8 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
                   </span>
                   {/* 토글 OFF: 일별 소비금액 표시 */}
                   {!waveOn && hasFill && (
-                    <span className="font-numeric absolute inset-x-0 bottom-1 text-center text-[8.5px] leading-none text-muted-foreground">
-                      -{(info?.spent ?? 0).toLocaleString()}
+                    <span className="font-numeric absolute inset-x-0 bottom-1 text-center text-[8.5px] leading-none text-[#0471E9]">
+                      {(info?.spent ?? 0).toLocaleString()}
                     </span>
                   )}
                   {isOver && <span className="sr-only">예산 초과</span>}
@@ -546,58 +522,6 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
         <StockCalendarTab />
       )}
 
-      {/* ── 절약금 계좌 설정 시트 ── */}
-      <Sheet open={showSetupSheet} onOpenChange={setShowSetupSheet}>
-        <SheetContent side="bottom" className="rounded-t-2xl px-5 pb-10">
-          <SheetHeader className="pb-4">
-            <SheetTitle className="text-left text-base">이체 계좌 선택</SheetTitle>
-          </SheetHeader>
-          <p className="mb-4 text-sm text-muted-foreground">
-            절약금을 받을 계좌를 선택해 주세요.
-          </p>
-          {bankAccountsQ.isLoading ? (
-            <SkeletonCard lines={3} />
-          ) : (
-            <div className="space-y-2.5">
-              {(bankAccountsQ.data ?? [])
-                .filter(
-                  (a) =>
-                    a.currency === "KRW" &&
-                    a.accountType === "DEMAND" &&
-                    !a.isDormant,
-                )
-                .map((a) => (
-                  <button
-                    key={a.accountId}
-                    type="button"
-                    onClick={() => setSetupAccountId(a.accountId)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-2xl border p-4 text-left transition-colors",
-                      setupAccountId === a.accountId
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-background",
-                    )}
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{a.bankName}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{a.accountName}</p>
-                    </div>
-                    {setupAccountId === a.accountId && (
-                      <CheckCircle2 className="size-5 shrink-0 text-primary" />
-                    )}
-                  </button>
-                ))}
-            </div>
-          )}
-          <Button
-            className="mt-5 h-14 w-full text-base font-bold"
-            disabled={setupAccountId == null || setTransferAccount.isPending || agreeCollect.isPending}
-            onClick={handleSetupSave}
-          >
-            {setTransferAccount.isPending || agreeCollect.isPending ? "처리 중..." : "시작하기"}
-          </Button>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
@@ -661,4 +585,3 @@ function CategoryBar({
     </div>
   );
 }
-

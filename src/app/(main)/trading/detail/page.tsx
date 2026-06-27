@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Repeat, Search } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
@@ -32,6 +32,10 @@ import { toDecimal } from "@/lib/utils/decimal";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { splitOrderToast, wholeOrderToast } from "@/lib/utils/orderResult";
 import { cn } from "@/lib/utils";
+import {
+  tradingAutoDetailPath,
+  tradingOrderbookPath,
+} from "@/lib/navigation/routes";
 import type {
   SplitOrderResponse,
   WholeOrderResponse,
@@ -48,7 +52,41 @@ function formatShares(q: Decimal) {
 }
 
 export default function TradePage() {
-  const { stockCode } = useParams<{ stockCode: string }>();
+  const searchParams = useSearchParams();
+  const stockCode = searchParams.get("stockCode");
+
+  if (!stockCode) {
+    return <MissingStockCodeState />;
+  }
+
+  return <TradeContent stockCode={stockCode} />;
+}
+
+function MissingStockCodeState() {
+  const router = useRouter();
+
+  return (
+    <>
+      <AppHeader variant="sub" title="주문하기" />
+      <EmptyState
+        title="종목 정보가 없어요"
+        description="주문할 종목을 다시 선택해 주세요."
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/trading/search")}
+          >
+            종목 선택
+          </Button>
+        }
+        className="mt-8"
+      />
+    </>
+  );
+}
+
+function TradeContent({ stockCode }: { stockCode: string }) {
   const router = useRouter();
   const detailQ = useStockDetail(stockCode);
   const exchangeRateQ = useExchangeRate(); // 해외 종목 원화 환산 토글용(매매기준율)
@@ -483,7 +521,7 @@ export default function TradePage() {
         {method === "WHOLE" && (
           <button
             type="button"
-            onClick={() => router.push(`/trading/${stockCode}/orderbook`)}
+            onClick={() => router.push(tradingOrderbookPath(stockCode))}
             className="flex w-full items-center justify-center gap-1 rounded-xl border border-border py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
             주문방법 변경하기 (호가창)
@@ -494,7 +532,7 @@ export default function TradePage() {
         {/* 자동모으기(적립식) 설정 진입 (이슈 ③) */}
         <button
           type="button"
-          onClick={() => router.push(`/trading/${stockCode}/auto`)}
+          onClick={() => router.push(tradingAutoDetailPath(stockCode))}
           className="flex w-full items-center justify-between rounded-xl bg-muted/60 px-4 py-3.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
         >
           <span className="flex items-center gap-2">

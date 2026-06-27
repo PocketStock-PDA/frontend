@@ -38,12 +38,12 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
     "**/*.mts",
-    ".next-dev.nosync/types/**/*.ts",
-    ".next-dev.nosync/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".next/dev/types/validator.ts",
+    ".next-dev.nosync"
   ]
 }

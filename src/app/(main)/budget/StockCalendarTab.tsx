@@ -13,7 +13,7 @@ import { useStockCalendar } from "@/hooks/queries/useStockCalendar";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useOrders } from "@/hooks/queries/useOrders";
-import { formatKRW } from "@/lib/utils/currency";
+import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
 import type { StockEvent, StockEventType } from "@/types/domain/stockCalendar";
@@ -61,6 +61,11 @@ export function StockCalendarTab() {
   const holdings = holdingsQ.data ?? [];
   const codes = holdings.map((h) => h.stockCode);
   const details = useStockDetails(codes);
+  // 캘린더 이벤트 종목명 조회용 (보유에 없는 코드만 추가 조회) — 셀에 코드 대신 이름 표시
+  const eventCodes = [...new Set(events.map((e) => e.stockCode))].filter(
+    (c) => !codes.includes(c),
+  );
+  const eventDetails = useStockDetails(eventCodes);
   const detailsLoading = codes.length > 0 && details.some((d) => d.isLoading);
   const returnLoading = holdingsQ.isLoading || detailsLoading;
 
@@ -104,11 +109,20 @@ export function StockCalendarTab() {
     tradeMap.set(key, cur);
   });
 
-  // 종목코드 → 이름 (보유 상세에서, 없으면 코드 폴백)
+  // 선택한 날짜의 거래만 (달력에서 날짜 클릭 시 해당 일자 거래 노출)
+  const selectedDayTrades = monthTrades.filter((o) =>
+    isSameDay(new Date(o.createdAt), selectedDate),
+  );
+
+  // 종목코드 → 이름 (보유 + 이벤트 상세에서, 없으면 코드 폴백)
   const nameByCode = new Map<string, string>();
   holdings.forEach((h, i) => {
     const n = details[i]?.data?.stockName;
     if (n) nameByCode.set(h.stockCode, n);
+  });
+  eventCodes.forEach((c, i) => {
+    const n = eventDetails[i]?.data?.stockName;
+    if (n) nameByCode.set(c, n);
   });
 
   const changeMonth = (m: Date) => {
@@ -152,10 +166,11 @@ export function StockCalendarTab() {
           </div>
         </div>
         {/* 총 수익률 — 탭 시 포트폴리오로 이동 */}
+        {/* h-[52px] 고정: 가계부 탭과 달력 시작 y 정렬용 (양 탭 동일 높이) */}
         <button
           type="button"
           onClick={() => router.push("/portfolio")}
-          className="flex min-h-[40px] w-full flex-col items-end gap-1"
+          className="flex h-[52px] w-full flex-col items-end justify-center gap-1"
         >
           <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
             내 보유주식 수익률
@@ -216,31 +231,32 @@ export function StockCalendarTab() {
           ) : null;
 
           // 가계부 탭과 동일: 주말(일 빨강/토 파랑)·오늘·미래 날짜색
+          // 단, 이벤트(배당/실적)가 있는 날은 미래여도 회색 처리하지 않고 정상 색 유지
           const dow = date.getDay(); // 0=일, 6=토
-          const dateColor = isFuture
+          const dateColor = isFuture && !first
             ? "#B5BBC3"
             : isToday
               ? "#2563EB"
               : dow === 0
                 ? "#F2696B"
                 : dow === 6
-                  ? "#5B9BF5"
+                  ? "#1D4ED8"
                   : "#1A1D23";
 
           return (
             <span
               className={cn(
-                "relative flex aspect-square w-full flex-col items-center justify-center gap-[3px] rounded-[14px] bg-card transition-shadow",
+                "relative flex aspect-square w-full flex-col items-center justify-center overflow-hidden rounded-[14px] bg-card transition-shadow",
                 first
                   ? "shadow-[0_1px_4px_rgba(0,0,0,0.1)]"
                   : "shadow-[0_1px_3px_rgba(0,0,0,0.06)]",
-                isSelected && "ring-2 ring-primary",
+                isSelected && "ring-1 ring-[#0471E9]",
               )}
             >
               {tradeDots}
               <span
                 className={cn(
-                  "font-numeric text-[11px] leading-none",
+                  "font-numeric relative text-[11px] leading-none",
                   isToday && "font-bold",
                 )}
                 style={{ color: dateColor }}
@@ -249,12 +265,12 @@ export function StockCalendarTab() {
               </span>
               {first && (
                 <span
-                  className="font-numeric rounded-[3px] px-1 py-px text-[9px] leading-none text-white"
+                  className="absolute inset-x-0.5 bottom-1 overflow-hidden whitespace-nowrap text-clip rounded-[3px] px-0.5 py-px text-center text-[8px] leading-none text-white"
                   style={{ background: EVENT_COLORS[first.eventType] }}
                 >
                   {dayEvents && dayEvents.length > 1
                     ? `+${dayEvents.length}`
-                    : first.stockCode}
+                    : (nameByCode.get(first.stockCode) ?? first.stockCode)}
                 </span>
               )}
             </span>
@@ -295,14 +311,14 @@ export function StockCalendarTab() {
         </div>
       )}
 
-      {/* ── 이번 달 거래(매수/매도) ── */}
-      {monthTrades.length > 0 && (
+      {/* ── 선택한 날 거래(매수/매도) — 거래 있을 때만 노출 ── */}
+      {selectedDayTrades.length > 0 && (
         <>
           <p className="pb-2 pt-5 text-xs font-medium text-muted-foreground">
-            이번 달 거래
+            {format(selectedDate, "M월 d일")} 거래
           </p>
           <div className="divide-y divide-border">
-            {monthTrades.map((o) => (
+            {selectedDayTrades.map((o) => (
               <TradeRow
                 key={o.orderId}
                 order={o}
@@ -318,6 +334,24 @@ export function StockCalendarTab() {
 
 function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
   const isBuy = order.side !== "SELL";
+  const quantity = toDecimal(order.quantity);
+  const hasQty = quantity.gt(0);
+  const hasPrice = order.price !== null && order.price !== undefined;
+  // 통화에 맞춰 포맷 — 해외(USD)는 $·소수 2자리, 국내(KRW)는 원
+  const fmtMoney = (v: number | string | null | undefined) =>
+    order.currency === "USD" ? formatUSD(v) : formatKRW(v);
+  // 금액(AMOUNT) 주문은 수량 대신 주문 금액 표시
+  const amountText =
+    order.orderAmount !== null && order.orderAmount !== undefined
+      ? fmtMoney(order.orderAmount)
+      : null;
+  // 수량 주문: "X주 · 체결가" / 금액 주문: 금액만
+  const detail = hasQty
+    ? [`${quantity.toString()}주`, hasPrice ? fmtMoney(order.price) : null]
+        .filter(Boolean)
+        .join(" · ")
+    : amountText;
+
   return (
     <div className="flex items-center justify-between py-3">
       <div className="flex items-center gap-2.5">
@@ -329,22 +363,13 @@ function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
         </span>
         <div className="space-y-[2px]">
           <p className="text-xs font-medium text-foreground">{name}</p>
-          {(toDecimal(order.quantity).gt(0) || order.price != null) && (
-            <p className="font-numeric text-[11px] text-muted-foreground">
-              {[
-                toDecimal(order.quantity).gt(0)
-                  ? `${toDecimal(order.quantity).toString()}주`
-                  : null,
-                order.price != null ? formatKRW(order.price) : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
+          {detail && (
+            <p className="font-numeric text-[11px] text-muted-foreground">{detail}</p>
           )}
         </div>
       </div>
       <span className="shrink-0 text-[11px] text-muted-foreground">
-        {format(new Date(order.createdAt), "M.d")}
+        {format(new Date(order.createdAt), "HH:mm")}
       </span>
     </div>
   );

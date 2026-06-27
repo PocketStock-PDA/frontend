@@ -1,24 +1,34 @@
 "use client";
 
-import { use } from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useBudgetTransactions } from "@/hooks/queries/useBudget";
 import { formatKRW } from "@/lib/utils/currency";
-import { getCategoryIcon } from "../../../_utils/categoryIcon";
+import { getCategoryIcon } from "../_utils/categoryIcon";
 
-interface Props {
-  params: Promise<{ year: string; month: string; day: string }>;
-}
-
-export default function BudgetDayPage({ params }: Props) {
-  const { year: yearStr, month: monthStr, day: dayStr } = use(params);
-  const year = Number(yearStr);
-  const month = Number(monthStr);
-  const day = Number(dayStr);
+export default function BudgetDayPage() {
+  const searchParams = useSearchParams();
+  const current = new Date();
+  const yearParam = Number(searchParams.get("year"));
+  const monthParam = Number(searchParams.get("month"));
+  const dayParam = Number(searchParams.get("day"));
+  const year =
+    Number.isInteger(yearParam) && yearParam > 0
+      ? yearParam
+      : current.getFullYear();
+  const month =
+    Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12
+      ? monthParam
+      : current.getMonth() + 1;
+  const lastDay = new Date(year, month, 0).getDate();
+  const day =
+    Number.isInteger(dayParam) && dayParam >= 1 && dayParam <= lastDay
+      ? dayParam
+      : Math.min(current.getDate(), lastDay);
 
   const txQ = useBudgetTransactions({ type: "DAILY", year, month, day });
 
