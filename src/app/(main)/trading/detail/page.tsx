@@ -372,21 +372,19 @@ function TradeContent({ stockCode }: { stockCode: string }) {
       />
 
       <div className="space-y-5">
-        {/* 소수점 | 온주 — 수량으로일 때만 (금액으로는 소수점 고정) */}
-        {inputMode === "QTY" && (
-          <SegmentedControl<Method>
-            options={[
-              { label: "소수점", value: "FRACTION" },
-              { label: "온주", value: "WHOLE" },
-            ]}
-            value={method}
-            onChange={changeMethod}
-          />
-        )}
+        {/* 소수점 | 온주 — 항상 노출(금액으로여도 유지). 온주 선택 시 자동으로 수량 모드 전환 */}
+        <SegmentedControl<Method>
+          options={[
+            { label: "소수점", value: "FRACTION" },
+            { label: "온주", value: "WHOLE" },
+          ]}
+          value={method}
+          onChange={changeMethod}
+        />
 
         {/* 수량/금액 입력 카드 */}
         <div className="space-y-3 rounded-2xl bg-muted/50 p-4">
-          {/* 수량으로 | 금액으로 */}
+          {/* 수량으로 | 금액으로 — 금액은 소수점 전용. 온주는 수량만 가능해 '금액으로' 미노출 */}
           <div className="flex items-center gap-2 text-sm font-bold">
             <button
               type="button"
@@ -397,18 +395,22 @@ function TradeContent({ stockCode }: { stockCode: string }) {
             >
               수량으로
             </button>
-            <span className="text-border">|</span>
-            <button
-              type="button"
-              onClick={() => changeInputMode("AMOUNT")}
-              className={cn(
-                inputMode === "AMOUNT"
-                  ? "text-foreground"
-                  : "text-muted-foreground",
-              )}
-            >
-              금액으로
-            </button>
+            {method === "FRACTION" && (
+              <>
+                <span className="text-border">|</span>
+                <button
+                  type="button"
+                  onClick={() => changeInputMode("AMOUNT")}
+                  className={cn(
+                    inputMode === "AMOUNT"
+                      ? "text-foreground"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  금액으로
+                </button>
+              </>
+            )}
           </div>
 
           {inputMode === "QTY" ? (
@@ -423,11 +425,18 @@ function TradeContent({ stockCode }: { stockCode: string }) {
                 editable
               />
               <div className="flex gap-2">
-                {[1, 5, 10].map((n) => (
+                {(method === "WHOLE" ? [1, 5, 10] : [0.1, 0.5, 1]).map((n) => (
                   <button
                     key={n}
                     type="button"
-                    onClick={() => onQtyChange(qty + n)}
+                    onClick={() =>
+                      onQtyChange(
+                        new Decimal(qty)
+                          .plus(n)
+                          .toDecimalPlaces(method === "WHOLE" ? 0 : 4)
+                          .toNumber(),
+                      )
+                    }
                     className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
                   >
                     +{n}주

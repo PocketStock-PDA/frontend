@@ -157,3 +157,61 @@
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* ── 모션 토큰 ──────────────────────────────────────────────
+   ease-out 지수 곡선만(바운스/엘라스틱 금지). 재미는 퍼즐 한 곳,
+   나머지 화면은 상태·피드백을 전하는 절제된 움직임만. */
+:root {
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 리스트 행 진입 — 이미 보이는 콘텐츠를 살짝 올려 들이는 정도.
+   CSS 애니메이션이라 숨김 탭/헤드리스에서도 최종 상태로 끝난다.
+   --i 로 형제 스태거(상한은 호출부에서 5로 캡, 총 ~240ms). */
+@keyframes ps-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ps-rise-in {
+  animation: ps-rise-in 0.34s var(--ease-out-quint) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+/* 평가금액 스왑 — 범위/통화 토글 시에만 값이 갱신됨을 전한다(시세 틱 아님). */
+@keyframes ps-amount-swap {
+  from {
+    opacity: 0.35;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ps-amount-swap {
+  animation: ps-amount-swap 0.22s var(--ease-out-quint) both;
+}
+
+/* 접근성 바닥선 — 움직임 최소화 사용자에겐 즉시 전환으로 대체. */
+@media (prefers-reduced-motion: reduce) {
+  .ps-rise-in,
+  .ps-amount-swap {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

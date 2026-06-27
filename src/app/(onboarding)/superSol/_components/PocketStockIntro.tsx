@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 
 /**
  * 슈퍼쏠 → 포켓스톡 진입 시에만 재생되는 전환 화면.
@@ -8,6 +9,7 @@ import { useEffect, useRef } from "react";
  */
 export function PocketStockIntro({ onDone }: { onDone: () => void }) {
   const doneRef = useRef(false);
+  const reduce = useReducedMotion();
 
   useEffect(() => {
     const finish = () => {
@@ -27,7 +29,12 @@ export function PocketStockIntro({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white">
+    <motion.div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-white"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: reduce ? 0 : 0.25, ease: "easeOut" }}
+    >
       <video
         src="/pocketstock-intro.mp4"
         autoPlay
@@ -37,6 +44,6 @@ export function PocketStockIntro({ onDone }: { onDone: () => void }) {
         onError={finish}
         className="size-full object-contain"
       />
-    </div>
+    </motion.div>
   );
 }
