@@ -140,7 +140,7 @@ export function WelcomeEventDialog({
             <motion.div
               className="flex-shrink-0"
               role="img"
-              aria-label={`${STOCKS[stockIdx].name} 주식 퍼즐 조각`}
+              aria-label={`${STOCKS[stockIdx % STOCKS.length]!.name} 주식 퍼즐 조각`}
               initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.55, rotate: -18 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={reduce ? { duration: 0.15 } : { delay: 0.9, duration: 0.85, ease: EASE_OUT }}
@@ -208,7 +208,7 @@ export function WelcomeEventDialog({
             variants={item}
             type="button"
             onClick={onProceed}
-            whileTap={reduce ? undefined : { scale: 0.98 }}
+            {...(!reduce && { whileTap: { scale: 0.98 } })}
             className="mb-3 h-[52px] w-full rounded-[10px] bg-white text-base font-bold text-[#2f6bff] shadow-[0_8px_20px_rgba(20,50,180,0.22)] transition-opacity hover:opacity-90 active:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
           >
             {ctaLabel}
