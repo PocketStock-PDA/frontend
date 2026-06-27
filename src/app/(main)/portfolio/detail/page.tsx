@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
+import { CurrencyToggle } from "@/components/common/CurrencyToggle";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import {
 import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
+import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useOrders } from "@/hooks/queries/useOrders";
 import {
   useAutoInvest,
@@ -146,6 +148,7 @@ function StockDetailContent({
   const router = useRouter();
   const holdingsQ = useHoldings();
   const detailQ = useStockDetail(stockCode);
+  const exchangeRateQ = useExchangeRate(); // 해외 종목 원화 환산 토글용(매매기준율)
   const ordersQ = useOrders();
   // 자동모으기 종목인지 + 회차 내역 (모으기 종목일 때만 의미)
   const auto = useAutoInvest(stockCode);
@@ -169,6 +172,8 @@ function StockDetailContent({
   } | null>(null);
   // 거래 인증 필요 시 계좌 비밀번호를 받기 위한 시트 — 인증 후 동일 키로 재시도
   const [authOpen, setAuthOpen] = useState(false);
+  // 해외 종목 한정: 화면 조회 금액을 원화로 환산해 볼지 토글. 주문(퍼즐 시트)은 항상 달러 체결.
+  const [ovsKrw, setOvsKrw] = useState(false);
   // 접수(체결 대기) 주문들 — 확정 즉시 애니메이션. 동시 다건 누적, 각자 실제 FILLED 시 개별 해제.
   const [pendingOrders, setPendingOrders] = useState<
     { orderId: number; mode: "buy" | "sell"; count: number }[]
@@ -279,6 +284,15 @@ function StockDetailContent({
   const isUSD = detail.currency === "USD";
   const market = isUSD ? "OVERSEAS" : "DOMESTIC";
   const fmtAmount = (v: number | string) => (isUSD ? formatUSD(v) : formatKRW(v));
+  // 해외 종목을 원화로 보기: 매매기준율(baseRate) 있을 때만. 국내는 항상 원화라 무관.
+  const fx = isUSD ? exchangeRateQ.data?.baseRate ?? null : null;
+  const showKrw = ovsKrw && fx !== null;
+  const viewCurrency: "USD" | "KRW" = isUSD && !showKrw ? "USD" : "KRW";
+  // Decimal 값을 표시 통화로 환산(원화 보기면 ×환율). AmountDisplay/ChangeIndicator 값 주입용.
+  const toView = (v: Decimal) => (showKrw ? v.times(fx) : v);
+  // 조회용 금액 포맷 — 원화 보기면 USD값을 환율로 환산, 아니면 종목 통화 그대로.
+  const fmtView = (v: number | string) =>
+    showKrw ? formatKRW(toDecimal(v).times(fx).toNumber()) : fmtAmount(v);
   const selPieces = sel?.indexes.length ?? 0;
   const orderAmount = price.div(PIECES_PER_SHARE).times(selPieces);
   const ordering = buyOrder.isPending || sellOrder.isPending;
@@ -312,14 +326,14 @@ function StockDetailContent({
       indexes = Array.from(chosen).sort((a, b) => a - b);
       if (indexes.length < minPieces) {
         toast.warning(
-          `최소 주문금액(${fmtAmount(minOrder)})을 채울 조각이 부족해요`,
+          `최소 주문금액(${fmtView(minOrder)})을 채울 조각이 부족해요`,
         );
         setSel(null);
         return;
       }
       if (indexes.length > s.indexes.length) {
         toast.warning(
-          `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${indexes.length}조각으로 맞췄어요`,
+          `최소 주문금액은 ${fmtView(minOrder)} 이상이에요. ${indexes.length}조각으로 맞췄어요`,
         );
       }
     }
@@ -432,7 +446,7 @@ function StockDetailContent({
   const collectScheduleText = auto.setting
     ? `${collectFreqLabel} ${
         auto.setting.amountMode === "AMOUNT"
-          ? fmtAmount(auto.setting.amount)
+          ? fmtView(auto.setting.amount)
           : `${auto.setting.quantity}주`
       }`
     : "";
@@ -460,7 +474,16 @@ function StockDetailContent({
 
   return (
     <>
-      <AppHeader variant="sub" title={detail.stockName} />
+      <AppHeader
+        variant="sub"
+        title={detail.stockName}
+        right={
+          // 해외 종목 + 환율 보유 시: 달러 ↔ 원화 조회 토글
+          isUSD && fx !== null ? (
+            <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
+          ) : undefined
+        }
+      />
 
       <div
         className={cn("space-y-6", !isPieces && !isCollect && "pb-24")}
@@ -470,12 +493,12 @@ function StockDetailContent({
             freqLabel={collectFreqLabel}
             scheduleText={collectScheduleText}
             startDateText={collectStartDate}
-            collectedAmount={collectedAmount}
+            collectedAmount={toView(toDecimal(collectedAmount)).toNumber()}
             collectedQty={formatShares(collectedQtyD)}
             collectedCount={fills.length}
-            profit={profit.toNumber()}
+            profit={toView(profit).toNumber()}
             rate={rate.toNumber()}
-            currency={isUSD ? "USD" : "KRW"}
+            currency={viewCurrency}
             showPieces={pieces > 0}
             onEdit={() => router.push(tradingAutoDetailPath(stockCode))}
             onPieces={() =>
@@ -490,8 +513,8 @@ function StockDetailContent({
         {isPieces && (
           <div className="flex items-baseline gap-2">
             <AmountDisplay
-              value={price.toString()}
-              currency={isUSD ? "USD" : "KRW"}
+              value={toView(price).toString()}
+              currency={viewCurrency}
               size="lg"
             />
             <ChangeIndicator
@@ -524,7 +547,7 @@ function StockDetailContent({
               <span className="truncate text-muted-foreground">
                 {FREQ_LABEL[auto.setting.frequency]} ·{" "}
                 {auto.setting.amountMode === "AMOUNT"
-                  ? fmtAmount(auto.setting.amount)
+                  ? fmtView(auto.setting.amount)
                   : `${auto.setting.quantity}주`}
               </span>
             </span>
@@ -563,7 +586,7 @@ function StockDetailContent({
                       <span>{live.indexes.length}조각</span>
                       <span className="opacity-40">·</span>
                       <span className="font-numeric">
-                        {fmtAmount(perPiece.times(live.indexes.length).toString())}
+                        {fmtView(perPiece.times(live.indexes.length).toString())}
                       </span>
                     </div>
                   </div>
@@ -576,7 +599,7 @@ function StockDetailContent({
                   <span className="font-numeric font-bold text-foreground">
                     {bojuText}
                     <span className="ml-1.5 text-xs font-medium text-muted-foreground">
-                      {fmtAmount(evalAmount.toString())}
+                      {fmtView(evalAmount.toString())}
                     </span>
                   </span>
                 </div>
@@ -585,7 +608,7 @@ function StockDetailContent({
                   <span className="font-numeric font-bold text-foreground">
                     {PIECES_PER_SHARE - pieces}조각
                     <span className="ml-1.5 text-xs font-medium text-muted-foreground">
-                      ≈ {fmtAmount(remainAmount.toString())}
+                      ≈ {fmtView(remainAmount.toString())}
                     </span>
                   </span>
                 </div>
@@ -605,15 +628,15 @@ function StockDetailContent({
                 내 평가금액
               </p>
               <AmountDisplay
-                value={evalAmount.toString()}
-                currency={isUSD ? "USD" : "KRW"}
+                value={toView(evalAmount).toString()}
+                currency={viewCurrency}
                 size="xl"
                 className="mt-0.5 block font-bold"
               />
               <ChangeIndicator
-                value={profit.toNumber()}
-                suffix={isUSD ? "" : "원"}
-                prefix={isUSD ? "$" : ""}
+                value={toView(profit).toNumber()}
+                suffix={viewCurrency === "KRW" ? "원" : ""}
+                prefix={viewCurrency === "USD" ? "$" : ""}
                 subPercent={rate.toNumber()}
                 size="md"
                 className="mt-1"
@@ -632,8 +655,8 @@ function StockDetailContent({
                 <span className="text-muted-foreground">현재가</span>
                 <span className="flex items-center gap-1.5">
                   <AmountDisplay
-                    value={price.toString()}
-                    currency={isUSD ? "USD" : "KRW"}
+                    value={toView(price).toString()}
+                    currency={viewCurrency}
                     size="sm"
                     className="font-bold"
                   />
@@ -779,7 +802,7 @@ function StockDetailContent({
                           {q.gt(0) ? `${formatShares(q)}주` : "—"}
                         </p>
                         <p className="font-numeric text-xs text-muted-foreground">
-                          {a.gt(0) ? fmtAmount(a.toString()) : "—"}
+                          {a.gt(0) ? fmtView(a.toString()) : "—"}
                         </p>
                       </div>
                     </div>
@@ -801,8 +824,12 @@ function StockDetailContent({
               {recentOrders.map((o) => {
                 const orderQty = toDecimal(o.quantity);
                 const orderPrice = toDecimal(o.price);
-                const estimated = !orderPrice.gt(0);
-                const amt = (estimated ? price : orderPrice).times(orderQty);
+                // 체결금액: 소수점은 백엔드 배분합(filledAmount), 온주는 체결가/지정가×수량. 라이브 현재가로 추정하지 않음(내역 고정).
+                // filledAmount 미존재(undefined·백엔드 미반영)/null이면 온주 fallback. !== null만으론 undefined를 못 걸러 0이 됨.
+                const amt =
+                  typeof o.filledAmount === "number"
+                    ? toDecimal(o.filledAmount)
+                    : orderPrice.times(orderQty);
                 const cancellable =
                   o.status === "QUEUED" || o.status === "PENDING";
                 const canceling =
@@ -831,7 +858,7 @@ function StockDetailContent({
                           {formatShares(orderQty)}주
                         </p>
                         <p className="font-numeric text-xs text-muted-foreground">
-                          {amt.gt(0) ? fmtAmount(amt.toString()) : "—"}
+                          {amt.gt(0) ? fmtView(amt.toString()) : "—"}
                         </p>
                       </div>
                       {cancellable && (

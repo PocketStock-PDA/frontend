@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
@@ -52,6 +53,7 @@ export function CmaBalanceCard({
   usdToKrwRate,
   className,
 }: CmaBalanceCardProps) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   // 백엔드 숫자 필드 null 가능 → toDecimal/formatKRW로 방어
   const ratePct = toDecimal(interestRate).times(100).toDecimalPlaces(2).toNumber();
@@ -64,7 +66,17 @@ export function CmaBalanceCard({
       }}
       className={cn("rounded-xl p-5 text-white", className)}
     >
-      <p className="text-sm text-white/90">포켓스톡 CMA</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-white/90">포켓스톡 CMA</p>
+        <button
+          type="button"
+          onClick={() => router.push("/cma")}
+          className="flex items-center gap-0.5 text-sm text-white/90"
+        >
+          거래내역
+          <ChevronRight className="size-4" />
+        </button>
+      </div>
       <AmountDisplay
         value={krwBalance}
         currency="KRW"
