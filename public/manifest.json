@@ -1,6 +1,6 @@
 {
-  "name": "PocketStock",
-  "short_name": "PocketStock",
+  "name": "포켓스톡",
+  "short_name": "포켓스톡",
   "description": "잔돈·포인트 소수점 투자 플랫폼",
   "start_url": "/home",
   "display": "standalone",
