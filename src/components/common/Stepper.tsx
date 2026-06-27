@@ -18,6 +18,8 @@ export interface StepperProps {
   quickSteps?: number[];
   /** 값 직접 입력 허용 (숫자 타이핑). 기본 false */
   editable?: boolean;
+  /** 값이 0일 때 보여줄 안내 문구(0 숨김). editable일 때만 의미 */
+  placeholder?: string;
   className?: string;
 }
 
@@ -37,6 +39,7 @@ export function Stepper({
   suffix = "",
   quickSteps,
   editable = false,
+  placeholder,
   className,
 }: StepperProps) {
   // 입력 중 임시 문자열(예: "0." 같은 중간 상태 허용). null이면 value를 표시.
@@ -89,14 +92,15 @@ export function Stepper({
             <input
               type="text"
               inputMode={precision === 0 ? "numeric" : "decimal"}
-              value={draft ?? String(value)}
+              value={draft ?? (value === 0 ? "" : String(value))}
               onChange={handleInput}
               onFocus={(e) => e.target.select()}
               onBlur={() => setDraft(null)}
+              placeholder={placeholder}
               aria-label="수량"
-              className="w-full min-w-0 rounded bg-transparent text-center font-numeric text-lg font-bold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="w-full min-w-0 rounded bg-transparent text-center font-numeric text-lg font-bold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-primary/40 placeholder:text-sm placeholder:font-medium placeholder:text-muted-foreground/60"
             />
-            {suffix && (
+            {suffix && value !== 0 && (
               <span className="ml-0.5 shrink-0 text-sm font-medium text-muted-foreground">
                 {suffix}
               </span>

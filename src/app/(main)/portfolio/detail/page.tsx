@@ -15,13 +15,9 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { JigsawPuzzle } from "@/components/features/portfolio/JigsawPuzzle";
-import { PuzzleOrderSheet } from "@/components/features/portfolio/PuzzleOrderSheet";
 import { CollectStatus } from "@/components/features/portfolio/CollectStatus";
-import {
-  FacetCard,
-  MiniPuzzle,
-  MiniCoins,
-} from "@/components/features/portfolio/FacetCard";
+import { FacetCard, MiniPuzzle } from "@/components/features/portfolio/FacetCard";
+import { CollectIcon } from "@/components/features/portfolio/ActionIcons";
 import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
@@ -294,8 +290,10 @@ function StockDetailContent({
   const fmtView = (v: number | string) =>
     showKrw ? formatKRW(toDecimal(v).times(fx).toNumber()) : fmtAmount(v);
   const selPieces = sel?.indexes.length ?? 0;
-  const orderAmount = price.div(PIECES_PER_SHARE).times(selPieces);
   const ordering = buyOrder.isPending || sellOrder.isPending;
+  // 조각 주문바 — 확정(sel) 우선, 드래그 중(live)엔 미리보기로 색/금액 표시
+  const activeMode = sel?.mode ?? live?.mode ?? null;
+  const previewPieces = sel?.indexes.length ?? live?.indexes.length ?? 0;
 
   // 백엔드 최소 주문금액(국내 1,000원 / 해외 $0.01)을 충족하는 최소 조각 수.
   const perPiece = price.div(PIECES_PER_SHARE);
@@ -486,7 +484,7 @@ function StockDetailContent({
       />
 
       <div
-        className={cn("space-y-6", !isPieces && !isCollect && "pb-24")}
+        className={cn("space-y-6", !isCollect && "pb-28")}
       >
         {isCollect ? (
           <CollectStatus
@@ -544,7 +542,7 @@ function StockDetailContent({
               <span className="shrink-0 font-bold text-primary">
                 {auto.setting.enabled ? "모으기 중" : "모으기 일시중지"}
               </span>
-              <span className="truncate text-muted-foreground">
+              <span className="truncate text-foreground/80">
                 {FREQ_LABEL[auto.setting.frequency]} ·{" "}
                 {auto.setting.amountMode === "AMOUNT"
                   ? fmtView(auto.setting.amount)
@@ -581,7 +579,7 @@ function StockDetailContent({
                   <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
                     <div className="flex items-center gap-1.5 rounded-full bg-[#0f172a]/90 px-3.5 py-1.5 text-sm font-bold text-white shadow-lg backdrop-blur-sm">
                       <span className={live.mode === "buy" ? "text-up" : "text-down"}>
-                        {live.mode === "buy" ? "매수" : "매도"}
+                        {live.mode === "buy" ? "구매" : "판매"}
                       </span>
                       <span>{live.indexes.length}조각</span>
                       <span className="opacity-40">·</span>
@@ -619,6 +617,16 @@ function StockDetailContent({
               </p>
             </section>
 
+            {/* 1주만큼 모였으면 온주로 굳히기 — 퍼즐을 보는 이 맥락에서 띄운다 */}
+            {canConvert && (
+              <FacetCard
+                icon={<Layers className="size-9 text-primary" />}
+                title="온주로 전환"
+                subtitle={`소수점 주식 ${fractionalQtyD.floor().toString()}주를 온주로`}
+                cta={convert.isPending ? "전환 중" : "전환"}
+                onClick={handleConvertClick}
+              />
+            )}
           </>
         ) : (
           <>
@@ -678,7 +686,7 @@ function StockDetailContent({
               </h2>
               <FacetCard
                 icon={<MiniPuzzle active={pieces > 0} />}
-                title="조각 모으기"
+                title="퍼즐 조각"
                 active={pieces > 0}
                 subtitle={
                   pieces > 0
@@ -691,7 +699,7 @@ function StockDetailContent({
                 }
               />
               <FacetCard
-                icon={<MiniCoins active={auto.id !== null} />}
+                icon={<CollectIcon className="size-9" />}
                 title="자동 모으기"
                 active={auto.id !== null}
                 badge={
@@ -715,17 +723,6 @@ function StockDetailContent({
                   )
                 }
               />
-              {canConvert && (
-                <FacetCard
-                  icon={<Layers className="size-6 text-primary" />}
-                  title="온주로 전환"
-                  subtitle={`신탁 소수 ${formatShares(fractionalQtyD)}주 중 ${fractionalQtyD
-                    .floor()
-                    .toString()}주를 온주로`}
-                  cta={convert.isPending ? "전환 중" : "전환"}
-                  onClick={handleConvertClick}
-                />
-              )}
             </section>
 
             {convHistory.length > 0 && (
@@ -886,13 +883,17 @@ function StockDetailContent({
         <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-[env(safe-area-inset-bottom)] pt-3">
           <div className="flex gap-2.5 pb-3">
             <Button
-              onClick={() => router.push(tradingDetailPath(stockCode))}
+              onClick={() =>
+                router.push(tradingDetailPath(stockCode, { side: "BUY" }))
+              }
               className="h-12 flex-1 bg-up text-base font-bold text-white hover:bg-up/90"
             >
               매수
             </Button>
             <Button
-              onClick={() => router.push(tradingDetailPath(stockCode))}
+              onClick={() =>
+                router.push(tradingDetailPath(stockCode, { side: "SELL" }))
+              }
               className="h-12 flex-1 bg-down text-base font-bold text-white hover:bg-down/90"
             >
               매도
@@ -901,20 +902,45 @@ function StockDetailContent({
         </div>
       )}
 
-      <PuzzleOrderSheet
-        open={!!sel}
-        onClose={() => setSel(null)}
-        mode={sel?.mode ?? "buy"}
-        stockName={detail.stockName}
-        pieces={selPieces}
-        currentFilled={pieces}
-        total={PIECES_PER_SHARE}
-        amount={orderAmount.toNumber()}
-        perPieceAmount={perPiece.toNumber()}
-        formatAmount={fmtAmount}
-        onConfirm={handleConfirm}
-        pending={ordering}
-      />
+      {/* 조각 뷰 — 하단 탭바 위 구매/판매 액션바. 드래그한 조각 종류가 활성 버튼을 정한다(빈=구매/모은=판매). */}
+      {isPieces && (
+        <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-[env(safe-area-inset-bottom)] pt-3">
+          {previewPieces > 0 && (
+            <div className="flex items-center justify-between pb-2.5 text-sm">
+              <span className="text-muted-foreground">
+                {activeMode === "sell" ? "예상 수령 금액" : "예상 결제 금액"}
+              </span>
+              <span className="font-numeric font-bold text-primary">
+                {fmtView(perPiece.times(previewPieces).toString())}
+              </span>
+            </div>
+          )}
+          <div className="flex gap-2.5 pb-3">
+            <Button
+              onClick={handleConfirm}
+              disabled={ordering || sel?.mode !== "buy"}
+              className={cn(
+                "h-12 flex-1 bg-up text-base font-bold text-white transition-opacity hover:bg-up/90",
+                // 활성(빈 조각 드래그/확정)일 때만 진하게. 그 외는 기본 disabled 페이드(연하게).
+                activeMode === "buy" && "opacity-100 disabled:opacity-100",
+              )}
+            >
+              구매
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              disabled={ordering || sel?.mode !== "sell"}
+              className={cn(
+                "h-12 flex-1 bg-down text-base font-bold text-white transition-opacity hover:bg-down/90",
+                // 활성(모은 조각 드래그/확정)일 때만 진하게. 그 외는 기본 disabled 페이드(연하게).
+                activeMode === "sell" && "opacity-100 disabled:opacity-100",
+              )}
+            >
+              판매
+            </Button>
+          </div>
+        </div>
+      )}
 
       <TxnAuthDialog
         open={authOpen}

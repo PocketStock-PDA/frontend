@@ -6,8 +6,11 @@ function query(params: Record<string, string | number | undefined>) {
   return sp.toString();
 }
 
-export function tradingDetailPath(stockCode: string) {
-  return `/trading/detail?${query({ stockCode })}`;
+export function tradingDetailPath(
+  stockCode: string,
+  options: { side?: "BUY" | "SELL" } = {},
+) {
+  return `/trading/detail?${query({ stockCode, side: options.side })}`;
 }
 
 export function tradingAutoDetailPath(stockCode: string) {

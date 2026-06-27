@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Repeat, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -12,40 +13,44 @@ import { ChangeIndicator } from "@/components/common/ChangeIndicator";
 import { CurrencyToggle } from "@/components/common/CurrencyToggle";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { Stepper } from "@/components/common/Stepper";
-import { AmountInput } from "@/components/common/AmountInput";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
+import { JigsawPuzzle } from "@/components/features/portfolio/JigsawPuzzle";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
+import { useOrders } from "@/hooks/queries/useOrders";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
 import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { toDecimal } from "@/lib/utils/decimal";
+import { PIECES_PER_SHARE } from "@/lib/utils/pieces";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { splitOrderToast, wholeOrderToast } from "@/lib/utils/orderResult";
 import { cn } from "@/lib/utils";
-import {
-  tradingAutoDetailPath,
-  tradingOrderbookPath,
-} from "@/lib/navigation/routes";
+import { tradingOrderbookPath } from "@/lib/navigation/routes";
 import type {
   SplitOrderResponse,
   WholeOrderResponse,
 } from "@/types/domain/order";
 
-type Method = "FRACTION" | "WHOLE"; // 소수점 / 온주
-type InputMode = "QTY" | "AMOUNT"; // 수량으로 / 금액으로
+type Tab = "PIECES" | "FRACTION" | "WHOLE"; // 조각(퍼즐) / 소수점 / 온주
+type InputMode = "QTY" | "AMOUNT"; // 수량으로 / 금액으로 (소수점 전용)
 type Side = "BUY" | "SELL";
+// 조각(퍼즐) 선택 — 확정 시점에 멱등키 1개 발급. 하단 고정바에서 인라인 확정.
+type PieceSel = { indexes: number[]; clientOrderId: string };
+type LiveSel = { mode: "buy" | "sell"; indexes: number[] };
+// 접수(체결 대기) 조각 주문 — 퍼즐 손맛 애니메이션용. 실제 FILLED 시 개별 해제.
+type PendingOrder = { orderId: number; mode: "buy" | "sell"; count: number };
 
-const AMOUNT_CHIPS = [5000, 10000, 50000, 100000]; // 금액 빠른 추가(원)
+const AMOUNT_CHIPS = [1000, 5000, 10000]; // 금액 빠른 추가(원). 4번째 칩은 최대(동적)
 
 function formatShares(q: Decimal) {
   return q.toDecimalPlaces(4).toString();
@@ -54,12 +59,14 @@ function formatShares(q: Decimal) {
 export default function TradePage() {
   const searchParams = useSearchParams();
   const stockCode = searchParams.get("stockCode");
+  // 진입 방향 — 보유 상세의 매도 버튼 등에서 ?side=SELL로 넘어옴(기본 구매)
+  const initialSide: Side = searchParams.get("side") === "SELL" ? "SELL" : "BUY";
 
   if (!stockCode) {
     return <MissingStockCodeState />;
   }
 
-  return <TradeContent stockCode={stockCode} />;
+  return <TradeContent stockCode={stockCode} initialSide={initialSide} />;
 }
 
 function MissingStockCodeState() {
@@ -86,12 +93,20 @@ function MissingStockCodeState() {
   );
 }
 
-function TradeContent({ stockCode }: { stockCode: string }) {
+function TradeContent({
+  stockCode,
+  initialSide,
+}: {
+  stockCode: string;
+  initialSide: Side;
+}) {
   const router = useRouter();
+  const reduce = useReducedMotion();
   const detailQ = useStockDetail(stockCode);
   const exchangeRateQ = useExchangeRate(); // 해외 종목 원화 환산 토글용(매매기준율)
   const holdingsQ = useHoldings();
   const cmaQ = useCmaHome();
+  const ordersQ = useOrders(); // 접수 조각 reconcile용 폴링 소스
   const buyOrder = useBuyOrder();
   const sellOrder = useSellOrder();
   const wholeOrder = useWholeOrder();
@@ -101,11 +116,16 @@ function TradeContent({ stockCode }: { stockCode: string }) {
     enabled: !!detailQ.data,
   });
 
-  const [method, setMethod] = useState<Method>("FRACTION");
+  const [side, setSide] = useState<Side>(initialSide); // 주문 방향(구매/판매) — 진입 side(보유 상세 매도 등) 반영, 상단에서 전환
+  const [tab, setTab] = useState<Tab>("PIECES"); // 조각(퍼즐) 기본 — 소수점/온주는 숫자 입력
   const [inputMode, setInputMode] = useState<InputMode>("QTY");
   const [qty, setQty] = useState(0);
   const [amount, setAmount] = useState(0);
   const [autoCharge, setAutoCharge] = useState(true);
+  // 조각(퍼즐) 선택 — 확정(탭/드래그 종료) 시 채워짐. 하단 고정바가 이 선택을 확정.
+  const [pieceSel, setPieceSel] = useState<PieceSel | null>(null);
+  // 드래그 중 라이브 선택(조각 수·금액 HUD용). 손 떼면 null
+  const [live, setLive] = useState<LiveSel | null>(null);
   // 해외 종목 한정: 조회용 금액(현재가·매수가능·예상주문금액)을 원화로 환산해 볼지 토글. 주문은 항상 달러 체결.
   const [ovsKrw, setOvsKrw] = useState(false);
   // 거래 인증 필요(TXN_AUTH_REQUIRED) 시 계좌 비밀번호를 받기 위한 시트 — 인증 후 그 side로 재시도
@@ -116,6 +136,51 @@ function TradeContent({ stockCode }: { stockCode: string }) {
   const resetKeys = () => {
     orderKeys.current = { BUY: null, SELL: null };
   };
+
+  // 접수(체결 대기) 조각 주문들 — 확정 즉시 퍼즐 애니메이션. 동시 다건 누적, 각자 실제 FILLED 시 개별 해제.
+  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  const hasPending = pendingOrders.length > 0;
+  const ordersRefetch = ordersQ.refetch;
+  const holdingsRefetch = holdingsQ.refetch;
+  // 폴링 콜백에서 최신 pending을 읽기 위한 ref(이펙트 내부 동기 setState 회피)
+  const pendingRef = useRef(pendingOrders);
+  useEffect(() => {
+    pendingRef.current = pendingOrders;
+  }, [pendingOrders]);
+
+  // 접수 중이면 주문내역을 폴링(차수배치 ~1분)하며 reconcile.
+  // FILLED → 보유 갱신 후 해제(확정 스냅) / 실패 → 해제(롤백). 5분 안전망.
+  useEffect(() => {
+    if (!hasPending) return;
+    const tick = async () => {
+      const res = await ordersRefetch();
+      const list = res.data ?? [];
+      const resolved = new Set<number>();
+      let anyFilled = false;
+      let anyFailed = false;
+      for (const p of pendingRef.current) {
+        const o = list.find((x) => x.orderId === p.orderId);
+        if (!o) continue;
+        if (o.status === "FILLED") {
+          resolved.add(p.orderId);
+          anyFilled = true;
+        } else if (o.status === "REJECTED" || o.status === "CANCELLED") {
+          resolved.add(p.orderId);
+          anyFailed = true;
+        }
+      }
+      if (resolved.size === 0) return;
+      if (anyFilled) void holdingsRefetch();
+      if (anyFailed) toast.error("체결되지 못한 주문이 있어요.");
+      setPendingOrders((prev) => prev.filter((p) => !resolved.has(p.orderId)));
+    };
+    const iv = setInterval(() => void tick(), 4000);
+    const stop = setTimeout(() => setPendingOrders([]), 300_000);
+    return () => {
+      clearInterval(iv);
+      clearTimeout(stop);
+    };
+  }, [hasPending, ordersRefetch, holdingsRefetch]);
 
   if (detailQ.isLoading) {
     return (
@@ -164,28 +229,66 @@ function TradeContent({ stockCode }: { stockCode: string }) {
   const holdingQty = toDecimal(holding?.quantity);
   const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
 
-  // 최대 매수 수량 (매수가능금액 기준). 온주는 내림. ※ 매도 최대는 판매수량 카드 참고
+  // 조각(퍼즐) — 보유 소수분 → 채운 조각(0~99). 1조각 = 현재가/100.
+  const heldPieces = holdingQty
+    .minus(holdingQty.floor())
+    .times(PIECES_PER_SHARE)
+    .toDecimalPlaces(0, Decimal.ROUND_DOWN)
+    .toNumber();
+  const perPiece = price.div(PIECES_PER_SHARE);
+  // 백엔드 최소 주문금액(국내 1,000원/해외 $1)을 채우는 최소 조각 수.
+  const minPieces = perPiece.gt(0)
+    ? new Decimal(minOrder).div(perPiece).ceil().toNumber()
+    : 1;
+  const selPieces = pieceSel?.indexes.length ?? 0;
+  const piecesAmount = perPiece.times(selPieces);
+  // 판매+조각인데 채운 조각이 0 → 팔 조각이 없음(소수분 0 또는 1조각 미만). 빈 상태로 유도.
+  const piecesSellEmpty =
+    tab === "PIECES" && side === "SELL" && heldPieces === 0;
+  // 접수분 합산(동시 다건) → 퍼즐에 채움/날림 애니메이션으로 전달
+  const pendingBuy = pendingOrders.reduce(
+    (s, p) => s + (p.mode === "buy" ? p.count : 0),
+    0,
+  );
+  const pendingSell = pendingOrders.reduce(
+    (s, p) => s + (p.mode === "sell" ? p.count : 0),
+    0,
+  );
+
+  // 최대 수량 — 매수는 매수가능/현재가, 매도는 보유수량. 온주는 내림, 소수점은 4자리 내림.
   const maxBuyQty = price.gt(0)
     ? new Decimal(buyingPower).div(price)
     : new Decimal(0);
+  const maxQtyBase = side === "BUY" ? maxBuyQty : holdingQty;
   const maxQtyValue =
-    method === "WHOLE"
-      ? maxBuyQty.floor().toNumber()
-      : maxBuyQty.toDecimalPlaces(4, Decimal.ROUND_DOWN).toNumber();
+    tab === "WHOLE"
+      ? maxQtyBase.floor().toNumber()
+      : maxQtyBase.toDecimalPlaces(4, Decimal.ROUND_DOWN).toNumber();
 
-  // 세그먼트 연동: 온주는 수량만 가능 → 금액 선택 시 소수점으로 전환
-  const changeMethod = (m: Method) => {
-    setMethod(m);
-    if (m === "WHOLE") {
+  // 방향 전환 — 매도는 금액으로 불가(수량만). 조각 선택·멱등키 초기화.
+  const changeSide = (s: Side) => {
+    setSide(s);
+    if (s === "SELL") setInputMode("QTY");
+    setPieceSel(null);
+    setLive(null);
+    resetKeys();
+  };
+
+  // 주문 방식 전환(조각/소수점/온주). 온주는 정수 수량, 조각은 퍼즐.
+  const changeTab = (t: Tab) => {
+    setTab(t);
+    if (t === "WHOLE") {
       setInputMode("QTY");
       setQty((q) => Math.floor(q)); // 온주는 정수 수량
+    } else if (t === "PIECES") {
+      setInputMode("QTY");
     }
+    setPieceSel(null);
+    setLive(null);
     resetKeys();
   };
   const changeInputMode = (im: InputMode) => {
-    // 금액으로는 항상 소수점 고정 (백엔드 전달 값도 소수점)
-    if (im === "AMOUNT") setMethod("FRACTION");
-    setInputMode(im);
+    setInputMode(im); // 금액으로는 소수점 전용(이 탭에서만 노출)
     resetKeys();
   };
 
@@ -198,13 +301,42 @@ function TradeContent({ stockCode }: { stockCode: string }) {
     resetKeys();
   };
 
-  // 주문 금액 (AMOUNT 주문·예상 주문금액 표시용)
+  // 소수점/온주 예상 주문금액 (수량·금액 기반)
   const orderAmount =
     inputMode === "AMOUNT" ? new Decimal(amount) : new Decimal(qty).times(price);
 
   const pending =
     buyOrder.isPending || sellOrder.isPending || wholeOrder.isPending;
-  const valid = inputMode === "AMOUNT" ? amount > 0 : qty > 0;
+  // 하단 고정바 활성/금액 — 조각이면 선택 조각 기준, 아니면 수량·금액 기준
+  const numericValid = inputMode === "AMOUNT" ? amount > 0 : qty > 0;
+  const stickyValid = tab === "PIECES" ? selPieces > 0 : numericValid;
+  const stickyAmount =
+    tab === "PIECES"
+      ? piecesAmount.toDecimalPlaces(amountDp).toNumber()
+      : orderAmount.toDecimalPlaces(amountDp).toNumber();
+
+  // 조각 탭: 아직 아무것도 안 골랐으면 버튼이 곧 안내 문구(비활성). 탭/드래그하면 구매/판매로.
+  const piecesHint = tab === "PIECES" && selPieces === 0;
+  const ctaLabel = piecesHint
+    ? piecesSellEmpty
+      ? "판매할 소수점 조각이 없어요"
+      : side === "BUY"
+        ? "빈 조각을 드래그해 구매하기"
+        : "모은 조각을 드래그해 판매하기"
+    : side === "BUY"
+      ? "구매"
+      : "판매";
+
+  // 주문창 안내 문구 — 방향(구매/판매) + 모드별
+  const action = side === "BUY" ? "구매" : "판매";
+  const qtyPlaceholder =
+    tab === "WHOLE"
+      ? `몇 주 ${action}할까요?`
+      : `소수점 몇 주 ${action}할까요?`;
+  const amountPlaceholder = `얼마어치 ${action}할까요?`;
+
+  // 매도인데 보유 수량이 아예 없으면 주문 폼 대신 빈 상태 노출
+  const noSellable = side === "SELL" && holdingQty.lte(0);
 
   const resetAfterSuccess = (side: Side) => {
     orderKeys.current[side] = null; // 키 폐기 → 다음 주문은 새 키
@@ -214,7 +346,7 @@ function TradeContent({ stockCode }: { stockCode: string }) {
   const makeOpts = (side: Side) => ({
     onSuccess: () => {
       resetAfterSuccess(side);
-      toast.success(`${side === "BUY" ? "매수" : "매도"} 주문이 접수됐어요`);
+      toast.success(`${action} 주문이 접수됐어요`);
     },
     // 실패 시 키 유지 → 같은 주문 재시도 시 동일 키(멱등)
     onError: (err: unknown) => {
@@ -235,13 +367,101 @@ function TradeContent({ stockCode }: { stockCode: string }) {
     },
   });
 
+  // 조각(퍼즐) 선택 확정 — 상단 토글이 마스터: 방향과 다른 제스처는 무시, 최소금액 미달은 상향 보정.
+  const handlePieceCommit = (s: LiveSel | null) => {
+    if (!s) {
+      setPieceSel(null);
+      return;
+    }
+    const want = side === "BUY" ? "buy" : "sell";
+    if (s.mode !== want) {
+      toast.warning(
+        side === "BUY"
+          ? "구매는 빈 조각을 탭해 담아요"
+          : "판매는 채운 조각을 탭해요",
+      );
+      return;
+    }
+    let indexes = s.indexes;
+    if (indexes.length < minPieces) {
+      const candidates =
+        s.mode === "buy"
+          ? Array.from(
+              { length: PIECES_PER_SHARE - heldPieces },
+              (_, i) => heldPieces + i,
+            )
+          : Array.from({ length: heldPieces }, (_, i) => i);
+      const chosen = new Set(indexes);
+      for (const idx of candidates) {
+        if (chosen.size >= minPieces) break;
+        chosen.add(idx);
+      }
+      indexes = Array.from(chosen).sort((a, b) => a - b);
+      if (indexes.length < minPieces) {
+        toast.warning(`최소 주문금액(${fmtView(minOrder)})을 채울 조각이 부족해요`);
+        setPieceSel(null);
+        return;
+      }
+      if (indexes.length > s.indexes.length) {
+        toast.warning(
+          `최소 주문금액은 ${fmtView(minOrder)} 이상이에요. ${indexes.length}조각으로 맞췄어요`,
+        );
+      }
+    }
+    setPieceSel({ indexes, clientOrderId: genClientOrderId() });
+  };
+
+  // 조각 주문 실행 — 소수 주수(조각/100)로 QUANTITY 주문(소수분 차수대기).
+  const submitPieces = (s: Side) => {
+    if (pending || !pieceSel || pieceSel.indexes.length <= 0) return;
+    const quantity = new Decimal(pieceSel.indexes.length)
+      .div(PIECES_PER_SHARE)
+      .toNumber();
+    const clientOrderId = pieceSel.clientOrderId;
+    // 접수 애니메이션용 — 확정 시점의 조각 수·모드 고정(이후 sel은 null로 닫힘)
+    const committedMode = s === "BUY" ? "buy" : "sell";
+    const committedCount = pieceSel.indexes.length;
+    const opts = {
+      ...makeOpts(s),
+      onSuccess: (data: SplitOrderResponse) => {
+        // 소수분 접수됨 → 퍼즐에 즉시 손맛 애니메이션(실제 체결 전까지 pending). 동시 다건 누적.
+        const fid = data.fractionalOrderId;
+        if (fid !== null) {
+          setPendingOrders((prev) => [
+            ...prev,
+            { orderId: fid, mode: committedMode, count: committedCount },
+          ]);
+        }
+        setPieceSel(null);
+        setLive(null);
+        const t = splitOrderToast(s, data);
+        toast.success(
+          t.title,
+          t.description ? { description: t.description } : undefined,
+        );
+      },
+    };
+    if (s === "BUY") {
+      buyOrder.mutate(
+        { clientOrderId, stockCode, market, orderType: "QUANTITY", quantity },
+        opts,
+      );
+    } else {
+      sellOrder.mutate(
+        { clientOrderId, stockCode, market, orderType: "QUANTITY", quantity },
+        opts,
+      );
+    }
+  };
+
+  // 소수점/온주 숫자 주문 실행
   const submit = (side: Side) => {
-    if (pending || !valid) return;
+    if (pending || !numericValid) return;
     const clientOrderId = orderKeys.current[side] ?? genClientOrderId();
     orderKeys.current[side] = clientOrderId;
     const opts = makeOpts(side);
 
-    if (method === "WHOLE") {
+    if (tab === "WHOLE") {
       // 온주 간편 = 시장가. 지정가(호가창)는 '주문방법 변경하기'에서 (이슈 ②)
       wholeOrder.mutate(
         { clientOrderId, stockCode, market, side, orderType: "MARKET", quantity: qty },
@@ -326,6 +546,12 @@ function TradeContent({ stockCode }: { stockCode: string }) {
     }
   };
 
+  // 하단 고정바·인증 재시도의 단일 진입점 — 탭에 따라 조각/숫자 주문으로 분기
+  const submitForTab = (s: Side) => {
+    if (tab === "PIECES") submitPieces(s);
+    else submit(s);
+  };
+
   return (
     <>
       <AppHeader
@@ -371,186 +597,312 @@ function TradeContent({ stockCode }: { stockCode: string }) {
         }
       />
 
-      <div className="space-y-5">
-        {/* 소수점 | 온주 — 항상 노출(금액으로여도 유지). 온주 선택 시 자동으로 수량 모드 전환 */}
-        <SegmentedControl<Method>
+      <div className="space-y-5 pb-36">
+        {/* 구매 | 판매 — 주문 방향 먼저 선택(시맨틱색). 활성 알약이 좌우로 미끄러져
+            방향 전환을 손에 잡히게 한다. 가운데 정렬·좁은 알약 */}
+        <div className="relative mx-auto flex w-[64%] rounded-full bg-muted p-1">
+          {(
+            [
+              { s: "BUY", label: "구매", bg: "bg-up" },
+              { s: "SELL", label: "판매", bg: "bg-down" },
+            ] as const
+          ).map(({ s, label, bg }) => {
+            const active = side === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => changeSide(s)}
+                className={cn(
+                  "relative flex-1 rounded-full py-2 text-sm font-bold transition-colors",
+                  active ? "text-white" : "text-muted-foreground",
+                )}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="sideThumb"
+                    aria-hidden
+                    transition={
+                      reduce
+                        ? { duration: 0 }
+                        : { type: "tween", duration: 0.25, ease: [0.22, 1, 0.36, 1] }
+                    }
+                    className={cn("absolute inset-0 rounded-full", bg)}
+                  />
+                )}
+                <span className="relative z-10">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {noSellable ? (
+          <EmptyState
+            title="판매할 주식이 없어요"
+            description="보유한 수량이 없어요. 구매로 먼저 담아보세요."
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => holdingsQ.refetch()}
+              >
+                새로고침
+              </Button>
+            }
+            className="py-12"
+          />
+        ) : (
+          <>
+        {/* 조각 | 소수점 | 온주 — 주문 방식 선택 */}
+        <SegmentedControl<Tab>
           options={[
+            { label: "조각", value: "PIECES" },
             { label: "소수점", value: "FRACTION" },
             { label: "온주", value: "WHOLE" },
           ]}
-          value={method}
-          onChange={changeMethod}
+          value={tab}
+          onChange={changeTab}
         />
 
-        {/* 수량/금액 입력 카드 */}
-        <div className="space-y-3 rounded-2xl bg-muted/50 p-4">
-          {/* 수량으로 | 금액으로 — 금액은 소수점 전용. 온주는 수량만 가능해 '금액으로' 미노출 */}
-          <div className="flex items-center gap-2 text-sm font-bold">
-            <button
-              type="button"
-              onClick={() => changeInputMode("QTY")}
-              className={cn(
-                inputMode === "QTY" ? "text-foreground" : "text-muted-foreground",
-              )}
-            >
-              수량으로
-            </button>
-            {method === "FRACTION" && (
-              <>
-                <span className="text-border">|</span>
-                <button
-                  type="button"
-                  onClick={() => changeInputMode("AMOUNT")}
-                  className={cn(
-                    inputMode === "AMOUNT"
-                      ? "text-foreground"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  금액으로
-                </button>
-              </>
-            )}
-          </div>
-
-          {inputMode === "QTY" ? (
-            <>
-              <Stepper
-                value={qty}
-                onChange={onQtyChange}
-                step={method === "WHOLE" ? 1 : 0.1}
-                min={0}
-                precision={method === "WHOLE" ? 0 : 4}
-                suffix="주"
-                editable
+        {/* 렌즈 전환 — 조각/소수점/온주 사이를 0.15s 크로스페이드(DESIGN: 렌즈 전환).
+            key={tab}로 remount해 들어오는 콘텐츠만 살짝 떠오른다. */}
+        <motion.div
+          key={tab}
+          initial={reduce ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.15 }}
+        >
+        {tab === "PIECES" ? (
+          /* 조각(퍼즐) — 빈/채운 조각을 탭해 담고, 하단 고정바에서 확정 */
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-foreground">조각 모으기</h2>
+              <span className="font-numeric text-sm font-bold text-primary">
+                {heldPieces}/{PIECES_PER_SHARE} 조각
+              </span>
+            </div>
+            <div className="relative">
+              <JigsawPuzzle
+                total={PIECES_PER_SHARE}
+                filled={heldPieces}
+                onSelectionCommit={handlePieceCommit}
+                onSelectionChange={setLive}
+                selectedIndexes={pieceSel?.indexes ?? []}
+                logoUrl={detail.logoUrl}
+                pendingBuy={pendingBuy}
+                pendingSell={pendingSell}
               />
-              <div className="flex gap-2">
-                {(method === "WHOLE" ? [1, 5, 10] : [0.1, 0.5, 1]).map((n) => (
+              {/* 드래그 중 실시간 HUD — 중립 다크 칩(로고색 무관). 방향=시맨틱색 단어 */}
+              {live &&
+                live.indexes.length > 0 &&
+                live.mode === (side === "BUY" ? "buy" : "sell") && (
+                  <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
+                    <div className="flex items-center gap-1.5 rounded-full bg-[#0f172a]/90 px-3.5 py-1.5 text-sm font-bold text-white shadow-lg backdrop-blur-sm">
+                      <span className={side === "BUY" ? "text-up" : "text-down"}>
+                        {action}
+                      </span>
+                      <span>{live.indexes.length}조각</span>
+                      <span className="opacity-40">·</span>
+                      <span className="font-numeric">
+                        {fmtView(perPiece.times(live.indexes.length).toString())}
+                      </span>
+                    </div>
+                  </div>
+                )}
+            </div>
+          </section>
+        ) : (
+          /* 소수점 / 온주 — 수량·금액 입력 카드 */
+          <div className="space-y-3 rounded-2xl bg-muted/50 p-4">
+            {/* 수량으로 | 금액으로 — 금액은 소수점 전용. 온주는 수량만 가능해 '금액으로' 미노출 */}
+            <div className="flex items-center gap-2 text-sm font-bold">
+              <button
+                type="button"
+                onClick={() => changeInputMode("QTY")}
+                className={cn(
+                  inputMode === "QTY" ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
+                수량으로
+              </button>
+              {tab === "FRACTION" && side === "BUY" && (
+                <>
+                  <span className="text-border">|</span>
                   <button
-                    key={n}
                     type="button"
-                    onClick={() =>
-                      onQtyChange(
-                        new Decimal(qty)
-                          .plus(n)
-                          .toDecimalPlaces(method === "WHOLE" ? 0 : 4)
-                          .toNumber(),
-                      )
-                    }
+                    onClick={() => changeInputMode("AMOUNT")}
+                    className={cn(
+                      inputMode === "AMOUNT"
+                        ? "text-foreground"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    금액으로
+                  </button>
+                </>
+              )}
+            </div>
+
+            {inputMode === "QTY" ? (
+              <>
+                <Stepper
+                  value={qty}
+                  onChange={onQtyChange}
+                  step={tab === "WHOLE" ? 1 : 0.1}
+                  min={0}
+                  precision={tab === "WHOLE" ? 0 : 4}
+                  suffix="주"
+                  placeholder={qtyPlaceholder}
+                  editable
+                />
+                <div className="flex gap-2">
+                  {(tab === "WHOLE" ? [1, 5, 10] : [0.1, 0.5, 1]).map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() =>
+                        onQtyChange(
+                          new Decimal(qty)
+                            .plus(n)
+                            .toDecimalPlaces(tab === "WHOLE" ? 0 : 4)
+                            .toNumber(),
+                        )
+                      }
+                      className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                    >
+                      +{n}주
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => onQtyChange(maxQtyValue)}
                     className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
                   >
-                    +{n}주
+                    최대
                   </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => onQtyChange(maxQtyValue)}
-                  className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  최대
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <AmountInput
-                value={amount}
-                onChange={onAmountChange}
-                placeholder="주문 금액"
-              />
-              <div className="flex gap-2">
-                {AMOUNT_CHIPS.map((n) => (
+                </div>
+              </>
+            ) : (
+              <>
+                <Stepper
+                  value={amount}
+                  onChange={onAmountChange}
+                  step={1000}
+                  min={0}
+                  precision={0}
+                  suffix="원"
+                  placeholder={amountPlaceholder}
+                  editable
+                />
+                <div className="flex gap-2">
+                  {AMOUNT_CHIPS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => onAmountChange(new Decimal(amount).plus(n).toNumber())}
+                      className="flex-1 rounded-lg border border-border bg-background py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                    >
+                      +{n.toLocaleString("ko-KR")}원
+                    </button>
+                  ))}
+                  {/* 최대 = 매수 가능 최대금액으로 설정(누적 아님). 통화 자릿수로 정리(KRW 0·USD 2)해 백엔드 금액과 일치 */}
                   <button
-                    key={n}
                     type="button"
-                    onClick={() => onAmountChange(new Decimal(amount).plus(n).toNumber())}
-                    className="flex-1 rounded-lg border border-border bg-background py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                    disabled={buyingPower <= 0}
+                    onClick={() =>
+                      onAmountChange(
+                        new Decimal(buyingPower).toDecimalPlaces(amountDp).toNumber(),
+                      )
+                    }
+                    className="flex-1 rounded-lg border border-border bg-background py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
                   >
-                    +{n.toLocaleString("ko-KR")}원
+                    최대
                   </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+                </div>
+              </>
+            )}
 
-        {/* 부족금액 자동충전 */}
-        <label className="flex items-center justify-between">
-          <span className="text-sm font-medium text-foreground">
-            부족금액 자동충전
-          </span>
-          <Switch checked={autoCharge} onCheckedChange={setAutoCharge} />
-        </label>
-
-        {/* 매수 가능 / 판매 수량 */}
-        <div className="flex items-center justify-between rounded-xl bg-primary/5 px-4 py-3">
-          <div>
-            <p className="text-xs text-muted-foreground">매수 가능</p>
-            <p className="font-numeric text-base font-bold text-primary">
-              {fmtView(buyingPower)}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground">판매 수량</p>
-            <p className="font-numeric text-base font-bold text-primary">
-              {formatShares(holdingQty)}주
-            </p>
-          </div>
-        </div>
-
-        {/* 예상 주문금액 (수량·금액 바꿀 때 실시간 갱신) */}
-        {valid && (
-          <div className="flex items-center justify-between rounded-xl bg-muted/40 px-4 py-3 text-sm">
-            <span className="text-muted-foreground">예상 주문금액</span>
-            <span className="font-numeric font-bold text-primary">
-              {fmtView(orderAmount.toDecimalPlaces(amountDp).toNumber())}
-            </span>
+            {/* 하단 맥락 정보 — 구매면 구매 가능, 판매면 판매 수량 */}
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <span className="text-xs text-muted-foreground">
+                {side === "BUY" ? "구매 가능" : "판매 수량"}
+              </span>
+              <span className="font-numeric text-sm font-bold text-foreground">
+                {side === "BUY" && inputMode === "AMOUNT"
+                  ? fmtView(buyingPower)
+                  : `${formatShares(new Decimal(maxQtyValue))}주`}
+              </span>
+            </div>
           </div>
         )}
+        </motion.div>
 
-        {/* 매수 / 매도 */}
-        <div className="flex gap-3">
-          <Button
-            onClick={() => submit("BUY")}
-            disabled={pending || !valid}
-            className="h-12 flex-1 bg-up text-base font-bold text-white hover:bg-up/90"
-          >
-            매수
-          </Button>
-          <Button
-            onClick={() => submit("SELL")}
-            disabled={pending || !valid}
-            className="h-12 flex-1 bg-down text-base font-bold text-white hover:bg-down/90"
-          >
-            매도
-          </Button>
-        </div>
+        {/* 부족금액 자동충전 — 구매에서만 */}
+        {side === "BUY" && (
+          <label className="flex items-center justify-between">
+            <span className="text-sm font-medium text-foreground">
+              부족금액 자동충전
+            </span>
+            <Switch checked={autoCharge} onCheckedChange={setAutoCharge} />
+          </label>
+        )}
 
         {/* 온주: 호가창(지정가) 매매로 이동 (이슈 ②) */}
-        {method === "WHOLE" && (
+        {tab === "WHOLE" && (
           <button
             type="button"
             onClick={() => router.push(tradingOrderbookPath(stockCode))}
-            className="flex w-full items-center justify-center gap-1 rounded-xl border border-border py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            className="ps-rise-in flex w-full items-center justify-center rounded-xl border border-border py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
-            주문방법 변경하기 (호가창)
-            <ChevronRight className="size-4" />
+            주문방법 변경하기
           </button>
         )}
 
-        {/* 자동모으기(적립식) 설정 진입 (이슈 ③) */}
-        <button
-          type="button"
-          onClick={() => router.push(tradingAutoDetailPath(stockCode))}
-          className="flex w-full items-center justify-between rounded-xl bg-muted/60 px-4 py-3.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          <span className="flex items-center gap-2">
-            <Repeat className="size-4 text-primary" />
-            자동모으기 설정
-          </span>
-          <ChevronRight className="size-4 text-muted-foreground" />
-        </button>
+          </>
+        )}
       </div>
+
+      {/* 실행 — 하단 탭바 위 고정 액션바. 예상 주문금액 + 구매/판매 인라인 확정 */}
+      {!noSellable && (
+        <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-[env(safe-area-inset-bottom)] pt-3">
+          {/* 예상 주문금액 — 유효해질 때 한 줄이 펼쳐지고, 값이 바뀌면 살짝 스왑(시세 틱 아님) */}
+          <AnimatePresence initial={false}>
+            {stickyValid && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={
+                  reduce
+                    ? { duration: 0 }
+                    : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
+                }
+                className="overflow-hidden"
+              >
+                <div className="flex items-center justify-between pb-2.5 text-sm">
+                  <span className="text-muted-foreground">예상 주문금액</span>
+                  <span
+                    key={stickyAmount}
+                    className="ps-amount-swap font-numeric font-bold text-primary"
+                  >
+                    {fmtView(stickyAmount)}
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <Button
+            onClick={() => submitForTab(side)}
+            disabled={pending || !stickyValid}
+            className={cn(
+              "mb-3 h-12 w-full text-base font-bold text-white",
+              side === "BUY" ? "bg-up hover:bg-up/90" : "bg-down hover:bg-down/90",
+            )}
+          >
+            {ctaLabel}
+          </Button>
+        </div>
+      )}
 
       <TxnAuthDialog
         open={authSide !== null}
@@ -558,9 +910,9 @@ function TradeContent({ stockCode }: { stockCode: string }) {
           if (!o) setAuthSide(null);
         }}
         onVerified={() => {
-          const side = authSide;
+          const s = authSide;
           setAuthSide(null);
-          if (side) submit(side);
+          if (s) submitForTab(s);
         }}
       />
     </>
