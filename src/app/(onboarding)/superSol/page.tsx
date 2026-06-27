@@ -15,26 +15,12 @@ import {
   ShoppingBag,
   Gift,
   LineChart,
-  WalletCards,
-  HeartHandshake,
-  CreditCard,
-  Banknote,
 } from "lucide-react";
 import { markEventSeen } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useMyProfile } from "@/hooks/queries/useMyProfile";
 import { PocketStockEntrySheet } from "./_components/PocketStockEntrySheet";
 import { PocketStockIntro } from "./_components/PocketStockIntro";
-
-// "오늘 보지 않기" 로 닫은 날짜를 보관 — 같은 날 재진입 시 팝업 자동 노출 생략.
-const POPUP_HIDDEN_KEY = "ps.superSolPopupHiddenDate";
-// 로컬(브라우저) 기준 날짜 — toISOString()의 UTC 사용 시 KST 자정 부근에 날짜가 어긋남.
-const todayKey = () => {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
-};
 
 export default function SuperSolPage() {
   const router = useRouter();
@@ -48,11 +34,9 @@ export default function SuperSolPage() {
     if (status === "guest") router.replace("/login");
   }, [status, router]);
 
-  // 진입(authed) 시 1회 포켓스톡 안내 팝업 자동 노출.
-  // localStorage 는 클라이언트 전용이라 마운트 후 effect 에서 확인한다("오늘 보지 않기" 생략).
+  // superSol 은 진입점 — authed 진입 시 무조건 포켓스톡 안내 팝업부터 노출(닫기·오늘 보지 않기 없음).
   useEffect(() => {
     if (status !== "authed") return;
-    if (localStorage.getItem(POPUP_HIDDEN_KEY) === todayKey()) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 진입 시 1회 모달 자동 노출
     setPopupOpen(true);
   }, [status]);
@@ -62,11 +46,6 @@ export default function SuperSolPage() {
     markEventSeen(); // 슈퍼쏠 확인 완료 표시 → 가드가 홈 진입 허용
     setPopupOpen(false);
     setIntro(true); // 영상 끝나면 onDone 에서 /home 으로 이동
-  };
-
-  const hidePopupToday = () => {
-    localStorage.setItem(POPUP_HIDDEN_KEY, todayKey());
-    setPopupOpen(false);
   };
 
   if (status !== "authed") return null;
@@ -91,35 +70,60 @@ export default function SuperSolPage() {
           <div className="flex items-center gap-4 text-[#3d4651]">
             <Smile className="size-[22px]" />
             <Wallet className="size-[22px]" />
-            <span className="relative">
+            <span className="relative inline-flex items-center">
               <Bell className="size-[22px]" />
-              <span className="absolute right-0 top-0 size-1.5 rounded-full bg-[#f0455a]" />
+              <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-[#f0455a]" />
             </span>
             <Search className="size-[22px]" />
           </div>
         </header>
 
         <main className="space-y-3 px-4">
-          {/* 입출금 통장 개설 프로모 */}
-          <section className="flex flex-col items-center gap-2.5 rounded-2xl bg-white px-4 pb-4 pt-5">
-            <span className="relative flex size-16 items-center justify-center rounded-2xl bg-[#eef3ff]">
-              <WalletCards className="size-8 text-[#2f6bff]" />
-              <Banknote className="absolute -bottom-1 -right-1 size-5 rounded-md bg-white text-[#22a06b]" />
-            </span>
-            <p className="text-center text-[15px] font-bold leading-snug text-[#1a1d23]">
-              수수료가 평생 없는
-              <br />
-              입출금 통장을 만들어보세요
-            </p>
-            <button
-              type="button"
-              className="mt-1 w-full rounded-xl py-3 text-sm font-bold text-white"
-              style={{
-                background: "linear-gradient(135deg,#5b8def 0%,#8b6ff0 100%)",
-              }}
-            >
-              가입하기
-            </button>
+          {/* 신한금융그룹 */}
+          <section className="rounded-2xl bg-white p-4">
+            <h2 className="text-base font-bold text-[#1a1d23]">신한금융그룹</h2>
+            <ul className="mt-2 divide-y divide-[#f1f3f5]">
+              <ServiceItem
+                iconNode={
+                  <svg width="27" height="27" viewBox="0 0 24 24" fill="none">
+                    <rect x="6.8" y="3" width="10.4" height="18" rx="2.6" fill="#2f6bff" />
+                    <rect x="9.2" y="5.8" width="3.4" height="3.4" rx="1" fill="#c2d6ff" />
+                  </svg>
+                }
+                title="신한카드"
+                desc="나에게 맞는 카드 찾기"
+                right={<ChevronRight className="size-5 text-[#cfd6dd]" />}
+              />
+              <ServiceItem
+                iconNode={
+                  <svg width="27" height="27" viewBox="0 0 24 24" fill="none">
+                    <rect x="4" y="9" width="3" height="7" rx="1" fill="#f04452" />
+                    <path d="M5.5 6v3M5.5 16v2" stroke="#f04452" strokeWidth="1.8" strokeLinecap="round" />
+                    <rect x="10.5" y="7" width="3" height="8" rx="1" fill="#3182f6" />
+                    <path d="M12 4v3M12 15v2" stroke="#3182f6" strokeWidth="1.8" strokeLinecap="round" />
+                    <rect x="17" y="5" width="3" height="6" rx="1" fill="#f04452" />
+                    <path d="M18.5 3v2M18.5 11v2" stroke="#f04452" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                }
+                title="신한투자증권"
+                desc="지금 뜨는 주식 보러가기"
+                right={<ChevronRight className="size-5 text-[#cfd6dd]" />}
+              />
+              <ServiceItem
+                iconNode={
+                  <svg width="27" height="27" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M12 3 4.8 5.7V11c0 4.6 3.1 7.9 7.2 9.2 4.1-1.3 7.2-4.6 7.2-9.2V5.7L12 3Z"
+                      fill="#2f6bff"
+                    />
+                    <path d="M12 8.1v5.4M9.3 10.8h5.4" stroke="#fff" strokeWidth="2.1" strokeLinecap="round" />
+                  </svg>
+                }
+                title="신한라이프"
+                desc="내게 필요한 보험, 보장분석으로 확인하기"
+                right={<ChevronRight className="size-5 text-[#cfd6dd]" />}
+              />
+            </ul>
           </section>
 
           {/* 마이신한포인트 */}
@@ -154,29 +158,61 @@ export default function SuperSolPage() {
               {/* ── 우리 서비스(포켓스톡) — 맨 위 · 탭 시 포켓스톡으로 진입 ── */}
               <ServiceItem
                 onClick={goToPocketStock}
-                iconSrc="/images/PocketStock-logo.png"
+                iconSrc="/images/PocketStock-logo-clean.png"
                 title="포켓스톡"
                 badge="NEW"
                 desc="잔돈으로 소수점 주식 자동 모으기"
                 right={<ChevronRight className="size-5 text-[#cfd6dd]" />}
               />
               <ServiceItem
-                iconNode={<HeartHandshake className="size-5 text-[#ff5a72]" />}
-                iconStyle={{ background: "#ffeef0" }}
+                iconNode={
+                  <svg width="34" height="34" viewBox="0 0 36 36" fill="none">
+                    <path d="M18 5.5 5.5 15.5h25L18 5.5Z" fill="#ff9d5c" />
+                    <rect x="8.5" y="14.5" width="19" height="15" rx="2.5" fill="#ffc59a" />
+                    <path
+                      d="M18 27.2c-3.4-2.1-5.4-3.9-5.4-6.3 0-1.6 1.3-2.8 2.9-2.8 1 0 1.9.5 2.5 1.3.6-.8 1.5-1.3 2.5-1.3 1.6 0 2.9 1.2 2.9 2.8 0 2.4-2 4.2-5.4 6.3Z"
+                      fill="#ff4d63"
+                    />
+                  </svg>
+                }
                 title="SOL패밀리"
                 badge="NEW"
                 desc="가족과 함께하는 금융생활"
               />
               <ServiceItem
-                iconNode={<Wallet className="size-5 text-[#22a06b]" />}
-                iconStyle={{ background: "#e9f7ef" }}
+                iconNode={
+                  <svg width="34" height="34" viewBox="0 0 36 36" fill="none">
+                    <rect x="6.5" y="9" width="23" height="18" rx="4.5" fill="#1f8a5b" />
+                    <path
+                      d="M12 14.5 15 22 18 16.8 21 22 24 14.5"
+                      stroke="#fff"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                }
                 title="급여클럽+"
                 desc="급여이체 우대 혜택"
                 right={<Pin className="size-5 text-[#cfd6dd]" />}
               />
               <ServiceItem
-                iconNode={<CreditCard className="size-5 text-[#2f6bff]" />}
-                iconStyle={{ background: "#eaf1ff" }}
+                iconNode={
+                  <svg width="34" height="34" viewBox="0 0 36 36" fill="none">
+                    <rect
+                      x="6"
+                      y="12"
+                      width="21"
+                      height="13.5"
+                      rx="2.6"
+                      transform="rotate(-9 16.5 18.75)"
+                      fill="#a9c6ff"
+                    />
+                    <rect x="9.5" y="11" width="21" height="13.5" rx="2.6" fill="#3f7bff" />
+                    <rect x="9.5" y="14" width="21" height="2.6" fill="#2a62e0" />
+                    <rect x="12.5" y="20" width="6" height="2" rx="1" fill="#fff" fillOpacity="0.85" />
+                  </svg>
+                }
                 title="내 카드 이용내역"
                 desc="모든 카드 사용내역 조회"
                 right={<Pin className="size-5 text-[#cfd6dd]" />}
@@ -204,7 +240,6 @@ export default function SuperSolPage() {
         open={popupOpen}
         onOpenChange={setPopupOpen}
         onStart={goToPocketStock}
-        onHideToday={hidePopupToday}
       />
 
       {intro && (
@@ -243,13 +278,15 @@ function ServiceItem({
         className="flex w-full items-center gap-3 py-3 text-left"
       >
         {iconSrc ? (
-          <Image
-            src={iconSrc}
-            alt=""
-            width={44}
-            height={44}
-            className="size-10 shrink-0 object-contain rounded-[12px]"
-          />
+          <span className="flex size-10 shrink-0 items-center justify-center">
+            <Image
+              src={iconSrc}
+              alt=""
+              width={36}
+              height={36}
+              className="size-[34px] object-contain rounded-[10px]"
+            />
+          </span>
         ) : (
           <span
             className="flex size-10 shrink-0 items-center justify-center rounded-xl"

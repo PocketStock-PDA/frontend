@@ -21,14 +21,14 @@ const inter = localFont({
 });
 
 export const metadata: Metadata = {
-  title: { default: "PocketStock", template: "%s | PocketStock" },
+  title: { default: "포켓스톡", template: "%s | 포켓스톡" },
   description: "잔돈·포인트 소수점 투자 플랫폼",
   robots: { index: false, follow: false },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "PocketStock",
+    title: "포켓스톡",
   },
 };
 
