@@ -27,19 +27,20 @@ export function BottomTabBar() {
   if (isNoCmaAccount(error) || isLoading) return null;
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-40 flex h-16 w-full max-w-[430px] -translate-x-1/2 items-center border-t border-border bg-background pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-1/2 z-40 flex h-[calc(4rem+env(safe-area-inset-bottom))] w-full max-w-[430px] -translate-x-1/2 items-start border-t border-border bg-background pb-[env(safe-area-inset-bottom)]">
       {tabs.map(({ href, label, icon: Icon }) => {
         const isActive = pathname.startsWith(href);
         return (
           <Link
             key={href}
             href={href}
+            aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex h-full flex-1 flex-col items-center justify-center gap-1 text-[11px]",
+              "flex h-16 flex-1 flex-col items-center justify-center gap-1 text-[11px]",
               isActive ? "text-primary" : "text-muted-foreground",
             )}
           >
-            <Icon size={22} />
+            <Icon className="size-6 shrink-0" />
             <span>{label}</span>
           </Link>
         );
