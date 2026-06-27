@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   Sheet,
@@ -51,11 +51,16 @@ export function WelcomeEventDialog({
 }: WelcomeEventDialogProps) {
   const reduce = useReducedMotion();
   const [stockIdx, setStockIdx] = useState(0);
+  const clipId = useId();
 
-  // 열릴 때 첫 종목으로 리셋 후 2.5s 간격 순환. 닫히면 정지.
+  // 열릴 때마다 첫 종목으로 리셋
+  useEffect(() => {
+    if (open) setStockIdx(0);
+  }, [open]);
+
+  // reduced-motion이 아닐 때만 2.5s 간격 순환
   useEffect(() => {
     if (!open || reduce) return;
-    setStockIdx(0);
     const id = setInterval(
       () => setStockIdx((i) => (i + 1) % STOCKS.length),
       2500,
@@ -155,12 +160,12 @@ export function WelcomeEventDialog({
                 }}
               >
                 <defs>
-                  <clipPath id="wePuzzleClip">
+                  <clipPath id={clipId}>
                     <path d={PUZZLE_PATH} />
                   </clipPath>
                 </defs>
 
-                <g clipPath="url(#wePuzzleClip)">
+                <g clipPath={`url(#${clipId})`}>
                   {STOCKS.map((stock, i) => (
                     <g
                       key={stock.src}
@@ -180,7 +185,7 @@ export function WelcomeEventDialog({
                         y={stock.imgY ?? -12}
                         width={stock.imgW ?? 140}
                         height={stock.imgH ?? 132}
-                        preserveAspectRatio={stock.imgW != null ? "xMidYMid meet" : "xMidYMid slice"}
+                        preserveAspectRatio={stock.imgW !== undefined ? "xMidYMid meet" : "xMidYMid slice"}
                       />
                     </g>
                   ))}
