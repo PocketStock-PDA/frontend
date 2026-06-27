@@ -53,19 +53,19 @@ export function WelcomeEventDialog({
   const [stockIdx, setStockIdx] = useState(0);
   const clipId = useId();
 
-  // 열릴 때마다 첫 종목으로 리셋
+  // 열릴 때 첫 종목으로 리셋(setTimeout으로 비동기화) 후 순환
   useEffect(() => {
-    if (open) setStockIdx(0);
-  }, [open]);
-
-  // reduced-motion이 아닐 때만 2.5s 간격 순환
-  useEffect(() => {
-    if (!open || reduce) return;
+    if (!open) return;
+    const resetId = setTimeout(() => setStockIdx(0), 0);
+    if (reduce) return () => clearTimeout(resetId);
     const id = setInterval(
       () => setStockIdx((i) => (i + 1) % STOCKS.length),
       2500,
     );
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(resetId);
+      clearInterval(id);
+    };
   }, [open, reduce]);
 
   const container = {
@@ -140,7 +140,7 @@ export function WelcomeEventDialog({
             <motion.div
               className="flex-shrink-0"
               role="img"
-              aria-label={`${STOCKS[stockIdx % STOCKS.length]!.name} 주식 퍼즐 조각`}
+              aria-label={`${STOCKS[stockIdx % STOCKS.length]?.name ?? "주식"} 퍼즐 조각`}
               initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.55, rotate: -18 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={reduce ? { duration: 0.15 } : { delay: 0.9, duration: 0.85, ease: EASE_OUT }}
