@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowRight, Calendar, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -56,9 +56,11 @@ function Logo({ children, sm }: { children: React.ReactNode; sm?: boolean }) {
 export default function MaturityDripPage() {
   const router = useRouter();
   const { data: settings, isLoading, isError } = useDividendReinvest();
-  const { data: history = [] } = useDividendHistory();
+  const { data: history = [], isLoading: historyLoading } = useDividendHistory();
   const { data: holdings = [] } = useHoldings();
   const setReinvest = useSetDividendReinvest();
+  // 토글이 처리 중인 종목 — 같은 종목 연속 토글로 응답 순서가 엇갈리는 것을 막는다.
+  const [pendingCode, setPendingCode] = useState<string | null>(null);
 
   const qtyByCode = useMemo(
     () => new Map(holdings.map((h) => [h.stockCode, h.quantity])),
@@ -80,16 +82,19 @@ export default function MaturityDripPage() {
   const hasHistory = received > 0;
 
   const handleToggle = (stockCode: string, enabled: boolean) => {
+    setPendingCode(stockCode);
     setReinvest.mutate(
       { stockCode, enabled },
       {
         onError: () =>
           toast.error("설정을 변경하지 못했어요. 잠시 후 다시 시도해 주세요."),
+        onSettled: () => setPendingCode(null),
       },
     );
   };
 
-  if (isLoading) {
+  // 복리 요약은 history 파생값이라, 내역 로딩 중에는 "받은 배당 없음"을 띄우지 않는다.
+  if (isLoading || historyLoading) {
     return (
       <>
         <AppHeader variant="sub" title="배당 재투자" />
@@ -204,6 +209,7 @@ export default function MaturityDripPage() {
                         </div>
                         <Switch
                           checked={s.enabled}
+                          disabled={pendingCode === s.stockCode}
                           onCheckedChange={(v) => handleToggle(s.stockCode, v)}
                           aria-label={`${s.stockName} 배당 재투자 ${s.enabled ? "끄기" : "켜기"}`}
                         />

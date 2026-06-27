@@ -15,7 +15,7 @@ export function AssetActionRows({ daysUntilMaturity }: AssetActionRowsProps) {
         title="만기 자금 굴리기"
         description="예금·적금 만기 자금을 배당주로"
         badge={
-          daysUntilMaturity != null ? (
+          daysUntilMaturity !== undefined ? (
             <span
               className={cn(
                 "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold",

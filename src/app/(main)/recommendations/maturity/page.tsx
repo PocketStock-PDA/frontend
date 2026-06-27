@@ -13,6 +13,9 @@ import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import type { DividendStockItem } from "@/types/domain/asset";
 
+// 매수 예약 최소 금액(reserve 단계와 동일)
+const MIN_AMOUNT = 1_000;
+
 export default function MaturityPage() {
   const router = useRouter();
   const { data, isLoading, isError } = useMaturityRecommendation();
@@ -40,7 +43,19 @@ export default function MaturityPage() {
     return Math.floor(dividendAmount / n);
   }, [selectedCodes.size, dividendAmount]);
 
+  // 이미 RESERVED 상태인 종목코드 (재예약 방지)
+  const reservedCodes = useMemo(
+    () =>
+      new Set(
+        reservations
+          .filter((r) => r.status === "RESERVED")
+          .map((r) => r.stockCode),
+      ),
+    [reservations],
+  );
+
   const toggleStock = (code: string) => {
+    if (reservedCodes.has(code)) return; // 이미 예약된 종목은 선택 불가
     setSelectedCodes((prev) => {
       const next = new Set(prev);
       if (next.has(code)) next.delete(code);
@@ -49,17 +64,14 @@ export default function MaturityPage() {
     });
   };
 
-  // 이미 RESERVED 상태인 종목코드 (재예약 방지 UI)
-  const reservedCodes = new Set(
-    reservations.filter((r) => r.status === "RESERVED").map((r) => r.stockCode),
-  );
+  // 종목당 매수금액이 최소 주문금액 미만이면 0원 예약이 만들어지므로 진행을 막는다.
+  const belowMin = perStockAmount < MIN_AMOUNT;
 
   const handleGoToReserve = () => {
-    if (!account?.accountId || selectedCodes.size === 0) return;
+    if (!account?.accountId || selectedCodes.size === 0 || belowMin) return;
     const items = [...selectedCodes].map((code) => `${code}:${perStockAmount}`).join(",");
-    router.push(
-      `/recommendations/maturity/reserve?items=${items}&accountId=${account.accountId}`,
-    );
+    // 계좌는 reserve에서 triggerAccount로 다시 잡으므로 URL엔 종목·금액만 싣는다.
+    router.push(`/recommendations/maturity/reserve?items=${items}`);
   };
 
   if (isLoading) {
@@ -259,13 +271,22 @@ export default function MaturityPage() {
 
             {/* 예약하기 버튼 */}
             {selectedCodes.size > 0 && (
-              <button
-                type="button"
-                onClick={handleGoToReserve}
-                className="flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-opacity active:opacity-80"
-              >
-                {selectedCodes.size}종목 예약 확인하기
-              </button>
+              <>
+                {belowMin && (
+                  <p className="text-center text-xs font-medium text-destructive">
+                    종목당 최소 {formatKRW(MIN_AMOUNT)}부터 예약할 수 있어요. 종목 수를
+                    줄이거나 배당주 비중을 높여주세요.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleGoToReserve}
+                  disabled={belowMin}
+                  className="flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-opacity active:opacity-80 disabled:opacity-50"
+                >
+                  {selectedCodes.size}종목 예약 확인하기
+                </button>
+              </>
             )}
           </section>
         )}
@@ -324,11 +345,14 @@ function DividendStockCard({
     <button
       type="button"
       onClick={onSelect}
+      disabled={alreadyReserved}
       className={cn(
         "w-full rounded-2xl border p-4 text-left transition-colors duration-150",
-        selected
-          ? "border-primary bg-[#f7faff]"
-          : "border-border bg-card hover:bg-muted/30 active:bg-muted/50",
+        alreadyReserved
+          ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
+          : selected
+            ? "border-primary bg-[#f7faff]"
+            : "border-border bg-card hover:bg-muted/30 active:bg-muted/50",
       )}
     >
       <div className="flex items-start gap-3">

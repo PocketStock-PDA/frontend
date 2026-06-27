@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import Decimal from "decimal.js";
 import { Info, Minus, Plus, Landmark, TrendingUp, ArrowDown } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ApiError } from "@/lib/api/client";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useCreateMaturityReservation } from "@/hooks/mutations/useCreateMaturityReservation";
@@ -21,17 +22,26 @@ export default function MaturityReservePage() {
   const params = useSearchParams();
   const { data } = useMaturityRecommendation();
   const createReservation = useCreateMaturityReservation();
+  const submittingRef = useRef(false);
 
-  // URL 파라미터 파싱: items=017800:250000,030000:150000, accountId=6
-  const accountId = Number(params.get("accountId") ?? "0");
+  // URL 파라미터 파싱: items=017800:250000,030000:150000
+  // 제출 계좌는 URL이 아니라 추천 응답의 triggerAccount를 신뢰원으로 쓴다(쿼리 변조 방지).
   const rawItems = params.get("items") ?? "";
 
+  // URL 입력 방어 — 중복 종목 제거, 비정상 금액(NaN) 제외, 최소 금액 미만은 끌어올림.
   const parsedItems = useMemo(() => {
     if (!rawItems) return [];
-    return rawItems.split(",").map((seg) => {
+    const seen = new Set<string>();
+    const out: { code: string; amount: number }[] = [];
+    for (const seg of rawItems.split(",")) {
       const [code, amt] = seg.split(":");
-      return { code: code ?? "", amount: Number(amt ?? "0") };
-    });
+      if (!code || seen.has(code)) continue;
+      const n = Math.floor(Number(amt));
+      if (!Number.isFinite(n)) continue;
+      seen.add(code);
+      out.push({ code, amount: Math.max(MIN_AMOUNT, n) });
+    }
+    return out;
   }, [rawItems]);
 
   // 종목별 금액 — 스테퍼로 조절 가능
@@ -40,7 +50,7 @@ export default function MaturityReservePage() {
   );
 
   const account = data?.triggerAccount ?? null;
-  const stocks = data?.recommendations ?? [];
+  const stocks = useMemo(() => data?.recommendations ?? [], [data]);
 
   const stockMap = useMemo(
     () => Object.fromEntries(stocks.map((s) => [s.stockCode, s])),
@@ -81,30 +91,48 @@ export default function MaturityReservePage() {
   };
 
   const handleConfirm = async () => {
-    if (!accountId || codes.length === 0) return;
+    // 따닥 클릭/리렌더 전 연속 호출로 같은 배치가 두 번 나가지 않게 가드.
+    if (submittingRef.current) return;
+    if (!account || codes.length === 0) return;
+    submittingRef.current = true;
 
-    const results = await Promise.allSettled(
-      codes.map((code) =>
-        createReservation.mutateAsync({
-          linkedBankAccountId: accountId,
-          stockCode: code,
-          buyAmount: amounts[code] ?? 0,
-        }),
-      ),
-    );
+    try {
+      const results = await Promise.allSettled(
+        codes.map((code) =>
+          createReservation.mutateAsync({
+            linkedBankAccountId: account.accountId,
+            stockCode: code,
+            buyAmount: amounts[code] ?? 0,
+          }),
+        ),
+      );
 
-    const skipped = results.filter((r) => r.status === "rejected").length;
-    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      const rejected = results.filter(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      );
+      // 409(이미 예약됨)만 "건너뜀"으로 처리하고, 네트워크/5xx/검증 실패는 장애로 본다.
+      const isConflict = (reason: unknown) =>
+        reason instanceof ApiError && reason.status === 409;
+      const conflicts = rejected.filter((r) => isConflict(r.reason));
+      const realErrors = rejected.filter((r) => !isConflict(r.reason));
+      const succeeded = results.length - rejected.length;
 
-    if (skipped > 0 && succeeded === 0) {
-      toast.error("이미 예약된 종목이에요. 기존 예약을 취소 후 다시 시도해 주세요.");
-      return;
+      if (realErrors.length > 0) {
+        toast.error("예약 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.");
+        return; // 이동하지 않고 재시도 가능하게 둔다
+      }
+      if (conflicts.length > 0 && succeeded === 0) {
+        toast.error("이미 예약된 종목이에요. 기존 예약을 취소 후 다시 시도해 주세요.");
+        return;
+      }
+      if (conflicts.length > 0) {
+        toast.info(`${conflicts.length}종목은 이미 예약돼 있어 건너뛰었어요.`);
+      }
+
+      router.replace("/recommendations/maturity/drip");
+    } finally {
+      submittingRef.current = false;
     }
-    if (skipped > 0) {
-      toast.info(`${skipped}종목은 이미 예약돼 있어 건너뛰었어요.`);
-    }
-
-    router.replace("/recommendations/maturity/drip");
   };
 
   if (!rawItems || codes.length === 0 || !account) {
@@ -202,7 +230,7 @@ export default function MaturityReservePage() {
                       {stock && (
                         <p className="font-numeric text-xs tabular-nums text-muted-foreground">
                           연 {new Decimal(stock.dividendYield).toFixed(2)}%
-                          {currentPrice != null && (
+                          {currentPrice !== null && (
                             <span className="ml-2">· 현재가 {formatKRW(currentPrice)}</span>
                           )}
                         </p>
@@ -220,7 +248,7 @@ export default function MaturityReservePage() {
                   <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
                     <div>
                       <span className="text-xs text-muted-foreground">매수금액</span>
-                      {estimatedShares != null && (
+                      {estimatedShares !== null && (
                         <p className="font-numeric mt-0.5 text-[11px] tabular-nums text-muted-foreground">
                           약 {estimatedShares < 1
                             ? `${estimatedShares.toFixed(4)}주`
