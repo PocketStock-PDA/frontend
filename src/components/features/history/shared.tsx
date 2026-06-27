@@ -64,6 +64,7 @@ export function Chip({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
         active

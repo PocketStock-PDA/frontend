@@ -181,8 +181,12 @@ function BalanceHeader({
   } else if (eff === "usd") {
     label = "달러 잔액";
     // 현재 잔액 × 현재 환율만 환산(과거 거래는 native 유지). 토글 OFF면 달러 그대로.
+    // 금액 연산은 decimal.js로 — float 곱셈 정밀도 오차 방지.
     const usdBal = usd?.balance ?? 0;
-    value = showKrw && fx !== null ? usdBal * fx : usdBal;
+    value =
+      showKrw && fx !== null
+        ? toDecimal(usdBal).times(fx).toNumber()
+        : usdBal;
     currency = showKrw ? "KRW" : "USD";
     rate = usd?.interestRate ?? null;
     showInterest = false;

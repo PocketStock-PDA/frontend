@@ -10,6 +10,13 @@ import type { CmaBalance } from "@/types/domain/cma";
 export function useCmaBalance() {
   return useQuery({
     queryKey: queryKeys.cma.balance,
-    queryFn: () => api.get<CmaBalance>("/api/cma/balance"),
+    // apiClient는 data=null이면 {}를 반환 → 기본 shape로 정규화(accounts.find 등 크래시 방지)
+    queryFn: async () => {
+      const data = await api.get<CmaBalance>("/api/cma/balance");
+      return {
+        accounts: Array.isArray(data?.accounts) ? data.accounts : [],
+        totalKrwEquivalent: data?.totalKrwEquivalent ?? 0,
+      } satisfies CmaBalance;
+    },
   });
 }

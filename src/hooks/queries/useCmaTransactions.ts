@@ -10,9 +10,12 @@ import type { CmaTransaction } from "@/types/domain/cma";
 export function useCmaTransactions(page = 0, size = 100) {
   return useQuery({
     queryKey: queryKeys.cma.transactions(page, size),
-    queryFn: () =>
-      api.get<CmaTransaction[]>("/api/cma/transactions", {
+    // apiClient는 data=null이면 {}를 반환 → 배열로 정규화(소비측 .filter 크래시 방지)
+    queryFn: async () => {
+      const data = await api.get<CmaTransaction[]>("/api/cma/transactions", {
         params: { page: String(page), size: String(size) },
-      }),
+      });
+      return Array.isArray(data) ? data : [];
+    },
   });
 }
