@@ -1,5 +1,30 @@
 // 거래/보유/종목 (ledger-api)
 
+// ── 만기 매수 예약 ────────────────────────────────────────────────────────────
+export interface MaturityReservationRequest {
+  linkedBankAccountId: number;
+  stockCode: string;
+  buyAmount: number;
+}
+
+export type MaturityReservationStatus = "RESERVED" | "EXECUTED" | "CANCELLED" | "FAILED";
+
+export interface MaturityReservation {
+  id: number;
+  linkedBankAccountId: number;
+  maturityDate: string;
+  stockCode: string;
+  stockName: string;
+  market: string;
+  currency: string;
+  buyAmount: number;
+  status: MaturityReservationStatus;
+  orderId: number | null;
+  failReason: string | null;
+  executedAt: string | null;
+  createdAt: string;
+}
+
 /** 시장 구분 (순위 API 경로) */
 export type StockMarket = "domestic" | "overseas";
 /** 순위 정렬 기준 */
@@ -50,6 +75,42 @@ export interface Holding {
   fractionalQty?: number;
   avgBuyPrice: number;
   currency: string;
+}
+
+/** 배당 자동 재투자(DRIP) 설정 — 종목별 ON/OFF (GET/PUT /api/trading/dividend-reinvest) */
+export interface DividendReinvestSetting {
+  stockCode: string;
+  stockName: string;
+  enabled: boolean;
+}
+
+/** DRIP 토글 변경 요청 (PUT /api/trading/dividend-reinvest) */
+export interface DividendReinvestRequest {
+  stockCode: string;
+  enabled: boolean;
+}
+
+export type DividendPayoutStatus = "PAID" | "REINVESTED" | "REINVEST_FAILED";
+
+/** 배당 지급/재투자 내역 1행 (GET /api/trading/dividend-reinvest/history) */
+export interface DividendPayout {
+  id: number;
+  stockCode: string;
+  stockName: string;
+  /** 지급일 (ISO date) */
+  payDate: string;
+  /** 지급 시점 보유수량 */
+  holdingQty: number;
+  /** 주당 현금배당금(KRW) */
+  perShare: number;
+  /** 지급액 = holdingQty × perShare (CMA 입금액) */
+  grossAmount: number;
+  status: DividendPayoutStatus;
+  reinvestOrderId: number | null;
+  /** 실제 재매수 금액 = max(grossAmount, 1000) */
+  reinvestAmount: number | null;
+  failReason: string | null;
+  createdAt: string;
 }
 
 /** 통화 단일(KRW) 집계 — 전체/국내 (GET /api/trading/portfolio/summary) */
@@ -183,3 +244,4 @@ export interface TradeFrame {
   /** 체결 시각 */
   tradeTime?: string;
 }
+

@@ -62,6 +62,7 @@ export interface SpendingResponse {
 }
 
 export interface MaturityTriggerAccount {
+  accountId: number;
   accountName: string;
   maturityDate: string;
   principalAmount: number;

@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
+import { AssetActionRows } from "@/components/features/asset/AssetActionRows";
 import { AssetPortfolioCard } from "@/components/features/asset/AssetPortfolioCard";
 import { MaturityAlertCard } from "@/components/features/asset/MaturityAlertCard";
 import { Button } from "@/components/ui/button";
@@ -88,6 +89,14 @@ export default function AssetPage() {
           ) : (
             <AssetPortfolioCard portfolio={data.portfolio} />
           )}
+        </section>
+
+        {/* 자금 굴리기 */}
+        <section>
+          <SectionHeader title="자금 굴리기" />
+          <AssetActionRows
+            daysUntilMaturity={maturityData?.triggerAccount?.daysUntilMaturity}
+          />
         </section>
 
       </div>

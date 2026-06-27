@@ -46,6 +46,9 @@ export const queryKeys = {
       ["trading", "autoInvest", "executions", id] as const,
     rewards: ["trading", "rewards"] as const,
     rewardCandidates: ["trading", "rewards", "candidates"] as const,
+    maturityReservations: ["trading", "maturity-reservations"] as const,
+    dividendReinvest: ["trading", "dividend-reinvest"] as const,
+    dividendHistory: ["trading", "dividend-history"] as const,
   },
   cma: {
     all: ["cma"] as const,

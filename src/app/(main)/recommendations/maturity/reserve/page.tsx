@@ -1,0 +1,289 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import Decimal from "decimal.js";
+import { Info, Minus, Plus, Landmark, TrendingUp, ArrowDown } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import { AppHeader } from "@/components/common/AppHeader";
+import { EmptyState } from "@/components/common/EmptyState";
+import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
+import { useStockDetails } from "@/hooks/queries/useStockDetails";
+import { useCreateMaturityReservation } from "@/hooks/mutations/useCreateMaturityReservation";
+import { formatKRW } from "@/lib/utils/currency";
+import { cn } from "@/lib/utils";
+
+const STEP = 10_000;
+const MIN_AMOUNT = 1_000;
+
+export default function MaturityReservePage() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const { data } = useMaturityRecommendation();
+  const createReservation = useCreateMaturityReservation();
+
+  // URL 파라미터 파싱: items=017800:250000,030000:150000, accountId=6
+  const accountId = Number(params.get("accountId") ?? "0");
+  const rawItems = params.get("items") ?? "";
+
+  const parsedItems = useMemo(() => {
+    if (!rawItems) return [];
+    return rawItems.split(",").map((seg) => {
+      const [code, amt] = seg.split(":");
+      return { code: code ?? "", amount: Number(amt ?? "0") };
+    });
+  }, [rawItems]);
+
+  // 종목별 금액 — 스테퍼로 조절 가능
+  const [amounts, setAmounts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(parsedItems.map(({ code, amount }) => [code, amount])),
+  );
+
+  const account = data?.triggerAccount ?? null;
+  const stocks = data?.recommendations ?? [];
+
+  const stockMap = useMemo(
+    () => Object.fromEntries(stocks.map((s) => [s.stockCode, s])),
+    [stocks],
+  );
+
+  const codes = parsedItems.map((i) => i.code).filter((c) => c in amounts);
+
+  // 현재가 — REST 스냅샷 (WS가 이미 stockDetail 캐시 업데이트 중이면 자동 반영)
+  const stockDetailResults = useStockDetails(codes);
+  const priceMap = useMemo(() => {
+    const m: Record<string, number | null> = {};
+    codes.forEach((code, i) => {
+      m[code] = stockDetailResults[i]?.data?.price?.currentPrice ?? null;
+    });
+    return m;
+  }, [codes, stockDetailResults]);
+
+  const totalAmount = codes.reduce((sum, c) => sum + (amounts[c] ?? 0), 0);
+
+  const totalDividend = useMemo(() =>
+    codes.reduce((sum, c) => {
+      const stock = stockMap[c];
+      if (!stock) return sum;
+      return sum + new Decimal(amounts[c] ?? 0)
+        .times(new Decimal(stock.dividendYield).dividedBy(100))
+        .toDecimalPlaces(0)
+        .toNumber();
+    }, 0),
+    [codes, amounts, stockMap],
+  );
+
+  const adjust = (code: string, delta: number) => {
+    setAmounts((prev) => ({
+      ...prev,
+      [code]: Math.max(MIN_AMOUNT, (prev[code] ?? 0) + delta),
+    }));
+  };
+
+  const handleConfirm = async () => {
+    if (!accountId || codes.length === 0) return;
+
+    const results = await Promise.allSettled(
+      codes.map((code) =>
+        createReservation.mutateAsync({
+          linkedBankAccountId: accountId,
+          stockCode: code,
+          buyAmount: amounts[code] ?? 0,
+        }),
+      ),
+    );
+
+    const skipped = results.filter((r) => r.status === "rejected").length;
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+
+    if (skipped > 0 && succeeded === 0) {
+      toast.error("이미 예약된 종목이에요. 기존 예약을 취소 후 다시 시도해 주세요.");
+      return;
+    }
+    if (skipped > 0) {
+      toast.info(`${skipped}종목은 이미 예약돼 있어 건너뛰었어요.`);
+    }
+
+    router.replace("/recommendations/maturity/drip");
+  };
+
+  if (!rawItems || codes.length === 0 || !account) {
+    return (
+      <>
+        <AppHeader variant="sub" title="매수 예약 확인" />
+        <EmptyState title="예약할 종목이 없어요" description="다시 종목을 선택해 주세요." />
+      </>
+    );
+  }
+
+  const [, mm, dd] = account.maturityDate.split("-");
+  const maturityShort = `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")} 만기일`;
+
+  return (
+    <>
+      <AppHeader variant="sub" title="매수 예약 확인" />
+
+      <div className="space-y-4 pb-24">
+        {/* ── 예적금 → 배당주 흐름 카드 ───────────────────────────────────── */}
+        <div className="overflow-hidden rounded-2xl border border-border">
+          {/* FROM: 예적금 */}
+          <div className="bg-[#fdf8ee] px-4 py-4">
+            <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest text-amber-600">
+              <Landmark className="size-3.5" />
+              예금·적금
+            </div>
+            <p className="mt-1.5 text-sm font-bold text-foreground">{account.accountName}</p>
+            <p className="font-numeric mt-0.5 text-[22px] font-bold tabular-nums text-foreground">
+              {formatKRW(account.principalAmount)}
+            </p>
+          </div>
+
+          {/* 커넥터: 만기일 */}
+          <div className="relative flex items-center justify-center bg-card py-3.5">
+            <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border" />
+            <div className="relative flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 shadow-sm">
+              <ArrowDown className="size-3 text-primary" />
+              <span className="font-numeric text-[11px] font-bold tabular-nums text-primary">
+                {maturityShort} 자동 전환
+              </span>
+            </div>
+          </div>
+
+          {/* TO: 배당주 */}
+          <div className="bg-brand-surface px-4 py-4">
+            <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest text-primary">
+              <TrendingUp className="size-3.5" />
+              배당주
+            </div>
+            <p className="mt-1.5 text-sm font-bold text-foreground">
+              {codes.length > 1
+                ? `${codes.length}종목 · 총 ${formatKRW(totalAmount)}`
+                : `${stockMap[codes[0] ?? ""]?.stockName ?? codes[0]} · ${formatKRW(totalAmount)}`}
+            </p>
+            <p className="font-numeric mt-0.5 text-[22px] font-bold tabular-nums text-primary">
+              연 {formatKRW(totalDividend)} 배당 예상
+            </p>
+          </div>
+        </div>
+
+        {/* ── 담는 종목 ─────────────────────────────────────────────────── */}
+        <section>
+          <p className="mb-2.5 text-sm font-bold text-muted-foreground">
+            담는 종목{codes.length > 1 ? ` ${codes.length}개` : ""}
+          </p>
+          <div className="space-y-2.5">
+            {codes.map((code) => {
+              const stock = stockMap[code];
+              const amount = amounts[code] ?? 0;
+              const currentPrice = priceMap[code] ?? null;
+              const estimatedShares = currentPrice && currentPrice > 0
+                ? new Decimal(amount).dividedBy(currentPrice).toDecimalPlaces(4).toNumber()
+                : null;
+              const estimatedDividend = stock
+                ? new Decimal(amount)
+                    .times(new Decimal(stock.dividendYield).dividedBy(100))
+                    .toDecimalPlaces(0)
+                    .toNumber()
+                : 0;
+
+              return (
+                <div key={code} className="rounded-2xl border border-border bg-card p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-[#e2ecfb] bg-brand-surface font-numeric text-sm font-bold text-primary">
+                      {(stock?.stockName ?? code).slice(0, 1)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-foreground">
+                        {stock?.stockName ?? code}
+                        <span className="ml-1.5 font-numeric text-xs font-normal text-muted-foreground">
+                          {code}
+                        </span>
+                      </p>
+                      {stock && (
+                        <p className="font-numeric text-xs tabular-nums text-muted-foreground">
+                          연 {new Decimal(stock.dividendYield).toFixed(2)}%
+                          {currentPrice != null && (
+                            <span className="ml-2">· 현재가 {formatKRW(currentPrice)}</span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="font-numeric text-sm font-bold tabular-nums text-primary">
+                        {formatKRW(estimatedDividend)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">예상 배당</p>
+                    </div>
+                  </div>
+
+                  {/* 금액 스테퍼 + 예상 주수 */}
+                  <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+                    <div>
+                      <span className="text-xs text-muted-foreground">매수금액</span>
+                      {estimatedShares != null && (
+                        <p className="font-numeric mt-0.5 text-[11px] tabular-nums text-muted-foreground">
+                          약 {estimatedShares < 1
+                            ? `${estimatedShares.toFixed(4)}주`
+                            : `${new Decimal(estimatedShares).toDecimalPlaces(2).toNumber()}주`} 예상
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => adjust(code, -STEP)}
+                        disabled={amount <= MIN_AMOUNT}
+                        className="flex size-7 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted disabled:opacity-30"
+                        aria-label="금액 감소"
+                      >
+                        <Minus className="size-3.5" />
+                      </button>
+                      <span className="min-w-[90px] text-center font-numeric text-sm font-bold tabular-nums">
+                        {formatKRW(amount)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => adjust(code, STEP)}
+                        className="flex size-7 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted"
+                        aria-label="금액 증가"
+                      >
+                        <Plus className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ── 안내 ──────────────────────────────────────────────────────── */}
+        <div className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-xs text-muted-foreground">
+          <Info className="mt-px size-3 shrink-0" />
+          <span>
+            {maturityShort} 시세로 체결돼요. 원금·배당은 변동할 수 있고, 만기 전엔 취소 가능해요.
+          </span>
+        </div>
+      </div>
+
+      {/* ── 하단 고정 버튼 ────────────────────────────────────────────────── */}
+      <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
+        <button
+          type="button"
+          onClick={() => void handleConfirm()}
+          disabled={createReservation.isPending}
+          className={cn(
+            "flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-opacity",
+            "disabled:opacity-50 active:opacity-80",
+          )}
+        >
+          {createReservation.isPending
+            ? "예약 중…"
+            : codes.length > 1
+              ? `${codes.length}종목 예약하기`
+              : "예약하기"}
+        </button>
+      </div>
+    </>
+  );
+}
