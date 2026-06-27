@@ -35,7 +35,7 @@ function LoginScreen() {
     <PageContainer className="flex min-h-screen flex-col">
       <div className="pt-24 pb-10 text-center">
         <Image
-          src="/images/PocketStock-logo.png"
+          src="/images/PocketStock-logo-clean.png"
           alt="포켓스톡"
           width={72}
           height={72}

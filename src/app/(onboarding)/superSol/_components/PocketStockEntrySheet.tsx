@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { Star } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -17,24 +16,25 @@ interface PocketStockEntrySheetProps {
   onOpenChange: (open: boolean) => void;
   /** "시작하기" — 포켓스톡(메인 홈)으로 진입 */
   onStart: () => void;
-  /** "오늘 보지 않기" — 닫고 오늘 하루 자동 노출 안 함 */
-  onHideToday: () => void;
 }
 
 /**
  * 부모 서비스(슈퍼쏠)에서 포켓스톡으로 넘어오는 진입 팝업 — 파란 그라데이션 바텀시트.
+ * superSol 은 진입점이라 닫기·오늘 보지 않기 없이 "시작하기"로만 빠져나간다(무조건 노출).
  */
 export function PocketStockEntrySheet({
   open,
   onOpenChange,
   onStart,
-  onHideToday,
 }: PocketStockEntrySheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
+        // 진입점 팝업 — 외부 클릭/ESC 로 닫히지 않도록(시작하기로만 이동)
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
         className="mx-auto max-w-[430px] gap-0 overflow-hidden rounded-t-[28px] border-0 px-6 pb-8 pt-3 text-white"
         style={{ backgroundImage: POINT_GRADIENT }}
       >
@@ -53,30 +53,24 @@ export function PocketStockEntrySheet({
           <span className="mb-6 h-1.5 w-10 rounded-full bg-white/40" />
 
           {/* 로고 */}
-          <div className="flex size-[68px] items-center justify-center rounded-[20px] bg-white p-2.5 shadow-[0_10px_24px_rgba(20,40,120,0.25)] ring-1 ring-white/60">
+          <div className="flex size-[68px] items-center justify-center rounded-[8px] bg-white p-px shadow-[0_10px_24px_rgba(20,40,120,0.25)] ring-1 ring-white/60">
             <Image
-              src="/images/PocketStock-logo.png"
+              src="/images/PocketStock-logo-clean.png"
               alt="포켓스톡"
-              width={52}
-              height={52}
+              width={62}
+              height={62}
               className="size-full object-contain"
             />
           </div>
 
           {/* 카피 */}
-          <span className="mt-4 inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-[11px] font-medium text-white">
-            <Star className="size-3 fill-white stroke-none" />
-            잔돈으로 주식 자동 모으기
-          </span>
-          <SheetTitle className="mt-2.5 text-center text-[19px] font-bold leading-snug text-white">
-            포인트로 소수점 주식
+          <SheetTitle className="mt-5 text-center text-[20px] font-bold leading-snug text-white">
+            포인트로 소수점 주식을
             <br />
             자동으로 모아보세요!
           </SheetTitle>
           <SheetDescription className="mt-2 text-center text-[13px] leading-relaxed text-white/80">
-            남는 포인트와 잔돈이 자동으로
-            <br />
-            주식 한 조각이 됩니다
+            신한계열사의 흩어진 잔돈과 포인트가 주식 한 조각이 됩니다
           </SheetDescription>
 
           {/* CTA */}
@@ -87,17 +81,6 @@ export function PocketStockEntrySheet({
           >
             시작하기
           </button>
-
-          {/* 보조 링크 */}
-          <div className="mt-4 flex items-center gap-4 text-xs font-medium text-white/80">
-            <button type="button" onClick={onHideToday}>
-              오늘 보지 않기
-            </button>
-            <span className="h-3 w-px bg-white/30" />
-            <button type="button" onClick={() => onOpenChange(false)}>
-              닫기
-            </button>
-          </div>
         </div>
       </SheetContent>
     </Sheet>
