@@ -19,15 +19,13 @@ export function StockIcon({ className }: IconProps) {
   );
 }
 
-/** 모으기 — 조각 4(채움 3 + 더해질 1 점선) */
+/** 모으기 — 트레이에 담기(아래 화살표 + 열린 통) */
 export function CollectIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 40 40" fill="none" className={className} aria-hidden="true">
-      <rect x="6" y="6" width="13" height="13" rx="3.5" fill="var(--brand)" />
-      <rect x="21" y="6" width="13" height="13" rx="3.5" fill="var(--brand)" />
-      <rect x="6" y="21" width="13" height="13" rx="3.5" fill="var(--brand)" />
-      <rect x="21" y="21" width="13" height="13" rx="3.5" fill="var(--brand)" fillOpacity="0.1" stroke="var(--brand)" strokeWidth="2" strokeDasharray="4 3" />
-      <path d="M27.5 24.5v6M24.5 27.5h6" stroke="var(--brand)" strokeWidth="2" strokeLinecap="round" />
+      <path d="M20 7v13" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M14.5 15.5 20 21l5.5-5.5" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 23v5a3 3 0 0 0 3 3h16a3 3 0 0 0 3-3v-5" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

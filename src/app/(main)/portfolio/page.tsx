@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronRight, Settings } from "lucide-react";
@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppHeader } from "@/components/common/AppHeader";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
+import { CurrencyToggle } from "@/components/common/CurrencyToggle";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
@@ -27,14 +28,13 @@ import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
 import type { AutoInvestStock } from "@/types/domain/autoInvest";
 import { toPieceParts } from "@/lib/utils/pieces";
 import { queryKeys } from "@/lib/utils/queryKeys";
-import { cn } from "@/lib/utils";
 
 type Lens = "all" | "auto" | "pieces";
 
 const LENS_OPTIONS: { label: string; value: Lens }[] = [
   { label: "전체", value: "all" },
-  { label: "모으기", value: "auto" },
-  { label: "조각", value: "pieces" },
+  { label: "모으기 중", value: "auto" },
+  { label: "퍼즐 조각", value: "pieces" },
 ];
 
 // 평가금액 범위: 전체(환산 KRW) / 국내(KRW) / 해외(USD)
@@ -47,10 +47,15 @@ const SCOPE_OPTIONS: { label: string; value: Scope }[] = [
 
 export default function PortfolioPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [lens, setLens] = useState<Lens>("all");
-  // 사용자가 렌즈를 직접 고르기 전까지만 자동 기본값 적용
-  const [lensPicked, setLensPicked] = useState(false);
+  // 바로가기 등에서 ?lens=pieces 로 진입 시 해당 렌즈로 시작 (scope 는 전체 유지)
+  const lensParam = searchParams.get("lens");
+  const initialLens: Lens =
+    lensParam === "auto" || lensParam === "pieces" ? lensParam : "all";
+  const [lens, setLens] = useState<Lens>(initialLens);
+  // 사용자가 렌즈를 직접 고르기 전까지만 자동 기본값 적용 (딥링크 진입이면 고른 것으로 간주)
+  const [lensPicked, setLensPicked] = useState(initialLens !== "all");
   const [scope, setScope] = useState<Scope>("all");
   // 해외 평가금액을 원화로 환산해 볼지 (false=달러 $, true=원화 ₩)
   const [ovsKrw, setOvsKrw] = useState(false);
@@ -281,7 +286,7 @@ export default function PortfolioPage() {
               />
               <ActionTile
                 icon={<CollectIcon className="size-8" />}
-                label="모으기"
+                label="주식 모으기"
                 onClick={() => router.push("/trading")}
               />
               <ActionTile
@@ -439,38 +444,6 @@ export default function PortfolioPage() {
         )}
       </div>
     </>
-  );
-}
-
-/** 달러($) ↔ 원화(₩) 표시 토글. checked=원화. knob에 현재 통화 글자 노출. */
-function CurrencyToggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={checked ? "원화로 보기 (켜짐)" : "원화로 보기 (꺼짐)"}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full px-1 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-        checked ? "bg-primary" : "bg-muted",
-      )}
-    >
-      <span
-        className={cn(
-          "flex size-5 items-center justify-center rounded-full bg-white font-numeric text-[11px] font-bold shadow-sm transition-transform duration-200 ease-out",
-          checked ? "translate-x-5 text-primary" : "translate-x-0 text-muted-foreground",
-        )}
-      >
-        {checked ? "₩" : "$"}
-      </span>
-    </button>
   );
 }
 

@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
+import { CurrencyToggle } from "@/components/common/CurrencyToggle";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { Stepper } from "@/components/common/Stepper";
 import { AmountInput } from "@/components/common/AmountInput";
@@ -19,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
+import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
@@ -49,6 +51,7 @@ export default function TradePage() {
   const { stockCode } = useParams<{ stockCode: string }>();
   const router = useRouter();
   const detailQ = useStockDetail(stockCode);
+  const exchangeRateQ = useExchangeRate(); // 해외 종목 원화 환산 토글용(매매기준율)
   const holdingsQ = useHoldings();
   const cmaQ = useCmaHome();
   const buyOrder = useBuyOrder();
@@ -65,6 +68,8 @@ export default function TradePage() {
   const [qty, setQty] = useState(0);
   const [amount, setAmount] = useState(0);
   const [autoCharge, setAutoCharge] = useState(true);
+  // 해외 종목 한정: 조회용 금액(현재가·매수가능·예상주문금액)을 원화로 환산해 볼지 토글. 주문은 항상 달러 체결.
+  const [ovsKrw, setOvsKrw] = useState(false);
   // 거래 인증 필요(TXN_AUTH_REQUIRED) 시 계좌 비밀번호를 받기 위한 시트 — 인증 후 그 side로 재시도
   const [authSide, setAuthSide] = useState<Side | null>(null);
 
@@ -106,6 +111,14 @@ export default function TradePage() {
   const amountDp = isUSD ? 2 : 0; // 금액 반올림 자리수: KRW 0 / USD 2(센트)
   const fmtAmount = (v: number | string) => (isUSD ? formatUSD(v) : formatKRW(v));
   const minOrder = isUSD ? 1 : 1000; // 소수점 최소 주문금액 (국내 1,000원 / 해외 $1)
+
+  // 해외 종목을 원화로 보기: 매매기준율(baseRate)이 있을 때만. 국내는 항상 원화라 무관.
+  const fx = isUSD ? exchangeRateQ.data?.baseRate ?? null : null;
+  const showKrw = ovsKrw && fx !== null;
+  const viewCurrency: "USD" | "KRW" = isUSD && !showKrw ? "USD" : "KRW";
+  // 조회용 금액 포맷 — 원화 보기면 USD값을 환율로 환산, 아니면 종목 통화 그대로.
+  const fmtView = (v: number | string) =>
+    showKrw ? formatKRW(toDecimal(v).times(fx).toNumber()) : fmtAmount(v);
 
   // 금액 계산은 decimal.js 필수 (README 가이드라인). API 값은 toDecimal로 안전 변환(null→0)
   const price = toDecimal(detail.price?.currentPrice);
@@ -279,6 +292,12 @@ export default function TradePage() {
     <>
       <AppHeader
         variant="sub"
+        right={
+          // 해외 종목 + 환율 보유 시: 달러 ↔ 원화 조회 토글
+          isUSD && fx !== null ? (
+            <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
+          ) : undefined
+        }
         title={
           // 헤더 탭 → 검색 전용 오버레이 (메뉴 아님). 종목명 옆 돋보기로 검색 가능함을 암시
           <button
@@ -301,7 +320,12 @@ export default function TradePage() {
                 <Search className="size-3" />
               </span>
               <span className="flex items-baseline gap-1.5">
-                <AmountDisplay value={price.toString()} size="md" className="font-bold" />
+                <AmountDisplay
+                  value={(showKrw ? price.times(fx) : price).toString()}
+                  currency={viewCurrency}
+                  size="md"
+                  className="font-bold"
+                />
                 <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
               </span>
             </span>
@@ -416,7 +440,7 @@ export default function TradePage() {
           <div>
             <p className="text-xs text-muted-foreground">매수 가능</p>
             <p className="font-numeric text-base font-bold text-primary">
-              {fmtAmount(buyingPower)}
+              {fmtView(buyingPower)}
             </p>
           </div>
           <div className="text-right">
@@ -432,7 +456,7 @@ export default function TradePage() {
           <div className="flex items-center justify-between rounded-xl bg-muted/40 px-4 py-3 text-sm">
             <span className="text-muted-foreground">예상 주문금액</span>
             <span className="font-numeric font-bold text-primary">
-              {fmtAmount(orderAmount.toDecimalPlaces(amountDp).toNumber())}
+              {fmtView(orderAmount.toDecimalPlaces(amountDp).toNumber())}
             </span>
           </div>
         )}

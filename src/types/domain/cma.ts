@@ -2,6 +2,25 @@
 
 export type Currency = "KRW" | "USD";
 
+// CMA 잔액·성과율 (GET /api/cma/balance) — CmaBalanceResponse와 1:1
+/** 통화 풀 한 개 (원화풀 KRW_RP / 외화풀 USD_RP) */
+export interface CmaBalanceItem {
+  currency: Currency;
+  /** 풀 잔액 */
+  balance: number;
+  /** 연이율 (0.035 = 3.5%) */
+  interestRate: number;
+  /** 풀 종류 (예: KRW_RP, USD_RP) */
+  type: string;
+}
+
+export interface CmaBalance {
+  /** 통화 풀별 잔액·이율 */
+  accounts: CmaBalanceItem[];
+  /** 전체 KRW 환산 평가액 */
+  totalKrwEquivalent: number;
+}
+
 export type CollectSourceType = "ACCOUNT" | "CARD" | "POINT" | "FX";
 
 export interface CollectSource {

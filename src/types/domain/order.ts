@@ -94,4 +94,6 @@ export interface OrderHistoryItem {
   price: number | null;
   status: string; // FILLED | PENDING | QUEUED | REJECTED
   createdAt: string;
+  /** 체결금액 — 소수점 체결분은 백엔드 배분합(allocations), 온주·미체결은 null. 내역 금액은 이 값(라이브가 추정 금지) */
+  filledAmount: number | null;
 }

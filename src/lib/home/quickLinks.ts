@@ -3,8 +3,8 @@ import {
   BookText,
   Coins,
   PieChart,
+  Puzzle,
   Receipt,
-  Settings,
   TrendingUp,
   Wallet,
   type LucideIcon,
@@ -22,7 +22,7 @@ export interface QuickLink {
 // TODO: 라우트 일부 미확정 — 사용자 지정 대기 중 (#)
 export const QUICK_LINKS: QuickLink[] = [
   { id: "trading", label: "주식 모으기", icon: TrendingUp, href: "/trading", highlight: true },
-  { id: "trading-auto", label: "모으기 설정", icon: Settings, href: "/trading/auto" },
+  { id: "pieces", label: "퍼즐 조각", icon: Puzzle, href: "/portfolio?lens=pieces" },
   { id: "portfolio", label: "포트폴리오", icon: PieChart, href: "/portfolio" },
   { id: "history", label: "거래 내역", icon: Receipt, href: "/history" },
   { id: "asset", label: "자산", icon: Wallet, href: "/asset" },
