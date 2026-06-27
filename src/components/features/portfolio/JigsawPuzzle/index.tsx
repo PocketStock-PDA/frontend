@@ -35,6 +35,11 @@ export interface JigsawPuzzleProps {
    */
   pendingBuy?: number;
   pendingSell?: number;
+  /**
+   * 미리보기(썸네일) 모드 — 정적. 무거운 SVG 필터(광택·홈·리프트)·접수 애니메이션·인터랙션을
+   * 모두 끄고 조각 모양과 로고 드러남만 남긴다. 리스트에 여러 개 띄울 때 사용(필터 ID 중복·성능 회피).
+   */
+  preview?: boolean;
   className?: string;
 }
 
@@ -110,13 +115,16 @@ export function JigsawPuzzle({
   logoUrl,
   pendingBuy = 0,
   pendingSell = 0,
+  preview = false,
   className,
 }: JigsawPuzzleProps) {
   const cols = columns;
   const rows = Math.ceil(total / cols);
   const recent = recentIndex ?? filled - 1;
-  const interactive = !!onSelectionCommit;
+  const interactive = !!onSelectionCommit && !preview;
   const useLogo = !!logoUrl;
+  // 미리보기에선 필터를 참조하지 않는다(필터 def도 미출력 → 다중 인스턴스 ID 중복·성능 회피).
+  const flt = (id: string) => (preview ? undefined : `url(#${id})`);
   const uid = useId();
   const filledClipId = `jp-fill-${uid}`;
   const ghostClipId = `jp-ghost-${uid}`;
@@ -277,6 +285,8 @@ export function JigsawPuzzle({
       aria-label={`${filled}/${total} 조각 완성`}
     >
       <defs>
+        {!preview && (
+          <>
         {/* 떠 있는 유리 조각: 부드러운 음영(diffuse) + 날카로운 광택(specular) + 드롭섀도 */}
         <filter
           id="jp-glass"
@@ -362,6 +372,8 @@ export function JigsawPuzzle({
             floodOpacity="0.28"
           />
         </filter>
+          </>
+        )}
       </defs>
 
       {useLogo ? (
@@ -377,7 +389,7 @@ export function JigsawPuzzle({
                 stroke="#e9edf4"
                 strokeWidth={0.75}
                 strokeLinejoin="round"
-                filter="url(#jp-groove)"
+                filter={flt("jp-groove")}
               />
             ) : null,
           )}
@@ -397,7 +409,7 @@ export function JigsawPuzzle({
                 width={cols * S}
                 height={rows * S}
                 preserveAspectRatio="xMidYMid slice"
-                opacity={0.1}
+                opacity={preview ? 0.16 : 0.1}
                 clipPath={`url(#${ghostClipId})`}
               />
             </>
@@ -411,7 +423,7 @@ export function JigsawPuzzle({
                   idx < filled ? <path key={`fc-${idx}`} d={d} /> : null,
                 )}
               </clipPath>
-              <g filter="url(#jp-lift)">
+              <g filter={flt("jp-lift")}>
                 <image
                   href={logoUrl ?? undefined}
                   x={0}
@@ -520,7 +532,7 @@ export function JigsawPuzzle({
                   stroke="#e9edf4"
                   strokeWidth={0.75}
                   strokeLinejoin="round"
-                  filter="url(#jp-groove)"
+                  filter={flt("jp-groove")}
                 />
                 {isSelected && (
                   <path
@@ -552,7 +564,7 @@ export function JigsawPuzzle({
                 stroke="rgba(255,255,255,0.75)"
                 strokeWidth={0.75}
                 strokeLinejoin="round"
-                filter="url(#jp-glass)"
+                filter={flt("jp-glass")}
               />
               {isSelected && (
                 <path

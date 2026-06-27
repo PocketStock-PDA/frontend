@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { motion, useReducedMotion } from "framer-motion";
 import { ChevronRight, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -63,8 +62,6 @@ export default function PortfolioPage() {
   const [scope, setScope] = useState<Scope>("all");
   // 해외 평가금액을 원화로 환산해 볼지 (false=달러 $, true=원화 ₩)
   const [ovsKrw, setOvsKrw] = useState(false);
-  const reduce = useReducedMotion();
-
   const summaryQ = usePortfolioSummary();
   const summary = summaryQ.data;
   const holdings = summary?.holdings ?? [];
@@ -255,26 +252,29 @@ export default function PortfolioPage() {
               />
             )}
             <p className="text-sm font-medium text-primary">{scopeLabel}</p>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <AmountDisplay
-                value={displayEval}
-                currency={displayCurrency}
-                size="xl"
-                className="text-foreground"
-              />
+            <div className="mt-1 flex items-start justify-between gap-3">
+              {/* 범위/통화 토글로 값이 바뀔 때만 스왑 애니메이션(시세 틱엔 반응 안 함) */}
+              <div key={`${scope}:${displayCurrency}`} className="ps-amount-swap min-w-0">
+                <AmountDisplay
+                  value={displayEval}
+                  currency={displayCurrency}
+                  size="xl"
+                  className="text-foreground"
+                />
+                <div className="mt-1.5">
+                  <ChangeIndicator
+                    value={displayProfit}
+                    suffix={displayCurrency === "KRW" ? "원" : ""}
+                    prefix={displayCurrency === "USD" ? "$" : ""}
+                    subPercent={scopeRate}
+                    size="md"
+                  />
+                </div>
+              </div>
               {/* 해외 + 환율 보유 시: 달러 ↔ 원화 표시 토글 */}
               {scope === "overseas" && fx !== null && (
                 <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
               )}
-            </div>
-            <div className="mt-1.5">
-              <ChangeIndicator
-                value={displayProfit}
-                suffix={displayCurrency === "KRW" ? "원" : ""}
-                prefix={displayCurrency === "USD" ? "$" : ""}
-                subPercent={scopeRate}
-                size="md"
-              />
             </div>
           </div>
 
@@ -329,13 +329,9 @@ export default function PortfolioPage() {
               }}
             />
 
-            <motion.div
-              key={effLens}
-              initial={reduce ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
-              className="space-y-3"
-            >
+            {/* 렌즈 전환 시 key 재마운트 → 행들이 살짝 올라오며 스태거 진입.
+                CSS 애니메이션이라 숨김 탭에서도 최종 상태로 끝난다(blank 방지). */}
+            <div key={effLens} className="space-y-3">
               {effLens === "pieces" ? (
                 pieceRows.length === 0 ? (
                   <EmptyState
@@ -344,17 +340,28 @@ export default function PortfolioPage() {
                     className="py-8"
                   />
                 ) : (
-                  pieceRows.map((r) => (
-                    <PiecesCard
-                      key={r.h.stockCode}
-                      name={r.name}
-                      ticker={r.h.stockCode}
-                      logoUrl={r.logoUrl}
-                      quantity={r.h.quantity}
-                      pieces={r.parts.pieces}
-                      onClick={() => goPieces(r.h.stockCode)}
-                    />
-                  ))
+                  pieceRows.map((r, i) => {
+                    const cv = cardView(r);
+                    return (
+                      <div
+                        key={r.h.stockCode}
+                        className="ps-rise-in"
+                        style={{ "--i": Math.min(i, 5) } as React.CSSProperties}
+                      >
+                        <PiecesCard
+                          name={r.name}
+                          ticker={r.h.stockCode}
+                          logoUrl={r.logoUrl}
+                          quantity={r.h.quantity}
+                          pieces={r.parts.pieces}
+                          profit={cv.profit}
+                          rate={cv.rate}
+                          currency={cv.currency}
+                          onClick={() => goPieces(r.h.stockCode)}
+                        />
+                      </div>
+                    );
+                  })
                 )
               ) : lens === "auto" ? (
                 <>
@@ -362,7 +369,7 @@ export default function PortfolioPage() {
                   <button
                     type="button"
                     onClick={() => router.push("/trading/auto")}
-                    className="flex w-full items-center justify-between rounded-xl bg-brand-surface px-4 py-3 transition-colors hover:bg-brand-surface/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="ps-rise-in flex w-full items-center justify-between rounded-xl bg-brand-surface px-4 py-3 transition-[background-color,transform] duration-150 ease-out hover:bg-brand-surface/70 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     <span className="flex items-center gap-2 text-sm font-semibold text-primary">
                       <Settings className="size-4" />
@@ -378,35 +385,51 @@ export default function PortfolioPage() {
                     />
                   ) : (
                     <>
-                      {autoRows.map((r) => {
+                      {autoRows.map((r, i) => {
                         const cv = cardView(r);
                         return (
-                          <HoldingCard
+                          <div
                             key={r.h.stockCode}
-                            name={r.name}
-                            ticker={r.h.stockCode}
-                            logoUrl={r.logoUrl}
-                            quantity={r.h.quantity}
-                            evalAmount={cv.evalAmount}
-                            profit={cv.profit}
-                            rate={cv.rate}
-                            currency={cv.currency}
-                            isAuto={r.isAuto}
-                            subtitle={scheduleByCode.get(r.h.stockCode) ?? ""}
-                            onClick={() => goCollect(r.h.stockCode)}
-                          />
+                            className="ps-rise-in"
+                            style={
+                              { "--i": Math.min(i + 1, 5) } as React.CSSProperties
+                            }
+                          >
+                            <HoldingCard
+                              name={r.name}
+                              ticker={r.h.stockCode}
+                              logoUrl={r.logoUrl}
+                              quantity={r.h.quantity}
+                              evalAmount={cv.evalAmount}
+                              profit={cv.profit}
+                              rate={cv.rate}
+                              currency={cv.currency}
+                              isAuto={r.isAuto}
+                              subtitle={scheduleByCode.get(r.h.stockCode) ?? ""}
+                              onClick={() => goCollect(r.h.stockCode)}
+                            />
+                          </div>
                         );
                       })}
                       {/* 설정만 하고 아직 미보유(첫 매수 전) 종목 */}
-                      {pendingAuto.map((p) => (
-                        <AutoPendingCard
+                      {pendingAuto.map((p, i) => (
+                        <div
                           key={p.stock.stockCode}
-                          name={p.name}
-                          ticker={p.stock.stockCode}
-                          logoUrl={p.logoUrl}
-                          stock={p.stock}
-                          onClick={() => goCollect(p.stock.stockCode)}
-                        />
+                          className="ps-rise-in"
+                          style={
+                            {
+                              "--i": Math.min(autoRows.length + i + 1, 5),
+                            } as React.CSSProperties
+                          }
+                        >
+                          <AutoPendingCard
+                            name={p.name}
+                            ticker={p.stock.stockCode}
+                            logoUrl={p.logoUrl}
+                            stock={p.stock}
+                            onClick={() => goCollect(p.stock.stockCode)}
+                          />
+                        </div>
                       ))}
                     </>
                   )}
@@ -424,26 +447,31 @@ export default function PortfolioPage() {
                   className="py-8"
                 />
               ) : (
-                scopedRows.map((r) => {
+                scopedRows.map((r, i) => {
                   const cv = cardView(r);
                   return (
-                    <HoldingCard
+                    <div
                       key={r.h.stockCode}
-                      name={r.name}
-                      ticker={r.h.stockCode}
-                      logoUrl={r.logoUrl}
-                      quantity={r.h.quantity}
-                      evalAmount={cv.evalAmount}
-                      profit={cv.profit}
-                      rate={cv.rate}
-                      currency={cv.currency}
-                      isAuto={r.isAuto}
-                      onClick={() => goDetail(r.h.stockCode)}
-                    />
+                      className="ps-rise-in"
+                      style={{ "--i": Math.min(i, 5) } as React.CSSProperties}
+                    >
+                      <HoldingCard
+                        name={r.name}
+                        ticker={r.h.stockCode}
+                        logoUrl={r.logoUrl}
+                        quantity={r.h.quantity}
+                        evalAmount={cv.evalAmount}
+                        profit={cv.profit}
+                        rate={cv.rate}
+                        currency={cv.currency}
+                        isAuto={r.isAuto}
+                        onClick={() => goDetail(r.h.stockCode)}
+                      />
+                    </div>
                   );
                 })
               )}
-            </motion.div>
+            </div>
           </section>
         )}
       </div>
@@ -491,7 +519,7 @@ function AutoPendingCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-4 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-muted/40 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Avatar className="shrink-0">
         {logoUrl && <AvatarImage src={logoUrl} alt="" />}
@@ -530,7 +558,7 @@ function ActionTile({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-2 rounded-xl border border-black/[0.04] bg-card px-1 py-3 transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="flex flex-col items-center gap-2 rounded-xl border border-black/[0.04] bg-card px-1 py-3 transition-[background-color,transform] duration-150 ease-out hover:bg-muted/50 active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       {icon}
       <span className="break-keep text-center text-xs font-medium leading-tight text-foreground">

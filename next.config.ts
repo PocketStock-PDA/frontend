@@ -14,7 +14,9 @@ const nextConfig: NextConfig = {
     ? { allowedDevOrigins: devAllowedOrigins }
     : {}),
   reactCompiler: true,
-  turbopack: {},
+  // 상위 디렉토리(홈 ~/package-lock.json·pnpm-lock.yaml)로 workspace root가 잘못 추론되는 것 방지.
+  // 이 디렉토리를 root로 고정해야 next/package.json을 정상 resolve함.
+  turbopack: { root: __dirname },
   distDir: ".next",
   // 개발용 same-origin 프록시: 브라우저 /api/* → 백엔드로 포워딩 (CORS 회피).
   // afterFiles 단계라 로컬 라우트(/api/push/*)가 우선 매칭되어 보존됨.
