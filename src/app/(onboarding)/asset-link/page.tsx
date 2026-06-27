@@ -10,6 +10,7 @@ import {
   LineChart,
   Lock,
   Plus,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -30,6 +31,7 @@ import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useLinkedCards } from "@/hooks/queries/useLinkedCards";
 import { useCollectSettings } from "@/hooks/queries/useCollectSettings";
 import { useLinkAssets } from "@/hooks/mutations/useLinkAssets";
+import { useUnlinkAsset } from "@/hooks/mutations/useUnlinkAsset";
 import { useCloseDormant } from "@/hooks/mutations/useCloseDormant";
 import { useSaveCollectSettings } from "@/hooks/mutations/useSaveCollectSettings";
 import { formatKRW } from "@/lib/utils/currency";
@@ -381,6 +383,7 @@ const CATEGORY_ICON: Record<
 function LinkStep({ onLinked }: { onLinked: () => void }) {
   const { data, isLoading, isError, refetch } = useInstitutions();
   const link = useLinkAssets();
+  const unlink = useUnlinkAsset();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -397,12 +400,43 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
     }));
   }, [data]);
 
-  const available = useMemo(
-    () => (data ?? []).filter((i) => i.linkStatus === "AVAILABLE"),
+  // 현재 연동 현황·카테고리 매핑 — 해제는 카테고리별 경로가 필요.
+  const linkedCodes = useMemo(
+    () =>
+      new Set(
+        (data ?? [])
+          .filter((i) => i.linkStatus === "LINKED")
+          .map((i) => i.companyCode),
+      ),
     [data],
   );
+  const categoryByCode = useMemo(() => {
+    const map = new Map<string, InstitutionCategory>();
+    for (const i of data ?? []) map.set(i.companyCode, i.category);
+    return map;
+  }, [data]);
+
+  // selected = '연동된 상태로 두고 싶은' 기관 집합. 목록 갱신 시 서버 현황으로 동기화.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 목록 로드 시 연동 현황으로 동기화
+    setSelected(new Set(linkedCodes));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  // 선택 대비 현황 → 새로 연동할 곳 / 해제할 곳.
+  const toLink = useMemo(
+    () => [...selected].filter((c) => !linkedCodes.has(c)),
+    [selected, linkedCodes],
+  );
+  const toUnlink = useMemo(
+    () => [...linkedCodes].filter((c) => !selected.has(c)),
+    [selected, linkedCodes],
+  );
+
+  const all = data ?? [];
   const allSelected =
-    available.length > 0 && available.every((i) => selected.has(i.companyCode));
+    all.length > 0 && all.every((i) => selected.has(i.companyCode));
+  const pending = link.isPending || unlink.isPending;
 
   const toggle = (code: string) =>
     setSelected((prev) => {
@@ -412,30 +446,36 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
       return next;
     });
   const toggleAll = () =>
-    setSelected(
-      allSelected ? new Set() : new Set(available.map((i) => i.companyCode)),
-    );
+    setSelected(allSelected ? new Set() : new Set(all.map((i) => i.companyCode)));
 
-  // 선택 → 확인 모달. 선택이 없으면(이미 연동된 자산만으로) 바로 스캔.
+  // 선택 → 확인 모달. 변경(연동/해제)이 없으면 바로 스캔.
   const proceed = () => {
-    if (link.isPending) return;
-    if (selected.size === 0) {
+    if (pending) return;
+    if (toLink.length === 0 && toUnlink.length === 0) {
       onLinked();
       return;
     }
     setConfirmOpen(true);
   };
 
-  // 모달에서 확인 시에만 실제 연동(POST /links) 후 스캔으로 진행.
-  const confirmLink = () => {
-    if (link.isPending) return;
-    link.mutate([...selected], {
-      onSuccess: () => {
-        setConfirmOpen(false);
-        onLinked();
-      },
-      onError: (e) => toast.error(errMsg(e)),
-    });
+  // 모달에서 확인 시 연동(POST /links) + 해제(DELETE /links/{category}/{code}) 후 스캔.
+  const confirmLink = async () => {
+    if (pending) return;
+    try {
+      if (toLink.length > 0) await link.mutateAsync(toLink);
+      await Promise.all(
+        toUnlink.map((c) =>
+          unlink.mutateAsync({
+            category: categoryByCode.get(c) as InstitutionCategory,
+            companyCode: c,
+          }),
+        ),
+      );
+      setConfirmOpen(false);
+      onLinked();
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
   };
 
   if (isLoading) {
@@ -471,7 +511,7 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
           흩어진 자산을 한 번에 모아요
         </h2>
         <p className="text-sm text-muted-foreground">
-          연동할 은행·증권·카드·포인트를 선택해 주세요.
+          연동할 자산을 선택하세요. 연동된 자산은 다시 눌러 해제할 수 있어요.
         </p>
       </div>
 
@@ -479,12 +519,12 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
         type="button"
         aria-pressed={allSelected}
         onClick={toggleAll}
-        disabled={available.length === 0}
+        disabled={all.length === 0}
         className="mt-4 flex w-full items-center gap-2 rounded-xl bg-muted/60 px-4 py-3 text-left disabled:opacity-50"
       >
         <CheckCircle on={allSelected} />
         <span className="text-sm font-bold text-foreground">
-          전체 선택 ({selected.size}/{available.length})
+          전체 선택 ({selected.size}/{all.length})
         </span>
       </button>
 
@@ -502,7 +542,7 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
                   <InstitutionTile
                     key={inst.companyCode}
                     inst={inst}
-                    selected={selected.has(inst.companyCode)}
+                    on={selected.has(inst.companyCode)}
                     onToggle={() => toggle(inst.companyCode)}
                   />
                 ))}
@@ -516,39 +556,53 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[430px] border-t border-border bg-background px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3">
         <Button
           onClick={proceed}
-          disabled={link.isPending}
+          disabled={pending}
           className="h-12 w-full text-base font-bold"
         >
           자산 연동하기
         </Button>
       </div>
 
-      {/* 연동 확정 모달 */}
+      {/* 연동/해제 확정 모달 */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="gap-0 px-6 pb-6 pt-8 text-center">
           <DialogTitle className="text-lg font-bold text-foreground">
-            선택한 {selected.size}곳을 연동할까요?
+            {toUnlink.length === 0
+              ? `선택한 ${toLink.length}곳을 연동할까요?`
+              : toLink.length === 0
+                ? `선택한 ${toUnlink.length}곳을 해제할까요?`
+                : `연동 ${toLink.length}곳 · 해제 ${toUnlink.length}곳을 적용할까요?`}
           </DialogTitle>
           <DialogDescription className="mt-2 text-sm text-muted-foreground">
-            연동하면 잠자는 잔돈을 찾아
-            <br />
-            포켓스톡 CMA로 모을 수 있어요.
+            {toUnlink.length > 0 ? (
+              <>
+                해제하면 해당 자산의 잔돈은
+                <br />
+                더 이상 수집되지 않아요.
+              </>
+            ) : (
+              <>
+                연동하면 잠자는 잔돈을 찾아
+                <br />
+                포켓스톡 CMA로 모을 수 있어요.
+              </>
+            )}
           </DialogDescription>
           <div className="mt-6 flex gap-2">
             <Button
               variant="outline"
               onClick={() => setConfirmOpen(false)}
-              disabled={link.isPending}
+              disabled={pending}
               className="h-12 flex-1 text-base font-bold"
             >
               취소
             </Button>
             <Button
               onClick={confirmLink}
-              disabled={link.isPending}
+              disabled={pending}
               className="h-12 flex-1 text-base font-bold"
             >
-              {link.isPending ? "연동 중..." : "연동하기"}
+              {pending ? "처리 중..." : "적용"}
             </Button>
           </div>
         </DialogContent>
@@ -557,37 +611,46 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
   );
 }
 
-/** 그리드 1칸 — 로고 + 기관명 + 선택 표시. 이미 연동된 기관은 '연동됨'으로 비활성. */
+/**
+ * 그리드 1칸 — 로고 + 기관명 + 선택 표시.
+ * on=선택(연동 유지/예정). 연동된 기관을 선택 해제하면 '해제 예정'으로 표시된다.
+ */
 function InstitutionTile({
   inst,
-  selected,
+  on,
   onToggle,
 }: {
   inst: Institution;
-  selected: boolean;
+  on: boolean;
   onToggle: () => void;
 }) {
   const linked = inst.linkStatus === "LINKED";
-  const on = linked || selected;
+  const willUnlink = linked && !on;
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={on}
       aria-label={inst.companyName}
-      disabled={linked}
       onClick={onToggle}
       className={cn(
         "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-xl border px-2 text-center transition-colors",
-        on ? "border-primary bg-primary/5" : "border-border",
-        linked && "opacity-60",
+        on
+          ? "border-primary bg-primary/5"
+          : willUnlink
+            ? "border-destructive/40 bg-destructive/5"
+            : "border-border",
       )}
     >
-      {on && (
+      {on ? (
         <span className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <Check className="size-3.5" />
         </span>
-      )}
+      ) : willUnlink ? (
+        <span className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-destructive text-white">
+          <X className="size-3" />
+        </span>
+      ) : null}
       <span className="flex size-10 items-center justify-center rounded-full bg-muted text-base font-bold text-muted-foreground">
         {inst.companyName.charAt(0)}
       </span>
@@ -595,7 +658,14 @@ function InstitutionTile({
         {inst.companyName}
       </span>
       {linked && (
-        <span className="text-[10px] text-muted-foreground">연동됨</span>
+        <span
+          className={cn(
+            "text-[10px]",
+            willUnlink ? "text-destructive" : "text-primary",
+          )}
+        >
+          {willUnlink ? "해제 예정" : "연동됨"}
+        </span>
       )}
     </button>
   );

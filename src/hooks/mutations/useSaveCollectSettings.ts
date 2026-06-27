@@ -23,6 +23,9 @@ export function useSaveCollectSettings() {
       // asset.scan을 무효화하지 않으면 RESULT 총액이 갱신되지 않는다.
       queryClient.invalidateQueries({ queryKey: queryKeys.cma.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.asset.all });
+      // 마이페이지 "카드 잔돈 모으기" 토글은 CARD 수집설정 활성 여부로 파생되므로
+      // 프로필도 무효화해야 토글이 최신 상태로 갱신된다.
+      queryClient.invalidateQueries({ queryKey: queryKeys.user.profile });
     },
     retry: false,
   });
