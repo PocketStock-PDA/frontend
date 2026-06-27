@@ -56,7 +56,13 @@ export function FacetCard({
             </span>
           )}
         </span>
-        <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">
+        <span
+          className={cn(
+            "mt-0.5 block truncate text-[12.5px]",
+            // brand-surface(활성) 위 muted는 4.5:1 미달 → ink로 끌어올린다(DESIGN: 틴트 위 보조텍스트)
+            active ? "text-foreground/80" : "text-muted-foreground",
+          )}
+        >
           {subtitle}
         </span>
       </span>
@@ -72,52 +78,84 @@ export function FacetCard({
   );
 }
 
-/** 조각 미니 아이콘 — 활성=채운 조각 / 미진행=빈 윤곽 */
-export function MiniPuzzle({ active = false }: { active?: boolean }) {
+// ── 미니 직소(2×2) — 시그니처 JigsawPuzzle과 같은 탭/홈 기하를 축소 재현 ──
+const MP_S = 12; // 조각 크기
+const MP_A = 0.4; // 탭 목 시작
+const MP_E = 0.6; // 탭 목 끝
+const MP_R = 0.16; // 탭 반경(클수록 깊은 홈)
+
+/** 내부 경계 부호(결정적) — 같은 경계를 양쪽 조각이 공유해 탭↔홈으로 맞물림 */
+function mpSign(kind: "h" | "v", i: number, j: number): 1 | -1 {
+  const n = (i * 928371 + j * 1299721 + (kind === "h" ? 17 : 91)) % 2;
+  return n === 0 ? 1 : -1;
+}
+
+function mpHEdge(x0: number, x1: number, y: number, b: number): string {
+  if (b === 0) return `L ${x1} ${y} `;
+  const len = Math.abs(x1 - x0);
+  const dir = Math.sign(x1 - x0);
+  const a = x0 + dir * len * MP_A;
+  const e = x0 + dir * len * MP_E;
+  const r = len * MP_R;
+  const sweep = b > 0 ? (dir > 0 ? 1 : 0) : dir > 0 ? 0 : 1;
+  return `L ${a} ${y} A ${r} ${r} 0 1 ${sweep} ${e} ${y} L ${x1} ${y} `;
+}
+
+function mpVEdge(x: number, y0: number, y1: number, b: number): string {
+  if (b === 0) return `L ${x} ${y1} `;
+  const len = Math.abs(y1 - y0);
+  const dir = Math.sign(y1 - y0);
+  const a = y0 + dir * len * MP_A;
+  const e = y0 + dir * len * MP_E;
+  const r = len * MP_R;
+  const sweep = b > 0 ? (dir > 0 ? 0 : 1) : dir > 0 ? 1 : 0;
+  return `L ${x} ${a} A ${r} ${r} 0 1 ${sweep} ${x} ${e} L ${x} ${y1} `;
+}
+
+function mpPiecePath(r: number, c: number): string {
+  const x0 = c * MP_S;
+  const y0 = r * MP_S;
+  const x1 = x0 + MP_S;
+  const y1 = y0 + MP_S;
+  const top = r === 0 ? 0 : mpSign("h", r, c);
+  const right = c === 1 ? 0 : mpSign("v", r, c + 1);
+  const bottom = r === 1 ? 0 : mpSign("h", r + 1, c);
+  const left = c === 0 ? 0 : mpSign("v", r, c);
   return (
-    <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      {Array.from({ length: 9 }, (_, i) => {
-        const r = Math.floor(i / 3);
-        const c = i % 3;
-        const filled = active && i < 7;
+    `M ${x0} ${y0} ` +
+    mpHEdge(x0, x1, y0, top) +
+    mpVEdge(x1, y0, y1, right) +
+    mpHEdge(x1, x0, y1, bottom) +
+    mpVEdge(x0, y1, y0, left) +
+    "Z"
+  );
+}
+
+/** 조각 미니 아이콘 — 시그니처와 같은 인터로킹 직소(2×2). 바구니와 동일한 브랜드 블루.
+ *  활성=브랜드 채움 / 미진행=브랜드 빈 윤곽 */
+export function MiniPuzzle({ active = false }: { active?: boolean }) {
+  const filledN = active ? 3 : 0; // 활성=3/4 채움(거의 다 모은 느낌)
+  return (
+    <svg width="34" height="34" viewBox="-2 -2 28 28" fill="none" aria-hidden="true">
+      {Array.from({ length: 4 }, (_, i) => {
+        const r = Math.floor(i / 2);
+        const c = i % 2;
+        const filled = i < filledN;
         return (
-          <rect
+          <path
             key={i}
-            x={c * 9 + 1}
-            y={r * 9 + 1}
-            width={7.5}
-            height={7.5}
-            rx={2}
+            d={mpPiecePath(r, c)}
             {...(filled
               ? { fill: "var(--brand)" }
               : {
                   fill: "none",
-                  stroke: active ? "var(--brand)" : "#c7ccd4",
-                  strokeWidth: 1.4,
+                  stroke: "var(--brand)",
+                  strokeWidth: 1.6,
+                  strokeLinejoin: "round" as const,
                 })}
           />
         );
       })}
-    </svg>
-  );
-}
-
-/** 모으기 미니 아이콘 — 활성=브랜드 동전 / 미진행=빈 윤곽 */
-export function MiniCoins({ active = false }: { active?: boolean }) {
-  return (
-    <svg width="28" height="26" viewBox="0 0 30 28" fill="none" aria-hidden="true">
-      {[20, 13, 6].map((y) => (
-        <ellipse
-          key={y}
-          cx={15}
-          cy={y}
-          rx={11}
-          ry={4}
-          {...(active
-            ? { fill: "var(--brand)" }
-            : { fill: "none", stroke: "#c7ccd4", strokeWidth: 1.4 })}
-        />
-      ))}
     </svg>
   );
 }

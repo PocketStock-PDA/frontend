@@ -2,18 +2,25 @@
 
 import { useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
-import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { Stepper } from "@/components/common/Stepper";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   OrderBook,
   type OrderPrice,
@@ -26,16 +33,22 @@ import { useOrderBook } from "@/hooks/queries/useOrderBook";
 import { useStockQuoteSocket } from "@/hooks/useStockQuoteSocket";
 import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
+import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
+import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
-import { wholeOrderToast } from "@/lib/utils/orderResult";
-import type { WholeOrderResponse } from "@/types/domain/order";
+import { splitOrderToast, wholeOrderToast } from "@/lib/utils/orderResult";
+import { cn } from "@/lib/utils";
+import type {
+  SplitOrderResponse,
+  WholeOrderResponse,
+} from "@/types/domain/order";
 
-type QtyMode = "RATIO" | "QTY";
 type Side = "BUY" | "SELL";
-
-const RATIO_CHIPS = [10, 25, 50, 100];
+type Method = "FRACTION" | "WHOLE"; // 소수점 / 온주
+// 주문 시트 컨텍스트 — 어느 행을 눌렀나(가격: 지정가 number / 시장가 "MARKET")
+type OrderCtx = { side: Side; price: OrderPrice };
 
 export default function OrderbookPage() {
   const searchParams = useSearchParams();
@@ -73,19 +86,22 @@ function MissingStockCodeState() {
 }
 
 function OrderbookContent({ stockCode }: { stockCode: string }) {
+  const router = useRouter();
   const detailQ = useStockDetail(stockCode);
   const holdingsQ = useHoldings();
   const cmaQ = useCmaHome();
   const wholeOrder = useWholeOrder();
+  const buyOrder = useBuyOrder();
+  const sellOrder = useSellOrder();
 
-  const [qtyMode, setQtyMode] = useState<QtyMode>("RATIO");
-  const [quantity, setQuantity] = useState(0);
   const [showAll, setShowAll] = useState(false); // 5호가 / 10호가
-  // 거래 인증 필요 시 계좌 비밀번호를 받기 위한 시트 — 인증 후 그 주문을 재시도
-  const [authRetry, setAuthRetry] = useState<{ side: Side; p: OrderPrice } | null>(
-    null,
-  );
-  // 주문 멱등키: 동일 주문(side+가격+수량) 재시도 시 동일 키 재사용 (issue #4)
+  // 주문 시트 — 호가/시장가 행의 구매·판매를 누르면 열린다(아래에서 올라옴)
+  const [ctx, setCtx] = useState<OrderCtx | null>(null);
+  const [method, setMethod] = useState<Method>("WHOLE"); // 시트 안 소수점/온주
+  const [qty, setQty] = useState(0);
+  // 거래 인증 필요 시 계좌 비밀번호를 받아 동일 주문 재시도
+  const [authOpen, setAuthOpen] = useState(false);
+  // 주문 멱등키: 동일 주문(side+가격+방식+수량) 재시도 시 동일 키 재사용 (issue #4)
   const orderKey = useRef<{ sig: string; key: string } | null>(null);
 
   const basePrice = detailQ.data?.price?.currentPrice ?? 0;
@@ -135,16 +151,58 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
   const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
   const ob = obQ.data;
   const refPrice = ob?.currentPrice ?? basePrice;
+  const changeRate = detail.price?.changeRate ?? 0;
+  // 전일종가 역산 — 호가별 등락률(상승=red/하락=blue) 계산용
+  const prevClose = changeRate !== -100 ? refPrice / (1 + changeRate / 100) : refPrice;
 
-  // 비율 기준 최대 매수 가능 수량(온주, 현재가 기준 내림)
-  const maxBuyQty = refPrice > 0
-    ? new Decimal(buyingPower).div(refPrice).floor().toNumber()
-    : 0;
+  const pending = wholeOrder.isPending || buyOrder.isPending || sellOrder.isPending;
 
-  const setRatio = (pct: number) =>
-    setQuantity(new Decimal(maxBuyQty).times(pct).div(100).floor().toNumber());
+  // ── 주문 시트 ───────────────────────────────────────────────────────────
+  const action = ctx?.side === "BUY" ? "구매" : "판매";
+  const isMarketRow = ctx?.price === "MARKET";
+  // 소수점은 항상 시장가 체결. 온주는 행에 따라 지정가/시장가.
+  const isMarket = method === "FRACTION" || isMarketRow;
+  // 최우선(최대한 빠른) 체결가 — 매수=최저 매도호가 / 매도=최고 매수호가
+  const bestAsk = ob?.asks[0]?.price ?? refPrice;
+  const bestBid = ob?.bids[0]?.price ?? refPrice;
+  const fastest = ctx?.side === "BUY" ? bestAsk : bestBid;
+  // 체결 추정가 — 소수점/시장가는 현재가(빠른가), 온주 지정가는 그 호가
+  const execPrice =
+    method === "FRACTION"
+      ? refPrice
+      : ctx && ctx.price !== "MARKET"
+        ? ctx.price
+        : fastest;
 
-  const pending = wholeOrder.isPending;
+  const maxQty =
+    ctx?.side === "BUY"
+      ? execPrice > 0
+        ? method === "WHOLE"
+          ? new Decimal(buyingPower).div(execPrice).floor().toNumber()
+          : new Decimal(buyingPower)
+              .div(execPrice)
+              .toDecimalPlaces(4, Decimal.ROUND_DOWN)
+              .toNumber()
+        : 0
+      : method === "WHOLE"
+        ? holdingQty.floor().toNumber()
+        : holdingQty.toDecimalPlaces(4, Decimal.ROUND_DOWN).toNumber();
+
+  const openSheet = (side: Side, p: OrderPrice) => {
+    setCtx({ side, price: p });
+    setMethod("WHOLE");
+    setQty(0);
+    orderKey.current = null;
+  };
+  const changeMethod = (m: Method) => {
+    setMethod(m);
+    setQty(0);
+    orderKey.current = null;
+  };
+  const onQty = (v: number) => {
+    setQty(v);
+    orderKey.current = null;
+  };
 
   const keyFor = (sig: string) => {
     if (orderKey.current?.sig === sig) return orderKey.current.key;
@@ -153,40 +211,30 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
     return key;
   };
 
-  const submit = (side: Side, p: OrderPrice) => {
-    if (pending) return;
-    if (quantity <= 0) {
-      toast.error("주문 수량을 선택해 주세요.");
+  const confirm = () => {
+    if (!ctx || pending) return;
+    const { side, price: rowPrice } = ctx;
+    if (qty <= 0) {
+      toast.error("주문 수량을 입력해 주세요.");
       return;
     }
-    // side별 한도 검증 (매수=구매가능, 매도=보유수량). ※구매가능은 CMA 잔액 기준
+    // 한도 검증 — 매수=구매가능 / 매도=보유수량
     if (side === "BUY") {
-      const px = p === "MARKET" ? refPrice : p;
-      const maxBuy =
-        px > 0 ? new Decimal(buyingPower).div(px).floor().toNumber() : 0;
-      if (quantity > maxBuy) {
-        toast.error("구매 가능 수량을 초과했어요.");
+      if (new Decimal(qty).times(execPrice).gt(buyingPower)) {
+        toast.error("구매 가능 금액을 초과했어요.");
         return;
       }
-    } else if (new Decimal(quantity).gt(holdingQty)) {
+    } else if (new Decimal(qty).gt(holdingQty)) {
       toast.error("보유 수량을 초과했어요.");
       return;
     }
-    const sig = `${side}:${p}:${quantity}`;
+
+    const sig = `${side}:${rowPrice}:${method}:${qty}`;
     const clientOrderId = keyFor(sig);
-    const opts = {
-      onSuccess: (data: WholeOrderResponse) => {
-        orderKey.current = null;
-        const t = wholeOrderToast(data, fmtAmount);
-        toast.success(
-          t.title,
-          t.description ? { description: t.description } : undefined,
-        );
-      },
+    const baseOpts = {
       onError: (err: unknown) => {
-        // 거래 인증 미완료: 계좌 비밀번호 시트를 띄우고, 인증되면 동일 키로 재시도
         if (err instanceof ApiError && err.code === "TXN_AUTH_REQUIRED") {
-          setAuthRetry({ side, p });
+          setAuthOpen(true);
           return;
         }
         if (err instanceof ApiError && err.status === 409) {
@@ -200,33 +248,99 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
         );
       },
     };
-    if (p === "MARKET") {
+
+    if (method === "FRACTION") {
+      // 소수점 = 시장가 체결(가격 무시). 소수 주수 QUANTITY 주문.
+      const opts = {
+        ...baseOpts,
+        onSuccess: (data: SplitOrderResponse) => {
+          orderKey.current = null;
+          setCtx(null);
+          const t = splitOrderToast(side, data);
+          toast.success(
+            t.title,
+            t.description ? { description: t.description } : undefined,
+          );
+        },
+      };
+      if (side === "BUY") {
+        buyOrder.mutate(
+          { clientOrderId, stockCode, market, orderType: "QUANTITY", quantity: qty },
+          opts,
+        );
+      } else {
+        sellOrder.mutate(
+          { clientOrderId, stockCode, market, orderType: "QUANTITY", quantity: qty },
+          opts,
+        );
+      }
+      return;
+    }
+
+    // 온주 — 시장가 행이면 MARKET, 호가 행이면 그 가격 LIMIT
+    const opts = {
+      ...baseOpts,
+      onSuccess: (data: WholeOrderResponse) => {
+        orderKey.current = null;
+        setCtx(null);
+        const t = wholeOrderToast(data, fmtAmount);
+        toast.success(
+          t.title,
+          t.description ? { description: t.description } : undefined,
+        );
+      },
+    };
+    if (rowPrice === "MARKET") {
       wholeOrder.mutate(
-        { clientOrderId, stockCode, market, side, orderType: "MARKET", quantity },
+        { clientOrderId, stockCode, market, side, orderType: "MARKET", quantity: qty },
         opts,
       );
     } else {
       wholeOrder.mutate(
-        { clientOrderId, stockCode, market, side, orderType: "LIMIT", price: p, quantity },
+        { clientOrderId, stockCode, market, side, orderType: "LIMIT", price: rowPrice, quantity: qty },
         opts,
       );
     }
   };
+
+  const chips = method === "WHOLE" ? [1, 5, 10] : [0.1, 0.5, 1];
 
   return (
     <>
       <AppHeader
         variant="sub"
         title={
-          <span className="flex flex-col leading-tight">
-            <span className="text-xs text-muted-foreground">
-              {detail.stockName}
+          // /trading/detail과 동일 — 종목 로고 + 돋보기, 누르면 종목 검색
+          <button
+            type="button"
+            onClick={() => router.push("/trading/search")}
+            aria-label="종목 검색 열기"
+            className="-mx-1 flex items-center gap-2 rounded-lg px-1 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <Avatar className="size-7">
+              {detail.logoUrl && (
+                <AvatarImage src={detail.logoUrl} alt={detail.stockName} />
+              )}
+              <AvatarFallback className="text-[10px]">
+                {(detail.stockCode ?? detail.stockName).trim().charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="flex flex-col text-left leading-tight">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                {detail.stockName}
+                <Search className="size-3" />
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <AmountDisplay
+                  value={price.toString()}
+                  currency={isUSD ? "USD" : "KRW"}
+                  size="md"
+                  className="font-bold"
+                />
+                <ChangeIndicator value={changeRate} percent size="sm" />
+              </span>
             </span>
-            <span className="flex items-baseline gap-1.5">
-              <AmountDisplay value={price.toString()} size="md" className="font-bold" />
-              <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
-            </span>
-          </span>
+          </button>
         }
       />
 
@@ -269,12 +383,15 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
               asks={ob.asks}
               bids={ob.bids}
               currentPrice={ob.currentPrice}
+              prevClose={prevClose}
+              totalAskVolume={ob.totalAskVolume}
+              totalBidVolume={ob.totalBidVolume}
               count={showAll ? 10 : 5}
               formatPrice={(n) =>
                 isUSD ? formatUSD(n) : n.toLocaleString("ko-KR")
               }
-              onSell={(p) => submit("SELL", p)}
-              onBuy={(p) => submit("BUY", p)}
+              onSell={(p) => openSheet("SELL", p)}
+              onBuy={(p) => openSheet("BUY", p)}
               disabled={pending}
             />
             <button
@@ -294,100 +411,125 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
             </button>
           </>
         )}
-
-        {/* 모두 취소 (매도 / 매수) */}
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            onClick={() => toast.info("주문 취소 기능은 준비 중이에요.")}
-            className="h-11 flex-1 border-down font-bold text-down hover:bg-down/5"
-          >
-            매도 모두 취소
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => toast.info("주문 취소 기능은 준비 중이에요.")}
-            className="h-11 flex-1 border-up font-bold text-up hover:bg-up/5"
-          >
-            매수 모두 취소
-          </Button>
-        </div>
-
-        {/* 판매 가능 / 구매 가능 */}
-        <div className="flex items-center justify-between rounded-xl bg-muted/60 px-4 py-3">
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground">판매 가능</p>
-            <p className="font-numeric text-sm font-bold text-foreground">
-              {holdingQty.toDecimalPlaces(0, Decimal.ROUND_DOWN).toString()}주
-            </p>
-          </div>
-          <span className="h-8 w-px bg-border" />
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground">구매 가능</p>
-            <p className="font-numeric text-sm font-bold text-primary">
-              {fmtAmount(buyingPower)}
-            </p>
-          </div>
-        </div>
-
-        {/* 수량 선택: 비율 / 수량 */}
-        <div className="space-y-3">
-          <SegmentedControl<QtyMode>
-            options={[
-              { label: "비율", value: "RATIO" },
-              { label: "수량", value: "QTY" },
-            ]}
-            value={qtyMode}
-            onChange={setQtyMode}
-          />
-
-          {qtyMode === "RATIO" ? (
-            <div className="grid grid-cols-4 gap-2">
-              {RATIO_CHIPS.map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => setRatio(pct)}
-                  className="rounded-lg border border-border bg-background py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  {pct}%
-                </button>
-              ))}
-            </div>
-          ) : (
-            <Stepper
-              value={quantity}
-              onChange={setQuantity}
-              step={1}
-              min={0}
-              suffix="주"
-              editable
-            />
-          )}
-
-          <p className="text-right text-sm">
-            <span className="text-muted-foreground">주문 수량 </span>
-            <span className="font-numeric font-bold text-foreground">
-              {quantity.toLocaleString("ko-KR")}주
-            </span>
-          </p>
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground">
-          호가 행의 <span className="text-down">판매</span> ·{" "}
-          <span className="text-up">구매</span>를 누르면 해당 가격으로 주문돼요
-        </p>
       </div>
 
+      {/* 주문 시트 — 아래에서 올라옴. 수량 입력 + 소수점/온주 전환 */}
+      <Sheet open={!!ctx} onOpenChange={(o) => !o && setCtx(null)}>
+        <SheetContent side="bottom" className="gap-0 rounded-t-2xl px-5 pb-7 pt-3">
+          <SheetHeader className="p-0">
+            <SheetTitle className="text-lg font-bold">
+              {action}하기
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              {action} 주문 수량을 입력해 주세요.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-3 space-y-3 rounded-2xl bg-muted/50 p-4">
+            {/* 가격 컨텍스트 + 소수점/온주 토글(우상단) */}
+            <div className="flex items-start justify-between">
+              <div className="leading-tight">
+                <p className="text-xs text-muted-foreground">
+                  {isMarket ? "시장가" : "지정가"}
+                </p>
+                <p className="font-numeric text-lg font-bold text-foreground">
+                  {isMarket ? `${fmtAmount(execPrice)} 예상` : fmtAmount(execPrice)}
+                </p>
+              </div>
+              <div className="flex rounded-lg bg-muted p-1 text-xs font-bold">
+                {(["FRACTION", "WHOLE"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => changeMethod(m)}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 transition-colors",
+                      method === m
+                        ? "bg-background text-primary shadow-sm"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {m === "FRACTION" ? "소수점" : "온주"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Stepper
+              value={qty}
+              onChange={onQty}
+              step={method === "WHOLE" ? 1 : 0.1}
+              min={0}
+              precision={method === "WHOLE" ? 0 : 4}
+              suffix="주"
+              placeholder={
+                method === "WHOLE"
+                  ? `몇 주 ${action}할까요?`
+                  : `소수점 몇 주 ${action}할까요?`
+              }
+              editable
+            />
+            <div className="flex gap-2">
+              {chips.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() =>
+                    onQty(
+                      new Decimal(qty)
+                        .plus(n)
+                        .toDecimalPlaces(method === "WHOLE" ? 0 : 4)
+                        .toNumber(),
+                    )
+                  }
+                  className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  +{n}주
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => onQty(maxQty)}
+                className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                최대
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <span className="text-xs text-muted-foreground">
+                {ctx?.side === "BUY" ? "구매 가능" : "판매 가능"}
+              </span>
+              <span className="font-numeric text-sm font-bold text-foreground">
+                {ctx?.side === "BUY"
+                  ? `${maxQty.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}주`
+                  : `${(method === "WHOLE"
+                      ? holdingQty.floor()
+                      : holdingQty.toDecimalPlaces(4, Decimal.ROUND_DOWN)
+                    ).toString()}주`}
+              </span>
+            </div>
+          </div>
+
+          <Button
+            onClick={confirm}
+            disabled={pending || qty <= 0}
+            className={cn(
+              "mt-4 h-12 w-full text-base font-bold text-white",
+              ctx?.side === "BUY" ? "bg-up hover:bg-up/90" : "bg-down hover:bg-down/90",
+            )}
+          >
+            {action}하기
+          </Button>
+        </SheetContent>
+      </Sheet>
+
       <TxnAuthDialog
-        open={authRetry !== null}
-        onOpenChange={(o) => {
-          if (!o) setAuthRetry(null);
-        }}
+        open={authOpen}
+        onOpenChange={setAuthOpen}
         onVerified={() => {
-          const retry = authRetry;
-          setAuthRetry(null);
-          if (retry) submit(retry.side, retry.p);
+          setAuthOpen(false);
+          confirm();
         }}
       />
     </>
