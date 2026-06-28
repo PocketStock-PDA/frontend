@@ -31,9 +31,9 @@ export function MaturityAlertCard({ account }: MaturityAlertCardProps) {
         다음 1년, 어디에 들까요?
       </p>
 
-      {/* CTA */}
+      {/* CTA — 임박 계좌는 선택 화면을 건너뛰고 그 계좌로 바로 추천 진입 */}
       <Link
-        href="/recommendations/maturity"
+        href={`/recommendations/maturity?accountId=${account.accountId}`}
         className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white"
       >
         예금 vs 배당주 비교해보기

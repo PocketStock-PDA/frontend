@@ -10,7 +10,7 @@ export function AssetActionRows({ daysUntilMaturity }: AssetActionRowsProps) {
   return (
     <div className="rounded-2xl border border-border overflow-hidden">
       <ActionRow
-        href="/recommendations/maturity"
+        href="/recommendations/maturity/select"
         icon={<TrendingUp className="size-5" />}
         title="만기 자금 굴리기"
         description="예금·적금 만기 자금을 배당주로"

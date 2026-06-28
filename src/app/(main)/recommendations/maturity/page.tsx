@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Decimal from "decimal.js";
 import { Info, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
@@ -18,7 +18,11 @@ const MIN_AMOUNT = 1_000;
 
 export default function MaturityPage() {
   const router = useRouter();
-  const { data, isLoading, isError } = useMaturityRecommendation();
+  const params = useSearchParams();
+  // 선택 화면에서 고른 예적금. 없으면 서버가 가장 가까운 만기를 자동 선택.
+  const accountIdParam = params.get("accountId");
+  const accountId = accountIdParam ? Number(accountIdParam) : null;
+  const { data, isLoading, isError } = useMaturityRecommendation(accountId);
   const { data: reservations = [] } = useMaturityReservations();
   const [depositRatio, setDepositRatio] = useState(75);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
@@ -70,8 +74,9 @@ export default function MaturityPage() {
   const handleGoToReserve = () => {
     if (!account?.accountId || selectedCodes.size === 0 || belowMin) return;
     const items = [...selectedCodes].map((code) => `${code}:${perStockAmount}`).join(",");
-    // 계좌는 reserve에서 triggerAccount로 다시 잡으므로 URL엔 종목·금액만 싣는다.
-    router.push(`/recommendations/maturity/reserve?items=${items}`);
+    // 선택한 예적금(accountId)을 reserve까지 이어 같은 계좌 기준으로 예약하게 한다.
+    const accountQuery = accountId ? `&accountId=${accountId}` : "";
+    router.push(`/recommendations/maturity/reserve?items=${items}${accountQuery}`);
   };
 
   if (isLoading) {
