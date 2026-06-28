@@ -209,7 +209,9 @@ function MainView({
   isLoading: boolean;
   onSelect: (dir: Direction) => void;
 }) {
-  const changePositive = change >= 0;
+  // 보합(0)은 부호 없이 — change >= 0 으로 묶으면 0도 "+0.00"으로 표시돼 상승처럼 보임.
+  const changeRounded = Number(change.toFixed(2));
+  const changeSign = changeRounded > 0 ? "+" : changeRounded < 0 ? "-" : "";
 
   return (
     <div className="flex flex-col gap-4 pb-8">
@@ -232,7 +234,7 @@ function MainView({
             </span>
             <span className="text-sm font-medium text-white/80">원</span>
             <span className="ml-1 font-numeric text-sm font-bold tabular-nums text-white/90">
-              {changePositive ? "+" : "-"}{Math.abs(change).toFixed(2)}
+              {changeSign}{Math.abs(changeRounded).toFixed(2)}
             </span>
           </div>
         )}
