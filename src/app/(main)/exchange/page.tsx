@@ -5,6 +5,7 @@ import { ArrowUp, ArrowDown, ChevronRight, RefreshCw, Settings2 } from "lucide-r
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
+import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -19,7 +20,7 @@ import { useKrwToUsd } from "@/hooks/mutations/useKrwToUsd";
 import { useUsdToKrw } from "@/hooks/mutations/useUsdToKrw";
 import { useTxnAuth } from "@/hooks/mutations/useTxnAuth";
 import { useUpdateAutoSettings } from "@/hooks/mutations/useUpdateAutoSettings";
-import { useCmaHome } from "@/hooks/queries/useCmaHome";
+import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import type { FxHistoryItem } from "@/types/domain/exchange";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -500,13 +501,24 @@ export default function ExchangePage() {
   const [pendingKey, setPendingKey] = useState("");
   const [pendingDir, setPendingDir] = useState<Direction>("krw-to-usd");
 
+  const router = useRouter();
   const { data: rate, isLoading } = useExchangeRate();
-  const { data: cma } = useCmaHome();
+  const {
+    data: cma,
+    isLoading: cmaLoading,
+    isError: cmaError,
+    error: cmaErr,
+    refetch: refetchCma,
+  } = useCmaHome();
   const krwToUsd = useKrwToUsd();
   const usdToKrw = useUsdToKrw();
 
   const usdBalance = cma?.cmaBalance.USD ?? 0;
   const krwBalance = cma?.cmaBalance.KRW ?? 0;
+
+  // CMA 잔액은 환전의 전제 — 못 불러왔는데 0으로 보여주면 거짓이 된다.
+  // main 뷰 진입 전 상태로 분기(값이 아니라 쿼리 상태로 판단).
+  const noCma = isNoCmaAccount(cmaErr);
 
   const headerTitle = view === "pin" ? "계좌 비밀번호" : "환전";
 
@@ -558,19 +570,51 @@ export default function ExchangePage() {
         })}
       />
 
-      {view === "main" && (
-        <MainView
-          krwBalance={krwBalance}
-          usdBalance={usdBalance}
-          buyRate={rate?.buyRate ?? 0}
-          sellRate={rate?.sellRate ?? 0}
-          change={rate?.change ?? 0}
-          updatedAt={rate?.updatedAt}
-          cmaAccountNo={cma?.cmaAccountNo}
-          isLoading={isLoading}
-          onSelect={handleSelect}
-        />
-      )}
+      {view === "main" &&
+        (cmaLoading ? (
+          <div className="h-44 animate-pulse rounded-3xl bg-muted" />
+        ) : noCma ? (
+          // 홈의 무보유 안내(home/page.tsx)와 동일한 "계좌 필요" 게이트 톤.
+          <div className="flex min-h-[70vh] flex-col items-center justify-center gap-3 px-6 text-center">
+            <h2 className="text-2xl font-bold text-foreground">
+              환전하려면 CMA 계좌가 필요해요
+            </h2>
+            <p className="text-base text-muted-foreground">
+              포켓스톡 CMA 계좌를 개설하면
+              <br />
+              원화·달러를 환전할 수 있어요.
+            </p>
+            <Button
+              onClick={() => router.push("/account/open")}
+              className="mt-6 h-14 w-full max-w-xs text-lg font-bold"
+            >
+              계좌 개설하기
+            </Button>
+          </div>
+        ) : cmaError ? (
+          <EmptyState
+            title="잔액 정보를 불러오지 못했어요"
+            description="잠시 후 다시 시도해 주세요."
+            action={
+              <Button variant="outline" size="sm" onClick={() => refetchCma()}>
+                다시 시도
+              </Button>
+            }
+            className="mt-8"
+          />
+        ) : (
+          <MainView
+            krwBalance={krwBalance}
+            usdBalance={usdBalance}
+            buyRate={rate?.buyRate ?? 0}
+            sellRate={rate?.sellRate ?? 0}
+            change={rate?.change ?? 0}
+            updatedAt={rate?.updatedAt}
+            cmaAccountNo={cma?.cmaAccountNo}
+            isLoading={isLoading}
+            onSelect={handleSelect}
+          />
+        ))}
 
       {view === "input" && rate && (
         <ExchangeInputView
