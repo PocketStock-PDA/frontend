@@ -122,6 +122,7 @@ function AccountCard({ market, onChange, accounts, showKrw, onToggle }: AccountC
       >
         {/* 로고 */}
         <div className="size-10 shrink-0 overflow-hidden rounded-full border border-border/40">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={POCKET_LOGO} alt="PocketStock" className="size-full object-cover" />
         </div>
 
@@ -217,6 +218,7 @@ function AccountOption({
       className="flex w-full items-center gap-3.5 py-4"
     >
       <div className="size-10 shrink-0 overflow-hidden rounded-full border border-border/40">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={logo} alt="" className="size-full object-cover" />
       </div>
       <div className="min-w-0 flex-1 text-left">
@@ -311,7 +313,7 @@ interface MonthFilterRowProps {
 function MonthFilterRow({ month, onMonth, showSide, side, onSide }: MonthFilterRowProps) {
   const now = new Date();
   const isLatest = month.year === now.getFullYear() && month.month === now.getMonth() + 1;
-  const oldest = MONTHS[MONTHS.length - 1]!;
+  const oldest = MONTHS[MONTHS.length - 1] ?? MONTHS[0];
   const isOldest = month.year === oldest.year && month.month === oldest.month;
 
   function go(delta: number) {
@@ -528,7 +530,7 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
     }, new Decimal(0));
   }, [sells, isOverseasOnly]);
 
-  const hasPnL = sells.some((o) => o.avgBuyPriceAtSell != null);
+  const hasPnL = sells.some((o) => o.avgBuyPriceAtSell !== null && o.avgBuyPriceAtSell !== undefined);
   const groups = groupByDateShort(sells, (o) => o.createdAt);
 
   if (isLoading) return <ListSkeleton />;

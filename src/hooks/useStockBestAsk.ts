@@ -18,7 +18,7 @@ function firstPositivePrice(
   asks: { price: number }[] | undefined,
 ): number | null {
   const p = asks?.[0]?.price;
-  return p != null && p > 0 ? p : null;
+  return p !== null && p !== undefined && p > 0 ? p : null;
 }
 
 /**
@@ -82,6 +82,6 @@ export function useStockBestAsk(
 
   // 3순위: 체결가 폴백 (해외 장외·시세 공백)
   const fallback =
-    currentPrice != null && currentPrice > 0 ? currentPrice : null;
+    currentPrice !== null && currentPrice !== undefined && currentPrice > 0 ? currentPrice : null;
   return { bestAsk: fallback, source: "current" };
 }

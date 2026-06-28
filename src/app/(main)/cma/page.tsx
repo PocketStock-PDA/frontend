@@ -16,7 +16,6 @@ import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
-  Chip,
   ListSkeleton,
   fmtMoney,
   fmtTime,
@@ -280,9 +279,7 @@ export default function CmaHistoryPage() {
   const txQ     = useCmaTransactions();
   const balanceQ = useCmaBalance();
   const homeQ   = useCmaHome();
-  const txs     = txQ.data ?? [];
-
-  const oldest  = MONTHS[MONTHS.length - 1]!;
+  const oldest  = MONTHS[MONTHS.length - 1] ?? MONTHS[0];
   const now     = new Date();
   const isLatest  = month.year === now.getFullYear() && month.month === now.getMonth() + 1;
   const isOldest  = month.year === oldest.year && month.month === oldest.month;
@@ -293,6 +290,7 @@ export default function CmaHistoryPage() {
   }
 
   const filtered = useMemo(() => {
+    const txs = txQ.data ?? [];
     return txs.filter(
       (t) =>
         t.txType !== "REVERT" &&
@@ -300,7 +298,7 @@ export default function CmaHistoryPage() {
         matchesScope(t, scope) &&
         matchesFilter(t, filter),
     );
-  }, [txs, month, scope, filter]);
+  }, [txQ.data, month, scope, filter]);
 
   const groups = groupByDateShort(filtered, (t) => t.createdAt);
 

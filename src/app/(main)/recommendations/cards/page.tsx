@@ -127,6 +127,7 @@ function CardItem({ card, rank }: { card: CardRecommendationItem; rank: number }
             onClick={() => setShowBack((v) => !v)}
             className="shrink-0"
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={showBack ? getBackImageUrl(imageUrl) : imageUrl}
               alt={card.cardName}
