@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SectionHeader } from "@/components/common/SectionHeader";
@@ -74,6 +74,19 @@ export default function AssetPage() {
               </span>
             </div>
           )}
+          {data.partial && (
+            <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-white/15 px-2.5 py-1.5 text-xs text-white/90">
+              <AlertTriangle className="size-3.5 shrink-0" />
+              <span className="flex-1">일부 자산을 불러오지 못해 실제보다 적게 표시될 수 있어요.</span>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="shrink-0 font-semibold underline underline-offset-2"
+              >
+                다시 시도
+              </button>
+            </div>
+          )}
         </section>
 
         {/* 만기 알림 */}
@@ -87,7 +100,10 @@ export default function AssetPage() {
           {data.portfolio.length === 0 ? (
             <EmptyState title="등록된 자산이 없어요" />
           ) : (
-            <AssetPortfolioCard portfolio={data.portfolio} />
+            <AssetPortfolioCard
+              portfolio={data.portfolio}
+              pointSources={data.pointSources}
+            />
           )}
         </section>
 

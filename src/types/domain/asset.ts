@@ -130,8 +130,15 @@ export interface ExternalHoldingStock {
 }
 
 export interface ExternalHolding {
-  company: string;
+  companyCode: string;
+  companyName: string;
   stocks: ExternalHoldingStock[];
+}
+
+/** 연동 포인트 개별 출처(1P=1원) — '기타' 드릴다운에서 입출금과 분리 표기 */
+export interface PointSource {
+  pointName: string;
+  balance: number;
 }
 
 export interface AssetSummaryResponse {
@@ -142,4 +149,10 @@ export interface AssetSummaryResponse {
   portfolio: AssetPortfolioItem[];
   fixedExpenses: number;
   variableExpenses: number;
+  /** 연동 포인트 잔액 합계(1P=1원) — '기타'에 포함 */
+  points: number;
+  /** 연동 포인트 출처별 내역 — '기타' 드릴다운 항목 표기용 */
+  pointSources: PointSource[];
+  /** CMA·신투 등 일부 평가 미조회 — 증권·순자산이 과소계상됐을 수 있음 */
+  partial: boolean;
 }

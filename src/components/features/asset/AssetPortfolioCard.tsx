@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import Decimal from "decimal.js";
 import { AnimatePresence, motion } from "framer-motion";
 import { DonutChart } from "@/components/common/DonutChart";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
-import type { AssetPortfolioItem } from "@/types/domain/asset";
+import type { AssetPortfolioItem, PointSource } from "@/types/domain/asset";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useExternalHoldings } from "@/hooks/queries/useExternalHoldings";
+import { usePortfolioSummary } from "@/hooks/queries/usePortfolioSummary";
+import { useStockDetails } from "@/hooks/queries/useStockDetails";
 
 // ── 색상 ─────────────────────────────────────────────────────────────────────
 const CATEGORY_COLORS: Record<string, string> = {
@@ -96,11 +98,25 @@ function calcRotation(data: { value: number }[], idx: number): number {
 }
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
-interface SubItem { name: string; amount: number }
-interface AssetPortfolioCardProps { portfolio: AssetPortfolioItem[] }
+type SubGroup = "own" | "ext" | "checking" | "point";
+interface SubItem { name: string; amount: number; group?: SubGroup; company?: string }
+interface AssetPortfolioCardProps {
+  portfolio: AssetPortfolioItem[];
+  pointSources?: PointSource[];
+}
+// 드릴다운 그룹 헤더 라벨(증권: 자체/타사, 기타: 입출금/포인트)
+const GROUP_LABELS: Record<SubGroup, string> = {
+  own: "신한투자증권",
+  ext: "타사",
+  checking: "입출금",
+  point: "포인트",
+};
 
 // ── 컴포넌트 ─────────────────────────────────────────────────────────────────
-export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
+export function AssetPortfolioCard({
+  portfolio,
+  pointSources = [],
+}: AssetPortfolioCardProps) {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const maskId = useId();
@@ -115,22 +131,64 @@ export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
   const { data: bankAccounts, isFetching: bankFetching } = useBankAccounts(needsBank);
   const { data: externalHoldings, isFetching: secFetching } = useExternalHoldings(needsSec);
 
-  const subLoading = (needsBank && bankFetching) || (needsSec && secFetching);
+  // 신투(자체 증권계좌) 보유 — 증권 드릴다운에서만 조회. 종목명은 useStockDetails로 보강.
+  const { data: portfolioSummary, isFetching: ownFetching } = usePortfolioSummary(needsSec);
+  const ownHoldings = useMemo(
+    () =>
+      (portfolioSummary?.holdings ?? []).filter(
+        (h) => h.priced && h.evalKrw !== null && h.evalKrw > 0,
+      ),
+    [portfolioSummary],
+  );
+  const ownCodes = useMemo(() => ownHoldings.map((h) => h.stockCode), [ownHoldings]);
+  const ownDetails = useStockDetails(needsSec ? ownCodes : []);
+  const ownNameByCode = useMemo(() => {
+    const m = new Map<string, string>();
+    ownCodes.forEach((c, i) => {
+      const n = ownDetails[i]?.data?.stockName;
+      if (n) m.set(c, n);
+    });
+    return m;
+  }, [ownCodes, ownDetails]);
+
+  const subLoading =
+    (needsBank && bankFetching) || (needsSec && (secFetching || ownFetching));
 
   const subItems: SubItem[] = useMemo(() => {
     if (!selectedCategory) return [];
-    if (selectedCategory === "증권" && externalHoldings) {
-      return externalHoldings.flatMap((h) =>
-        h.stocks.map((s) => ({ name: s.stockName, amount: s.evaluated })),
+    if (selectedCategory === "증권") {
+      // 신한투자증권(자체) → 타사(외부, 증권사별) 순. 타사는 회사 단위로 와서 그대로 펼침.
+      const own: SubItem[] = ownHoldings.map((h) => ({
+        name: ownNameByCode.get(h.stockCode) ?? h.stockCode,
+        amount: h.evalKrw as number,
+        group: "own",
+      }));
+      const ext: SubItem[] = (externalHoldings ?? []).flatMap((h) =>
+        h.stocks.map((s) => ({
+          name: s.stockName,
+          amount: s.evaluated,
+          group: "ext",
+          company: h.companyName,
+        })),
       );
+      return [...own, ...ext];
+    }
+    if (selectedCategory === "기타") {
+      // 입출금(기타 계좌) → 포인트(출처별) 순. 두 그룹으로 나눠 표기.
+      const specific = new Set(Object.keys(ACCOUNT_TYPE_TO_CATEGORY));
+      const checking: SubItem[] = (bankAccounts ?? [])
+        .filter((a) => !specific.has(a.accountType) && a.balance > 0)
+        .map((a) => ({
+          name: `${a.bankName} ${a.accountName}`,
+          amount: a.balance,
+          group: "checking",
+        }));
+      const pts: SubItem[] = pointSources
+        .filter((p) => p.balance > 0)
+        .map((p) => ({ name: p.pointName, amount: p.balance, group: "point" }));
+      return [...checking, ...pts];
     }
     if (bankAccounts) {
-      if (selectedCategory === "기타") {
-        const specific = new Set(Object.keys(ACCOUNT_TYPE_TO_CATEGORY));
-        return bankAccounts
-          .filter((a) => !specific.has(a.accountType) && a.balance > 0)
-          .map((a) => ({ name: `${a.bankName} ${a.accountName}`, amount: a.balance }));
-      }
       const types = Object.entries(ACCOUNT_TYPE_TO_CATEGORY)
         .filter(([, c]) => c === selectedCategory)
         .map(([t]) => t);
@@ -139,7 +197,26 @@ export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
         .map((a) => ({ name: `${a.bankName} ${a.accountName}`, amount: a.balance }));
     }
     return [];
-  }, [selectedCategory, bankAccounts, externalHoldings]);
+  }, [selectedCategory, bankAccounts, externalHoldings, ownHoldings, ownNameByCode, pointSources]);
+
+  // 드릴다운 그룹별 소계(증권: 자체/타사, 기타: 입출금/포인트) + 타사 증권사별 합(서브헤더용).
+  // 금액 합산은 Decimal로 — 포맷 경계에서만 toNumber().
+  const { groupTotals, companyTotals } = useMemo(() => {
+    const groupTotals = new Map<SubGroup, Decimal>();
+    const companyTotals = new Map<string, Decimal>();
+    for (const it of subItems) {
+      if (it.group) {
+        groupTotals.set(it.group, (groupTotals.get(it.group) ?? new Decimal(0)).plus(it.amount));
+      }
+      if (it.group === "ext" && it.company) {
+        companyTotals.set(
+          it.company,
+          (companyTotals.get(it.company) ?? new Decimal(0)).plus(it.amount),
+        );
+      }
+    }
+    return { groupTotals, companyTotals };
+  }, [subItems]);
 
   useEffect(() => {
     const dismiss = (e: MouseEvent) => {
@@ -164,7 +241,10 @@ export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
   const selected = selectedIdx !== null ? portfolio[selectedIdx] : null;
   const totalAmount = portfolio.reduce((s, i) => s + i.amount, 0);
 
-  const subTotal = subItems.reduce((s, i) => s + i.amount, 0);
+  const subTotal = useMemo(
+    () => subItems.reduce((s, i) => s.plus(i.amount), new Decimal(0)),
+    [subItems],
+  );
   const catColor = getCategoryColor(selectedCategory ?? "");
   const subColors = useMemo(
     () => generateSubColors(catColor, subItems.length),
@@ -402,26 +482,58 @@ export function AssetPortfolioCard({ portfolio }: AssetPortfolioCardProps) {
             ) : (
               <div className="space-y-1">
                 {subItems.map((subItem, i) => {
-                  const ratio = subTotal > 0 ? (subItem.amount / subTotal) * 100 : 0;
+                  const prev = subItems[i - 1];
+                  const ratio = subTotal.gt(0)
+                    ? new Decimal(subItem.amount).div(subTotal).times(100)
+                    : new Decimal(0);
+                  // 그룹 헤더(증권: 신한투자증권/타사, 기타: 입출금/포인트) — 그룹이 바뀌는 첫 항목 앞
+                  const showGroup = !!subItem.group && subItem.group !== prev?.group;
+                  const groupLabel = subItem.group ? GROUP_LABELS[subItem.group] : "";
+                  const groupTotal = subItem.group ? groupTotals.get(subItem.group) : undefined;
+                  // 타사 내부 증권사 서브헤더 — 회사가 바뀌는 첫 항목 앞
+                  const showCompany =
+                    subItem.group === "ext" &&
+                    !!subItem.company &&
+                    (prev?.group !== "ext" || prev?.company !== subItem.company);
                   return (
-                    <div
-                      key={subItem.name}
-                      className="flex items-center gap-2.5 rounded-xl bg-muted/50 px-3 py-2.5"
+                    <Fragment
+                      key={`${subItem.group ?? ""}-${subItem.company ?? ""}-${subItem.name}-${i}`}
                     >
-                      <span
-                        className="size-1.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: subColors[i] }}
-                      />
-                      <span className="min-w-0 flex-1 truncate text-xs text-foreground">
-                        {subItem.name}
-                      </span>
-                      <span className="shrink-0 text-xs font-semibold text-foreground">
-                        {formatKRW(subItem.amount)}
-                      </span>
-                      <span className="w-9 shrink-0 text-right text-[10px] text-muted-foreground">
-                        {ratio.toFixed(1)}%
-                      </span>
-                    </div>
+                      {showGroup && (
+                        <div className="flex items-center justify-between px-1 pb-1 pt-2.5">
+                          <span className="text-xs font-bold text-foreground">{groupLabel}</span>
+                          <span className="font-numeric text-[11px] font-semibold text-muted-foreground">
+                            {formatKRW(groupTotal?.toNumber() ?? 0)}
+                          </span>
+                        </div>
+                      )}
+                      {showCompany && (
+                        <div className="flex items-center justify-between px-1.5 pb-0.5 pt-1.5">
+                          <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                            <span className="size-1 rounded-full bg-muted-foreground/40" />
+                            {subItem.company}
+                          </span>
+                          <span className="font-numeric text-[10px] text-muted-foreground">
+                            {formatKRW(companyTotals.get(subItem.company ?? "")?.toNumber() ?? 0)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2.5 rounded-xl bg-muted/50 px-3 py-2.5">
+                        <span
+                          className="size-1.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: subColors[i] }}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                          {subItem.name}
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold text-foreground">
+                          {formatKRW(subItem.amount)}
+                        </span>
+                        <span className="w-9 shrink-0 text-right text-[10px] text-muted-foreground">
+                          {ratio.toFixed(1)}%
+                        </span>
+                      </div>
+                    </Fragment>
                   );
                 })}
               </div>
