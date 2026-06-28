@@ -2,15 +2,18 @@
 
 import { useState, useMemo, useRef } from "react";
 import Decimal from "decimal.js";
-import { Info, Minus, Plus, Landmark, TrendingUp, ArrowDown } from "lucide-react";
+import { Info, Minus, Plus, Landmark, TrendingUp, ArrowDown, ArrowRightLeft } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ApiError } from "@/lib/api/client";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
+import { parseAccountId } from "@/lib/utils/params";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useCreateMaturityReservation } from "@/hooks/mutations/useCreateMaturityReservation";
+import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
+import { useUpdateAutoSettings } from "@/hooks/mutations/useUpdateAutoSettings";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 
@@ -20,8 +23,12 @@ const MIN_AMOUNT = 1_000;
 export default function MaturityReservePage() {
   const router = useRouter();
   const params = useSearchParams();
-  const { data } = useMaturityRecommendation();
+  // 선택 화면에서 이어온 예적금(유효한 양의 정수만) — 추천·triggerAccount를 같은 계좌로 맞춘다.
+  const accountId = parseAccountId(params.get("accountId"));
+  const { data } = useMaturityRecommendation(accountId);
   const createReservation = useCreateMaturityReservation();
+  const { data: fxSettings } = useExchangeAutoSettings();
+  const updateAutoSettings = useUpdateAutoSettings();
   const submittingRef = useRef(false);
 
   // URL 파라미터 파싱: items=017800:250000,030000:150000
@@ -83,6 +90,27 @@ export default function MaturityReservePage() {
     [codes, amounts, stockMap],
   );
 
+  // 해외(US) 배당주가 담겨 있으면 집행 시 자동환전(KRW→USD)이 필요하다.
+  const hasOverseas = codes.some((c) => stockMap[c]?.market === "US");
+  // 설정 조회가 끝난 뒤에만 판단한다 — 로딩/실패 중엔 막지도, 기본값으로 덮어쓰지도 않는다.
+  const needAutoFx = hasOverseas && fxSettings !== undefined && !fxSettings.autoEnabled;
+
+  const enableAutoFx = () => {
+    if (!fxSettings) return; // 설정 미조회 시 기존 값 덮어쓰기 방지
+    updateAutoSettings.mutate(
+      {
+        autoEnabled: true,
+        useDollarFirst: fxSettings.useDollarFirst,
+        maxAmountPerTx: fxSettings.maxAmountPerTx,
+        residualHandling: fxSettings.residualHandling,
+      },
+      {
+        onError: () =>
+          toast.error("자동환전을 켜지 못했어요. 잠시 후 다시 시도해 주세요."),
+      },
+    );
+  };
+
   const adjust = (code: string, delta: number) => {
     setAmounts((prev) => ({
       ...prev,
@@ -94,6 +122,11 @@ export default function MaturityReservePage() {
     // 따닥 클릭/리렌더 전 연속 호출로 같은 배치가 두 번 나가지 않게 가드.
     if (submittingRef.current) return;
     if (!account || codes.length === 0) return;
+    // 해외 종목이 있는데 자동환전이 꺼져 있으면 서버가 거부한다 — 먼저 켜도록 막는다.
+    if (needAutoFx) {
+      toast.error("해외 배당주는 자동환전을 먼저 켜야 예약할 수 있어요.");
+      return;
+    }
     submittingRef.current = true;
 
     try {
@@ -285,6 +318,43 @@ export default function MaturityReservePage() {
           </div>
         </section>
 
+        {/* ── 해외 배당주: 자동환전 안내 (설정 조회 완료 후에만) ──────────── */}
+        {needAutoFx && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+              <div className="flex items-start gap-2">
+                <ArrowRightLeft className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold text-foreground">
+                    해외 배당주는 자동환전이 필요해요
+                  </p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                    만기일에 원화를 달러로 자동환전(원화 → 달러)해 매수해요. 자동환전을
+                    켜야 예약할 수 있어요.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={enableAutoFx}
+                disabled={updateAutoSettings.isPending}
+                className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-amber-600 text-[13px] font-bold text-white transition-opacity active:opacity-80 disabled:opacity-50"
+              >
+                <ArrowRightLeft className="size-3.5" />
+                {updateAutoSettings.isPending ? "켜는 중…" : "자동환전 켜기"}
+              </button>
+            </div>
+        )}
+
+        {/* 자동환전이 이미 켜져 있으면 결제 방식만 안내 */}
+        {hasOverseas && fxSettings?.autoEnabled && (
+          <div className="flex items-start gap-2 rounded-xl bg-brand-surface px-3 py-2.5 text-xs text-[#41556f]">
+            <ArrowRightLeft className="mt-px size-3 shrink-0 text-primary" />
+            <span>
+              해외 배당주는 만기일에 원화를 달러로 자동환전해 결제돼요.
+            </span>
+          </div>
+        )}
+
         {/* ── 안내 ──────────────────────────────────────────────────────── */}
         <div className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-xs text-muted-foreground">
           <Info className="mt-px size-3 shrink-0" />
@@ -299,7 +369,7 @@ export default function MaturityReservePage() {
         <button
           type="button"
           onClick={() => void handleConfirm()}
-          disabled={createReservation.isPending}
+          disabled={createReservation.isPending || needAutoFx}
           className={cn(
             "flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-opacity",
             "disabled:opacity-50 active:opacity-80",
@@ -307,9 +377,11 @@ export default function MaturityReservePage() {
         >
           {createReservation.isPending
             ? "예약 중…"
-            : codes.length > 1
-              ? `${codes.length}종목 예약하기`
-              : "예약하기"}
+            : needAutoFx
+              ? "자동환전을 켜주세요"
+              : codes.length > 1
+                ? `${codes.length}종목 예약하기`
+                : "예약하기"}
         </button>
       </div>
     </>

@@ -3,13 +3,14 @@
 import { useState, useMemo } from "react";
 import Decimal from "decimal.js";
 import { Info, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
 import { useMaturityReservations } from "@/hooks/queries/useMaturityReservations";
 import { formatKRW } from "@/lib/utils/currency";
+import { parseAccountId } from "@/lib/utils/params";
 import { cn } from "@/lib/utils";
 import type { DividendStockItem } from "@/types/domain/asset";
 
@@ -18,7 +19,10 @@ const MIN_AMOUNT = 1_000;
 
 export default function MaturityPage() {
   const router = useRouter();
-  const { data, isLoading, isError } = useMaturityRecommendation();
+  const params = useSearchParams();
+  // 선택 화면에서 고른 예적금(유효한 양의 정수만). 없으면 서버가 가장 가까운 만기를 자동 선택.
+  const accountId = parseAccountId(params.get("accountId"));
+  const { data, isLoading, isError } = useMaturityRecommendation(accountId);
   const { data: reservations = [] } = useMaturityReservations();
   const [depositRatio, setDepositRatio] = useState(75);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
@@ -70,8 +74,9 @@ export default function MaturityPage() {
   const handleGoToReserve = () => {
     if (!account?.accountId || selectedCodes.size === 0 || belowMin) return;
     const items = [...selectedCodes].map((code) => `${code}:${perStockAmount}`).join(",");
-    // 계좌는 reserve에서 triggerAccount로 다시 잡으므로 URL엔 종목·금액만 싣는다.
-    router.push(`/recommendations/maturity/reserve?items=${items}`);
+    // 선택한 예적금(accountId)을 reserve까지 이어 같은 계좌 기준으로 예약하게 한다.
+    const accountQuery = accountId ? `&accountId=${accountId}` : "";
+    router.push(`/recommendations/maturity/reserve?items=${items}${accountQuery}`);
   };
 
   if (isLoading) {
@@ -297,6 +302,12 @@ export default function MaturityPage() {
 
 // ── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
 
+// "YYYY-MM-DD" → "M/D" (배당 지급일 표시용)
+function formatMonthDay(dateStr: string): string {
+  const [, mm, dd] = dateStr.split("-");
+  return `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")}`;
+}
+
 function StockLogo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   return (
     <div
@@ -418,6 +429,22 @@ function DividendStockCard({
           </span>
         </div>
       </div>
+
+      {/* 실제 배당 일정 — KIS 예탁원 배당일정(주당배당금·지급일) 있을 때만 */}
+      {stock.perShareDividend !== null && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          1주당{" "}
+          <span className="font-numeric font-semibold tabular-nums text-foreground">
+            {formatKRW(stock.perShareDividend)}
+          </span>
+          {stock.payDate && (
+            <>
+              {" "}
+              · <span className="font-numeric tabular-nums">{formatMonthDay(stock.payDate)}</span> 지급
+            </>
+          )}
+        </p>
+      )}
     </button>
   );
 }

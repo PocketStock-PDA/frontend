@@ -74,9 +74,15 @@ export interface DividendStockItem {
   stockCode: string;
   stockName: string;
   category: string;
+  /** KR | US — 국내/해외 구분. 해외(US)는 예약 집행 시 자동환전(KRW→USD)이 필요 */
+  market: string;
   dividendYield: number;
   tags: string[];
   exDividendDate: string | null;
+  /** 주당 현금배당금(KRW) — 가장 가까운 배당 지급 기준, 없으면 null */
+  perShareDividend: number | null;
+  /** 배당금 지급일(YYYY-MM-DD) — 없으면 null */
+  payDate: string | null;
   reason: string;
 }
 
