@@ -30,7 +30,7 @@ export function BottomTabBar() {
     // 떠 있는(floating) 알약형 네비. 바깥 래퍼는 클릭을 통과시키고(pointer-events-none)
     // 알약만 클릭을 받는다(pointer-events-auto) → 알약 위/옆 영역의 콘텐츠 탭을 막지 않음.
     <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[430px] px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2">
-      <div className="pointer-events-auto flex items-center justify-around rounded-full border border-border/60 bg-background/75 px-2 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md">
+      <div className="pointer-events-auto flex items-center justify-around rounded-full border border-border/60 bg-background/60 px-2 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md">
         {tabs.map(({ href, label, icon: Icon }) => {
           const isActive = pathname.startsWith(href);
           return (
