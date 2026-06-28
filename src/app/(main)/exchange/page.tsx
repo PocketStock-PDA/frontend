@@ -502,7 +502,7 @@ export default function ExchangePage() {
   const [pendingDir, setPendingDir] = useState<Direction>("krw-to-usd");
 
   const router = useRouter();
-  const { data: rate, isLoading } = useExchangeRate();
+  const { data: rate, isLoading: rateLoading, refetch: refetchRate } = useExchangeRate();
   const {
     data: cma,
     isLoading: cmaLoading,
@@ -571,7 +571,7 @@ export default function ExchangePage() {
       />
 
       {view === "main" &&
-        (cmaLoading ? (
+        (cmaLoading || rateLoading ? (
           <div className="h-44 animate-pulse rounded-3xl bg-muted" />
         ) : noCma ? (
           // 홈의 무보유 안내(home/page.tsx)와 동일한 "계좌 필요" 게이트 톤.
@@ -602,16 +602,28 @@ export default function ExchangePage() {
             }
             className="mt-8"
           />
+        ) : !rate ? (
+          // 환율을 못 불러오면 0.00원으로 거짓 표시·빈 입력 화면이 되므로 진입 자체를 막는다.
+          <EmptyState
+            title="환율 정보를 불러오지 못했어요"
+            description="잠시 후 다시 시도해 주세요."
+            action={
+              <Button variant="outline" size="sm" onClick={() => refetchRate()}>
+                다시 시도
+              </Button>
+            }
+            className="mt-8"
+          />
         ) : (
           <MainView
             krwBalance={krwBalance}
             usdBalance={usdBalance}
-            buyRate={rate?.buyRate ?? 0}
-            sellRate={rate?.sellRate ?? 0}
-            change={rate?.change ?? 0}
-            updatedAt={rate?.updatedAt}
+            buyRate={rate.buyRate}
+            sellRate={rate.sellRate}
+            change={rate.change}
+            updatedAt={rate.updatedAt}
             cmaAccountNo={cma?.cmaAccountNo}
-            isLoading={isLoading}
+            isLoading={false}
             onSelect={handleSelect}
           />
         ))}
