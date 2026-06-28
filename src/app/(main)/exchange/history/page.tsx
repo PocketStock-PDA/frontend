@@ -54,20 +54,20 @@ function HistoryRow({ item }: { item: FxHistoryItem }) {
             </span>
           )}
         </p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
+        <p className="mt-0.5 font-numeric text-[11px] text-muted-foreground">
           {fmtDate(item.exchangedAt)} · {fmtRate(item.rate)}원
         </p>
       </div>
       <div className="text-right shrink-0">
         {isBuy ? (
           <>
-            <p className="text-[13px] font-bold text-primary">+{fmtUSD(item.usdAmount)}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">-{fmtKRW(item.krwAmount)}원</p>
+            <p className="font-numeric text-[13px] font-bold text-primary">+{fmtUSD(item.usdAmount)}</p>
+            <p className="mt-0.5 font-numeric text-[11px] text-muted-foreground">-{fmtKRW(item.krwAmount)}원</p>
           </>
         ) : (
           <>
-            <p className="text-[13px] font-bold text-primary">+{fmtKRW(item.krwAmount)}원</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">-{fmtUSD(item.usdAmount)}</p>
+            <p className="font-numeric text-[13px] font-bold text-primary">+{fmtKRW(item.krwAmount)}원</p>
+            <p className="mt-0.5 font-numeric text-[11px] text-muted-foreground">-{fmtUSD(item.usdAmount)}</p>
           </>
         )}
       </div>
@@ -107,7 +107,7 @@ export default function ExchangeHistoryPage() {
 
       <div className="flex flex-col gap-3 pb-8">
         {isLoading ? (
-          <div className="rounded-2xl bg-white shadow-sm">
+          <div className="rounded-2xl bg-card shadow-sm">
             <div className="divide-y divide-border">
               {Array.from({ length: 5 }).map((_, i) => (
                 <SkeletonRow key={i} />
@@ -115,15 +115,15 @@ export default function ExchangeHistoryPage() {
             </div>
           </div>
         ) : items.length === 0 ? (
-          <div className="rounded-2xl bg-white py-16 text-center shadow-sm">
+          <div className="rounded-2xl bg-card py-16 text-center shadow-sm">
             <p className="text-[13px] text-muted-foreground">환전 내역이 없어요</p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
             {groupByDate(items).map(({ date, rows }) => (
               <div key={date}>
-                <p className="mb-1.5 px-1 text-[12px] font-semibold text-muted-foreground">{date}</p>
-                <div className="rounded-2xl bg-white shadow-sm">
+                <p className="mb-1.5 px-1 font-numeric text-[12px] font-semibold tabular-nums text-muted-foreground">{date}</p>
+                <div className="rounded-2xl bg-card shadow-sm">
                   <div className="divide-y divide-border">
                     {rows.map((item, i) => (
                       <HistoryRow key={i} item={item} />
@@ -145,7 +145,7 @@ export default function ExchangeHistoryPage() {
             >
               이전
             </button>
-            <span className="text-[12px] text-muted-foreground">
+            <span className="font-numeric text-[12px] tabular-nums text-muted-foreground">
               {page + 1} / {totalPages}
             </span>
             <button
