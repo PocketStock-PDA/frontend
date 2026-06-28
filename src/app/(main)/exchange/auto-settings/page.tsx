@@ -135,18 +135,18 @@ function AutoSettingsForm({
 
       <div className="flex flex-col gap-5 pb-8">
         {/* 안내 카드 */}
-        <div className="rounded-2xl bg-blue-50 px-4 py-4">
-          <p className="mb-1 text-[13px] font-bold text-blue-900">
+        <div className="rounded-2xl bg-brand-surface px-4 py-4">
+          <p className="mb-1 text-[13px] font-bold text-brand">
             미국 주식 매수 시 자동환전
           </p>
-          <p className="text-[12px] leading-relaxed text-blue-700">
+          <p className="text-[12px] leading-relaxed text-brand/80">
             달러가 부족할 경우 매수에 필요한 금액만
             {"\n"}포켓스톡 CMA에서 자동으로 환전합니다
           </p>
         </div>
 
         {/* 설정 리스트 */}
-        <div className="rounded-2xl bg-white shadow-sm">
+        <div className="rounded-2xl bg-card shadow-sm">
           {/* 자동환전 사용 */}
           <div className="flex items-center justify-between px-5 py-4">
             <div>
@@ -201,7 +201,9 @@ function AutoSettingsForm({
             >
               <span className="text-[13px] text-muted-foreground">한도</span>
               <span className="flex items-center gap-1 text-[13px] font-semibold text-foreground">
-                {maxAmount !== null ? `${fmtKRW(maxAmount)}원` : "제한 없음"}
+                <span className={maxAmount !== null ? "font-numeric tabular-nums" : ""}>
+                  {maxAmount !== null ? `${fmtKRW(maxAmount)}원` : "제한 없음"}
+                </span>
                 <ChevronRight className="size-4 text-muted-foreground" />
               </span>
             </button>
@@ -217,7 +219,7 @@ function AutoSettingsForm({
           <p className="px-1 text-[12px] font-medium text-muted-foreground">
             외화 잔돈 처리
           </p>
-          <div className="rounded-2xl bg-white px-5 py-4 shadow-sm">
+          <div className="rounded-2xl bg-card px-5 py-4 shadow-sm">
             <p className="mb-1 text-[13px] font-bold text-foreground">
               환전 후 남은 소액 외화
             </p>
@@ -273,7 +275,7 @@ function AutoSettingsForm({
               placeholder="제한 없음"
               value={limitInputRaw}
               onChange={handleLimitInput}
-              className="h-auto border-0 bg-transparent p-0 text-[22px] font-bold shadow-none focus-visible:ring-0"
+              className="h-auto border-0 bg-transparent p-0 font-numeric text-[22px] font-bold tabular-nums shadow-none placeholder:font-sans focus-visible:ring-0"
             />
             <span className="shrink-0 text-base font-bold text-muted-foreground">원</span>
           </div>
@@ -283,7 +285,7 @@ function AutoSettingsForm({
                 key={amt}
                 type="button"
                 onClick={() => setLimitInputRaw(fmtKRW(amt))}
-                className="flex-1 rounded-xl bg-muted py-2.5 text-[12px] font-bold text-foreground active:bg-muted/70"
+                className="flex-1 rounded-xl bg-muted py-2.5 font-numeric text-[12px] font-bold tabular-nums text-foreground active:bg-muted/70"
               >
                 {fmtKRW(amt)}원
               </button>

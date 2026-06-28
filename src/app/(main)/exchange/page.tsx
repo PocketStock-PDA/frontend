@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { PinKeypad } from "@/components/common/PinKeypad";
 import { AccountPasswordUnlock } from "@/components/common/AccountPasswordUnlock";
 import { ApiError } from "@/lib/api/client";
+import { safeRandomUUID } from "@/lib/utils/idempotency";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
 import { useExchangeHistory } from "@/hooks/queries/useExchangeHistory";
@@ -72,7 +73,7 @@ function AutoSettingCard() {
   }
 
   return (
-    <div className="rounded-2xl bg-white px-5 py-4 shadow-sm">
+    <div className="rounded-2xl bg-card px-5 py-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <p className="text-[14px] font-bold text-foreground">자동환전</p>
@@ -122,20 +123,20 @@ function HistoryRow({ item }: { item: FxHistoryItem }) {
             </span>
           )}
         </p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
+        <p className="mt-0.5 font-numeric text-[11px] text-muted-foreground">
           {fmtDate(item.exchangedAt)} · {fmtRate(item.rate)}원
         </p>
       </div>
       <div className="shrink-0 text-right">
         {isBuy ? (
           <>
-            <p className="text-[13px] font-bold text-primary">+{fmtUSD(item.usdAmount)}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">-{fmtKRW(item.krwAmount)}원</p>
+            <p className="font-numeric text-[13px] font-bold text-primary">+{fmtUSD(item.usdAmount)}</p>
+            <p className="mt-0.5 font-numeric text-[11px] text-muted-foreground">-{fmtKRW(item.krwAmount)}원</p>
           </>
         ) : (
           <>
-            <p className="text-[13px] font-bold text-primary">+{fmtKRW(item.krwAmount)}원</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">-{fmtUSD(item.usdAmount)}</p>
+            <p className="font-numeric text-[13px] font-bold text-primary">+{fmtKRW(item.krwAmount)}원</p>
+            <p className="mt-0.5 font-numeric text-[11px] text-muted-foreground">-{fmtUSD(item.usdAmount)}</p>
           </>
         )}
       </div>
@@ -149,7 +150,7 @@ function HistorySection() {
   const items = data?.history ?? [];
 
   return (
-    <div className="rounded-2xl bg-white px-5 shadow-sm">
+    <div className="rounded-2xl bg-card px-5 shadow-sm">
       <div className="flex items-center justify-between py-4">
         <p className="text-[14px] font-bold text-foreground">환전 내역</p>
         <button
@@ -208,55 +209,57 @@ function MainView({
   isLoading: boolean;
   onSelect: (dir: Direction) => void;
 }) {
-  const changePositive = change >= 0;
+  // 보합(0)은 부호 없이 — change >= 0 으로 묶으면 0도 "+0.00"으로 표시돼 상승처럼 보임.
+  const changeRounded = Number(change.toFixed(2));
+  const changeSign = changeRounded > 0 ? "+" : changeRounded < 0 ? "-" : "";
 
   return (
     <div className="flex flex-col gap-4 pb-8">
-      <div className="rounded-3xl px-5 py-6" style={{ background: "linear-gradient(135deg, #0046FF 0%, #6B3FF5 100%)" }}>
+      <div className="rounded-3xl px-5 py-6" style={{ backgroundImage: "var(--grad-1)" }}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-white/50">USD/KRW</span>
-            {updatedAt && <span className="text-[11px] text-white/30">· {parseTime(updatedAt)} 기준</span>}
+            <span className="text-[11px] font-medium text-white/80">USD/KRW</span>
+            {updatedAt && <span className="font-numeric text-[11px] text-white/60">· {parseTime(updatedAt)} 기준</span>}
           </div>
           {cmaAccountNo && (
-            <span className="text-[11px] text-white/40">포켓스톡 CMA {cmaAccountNo}</span>
+            <span className="font-numeric text-[11px] text-white/60">포켓스톡 CMA {cmaAccountNo}</span>
           )}
         </div>
         {isLoading ? (
           <div className="h-9 w-40 animate-pulse rounded-xl bg-white/20" />
         ) : (
           <div className="flex items-baseline gap-2">
-            <span className="text-[32px] font-bold leading-none tracking-tight text-white">
+            <span className="font-numeric text-[32px] font-bold leading-none tracking-tight tabular-nums text-white">
               {fmtRate(buyRate)}
             </span>
-            <span className="text-sm font-medium text-white/50">원</span>
-            <span className={`ml-1 text-sm font-bold ${changePositive ? "text-red-300" : "text-blue-300"}`}>
-              {changePositive ? "+" : "-"}{Math.abs(change).toFixed(2)}
+            <span className="text-sm font-medium text-white/80">원</span>
+            <span className="ml-1 font-numeric text-sm font-bold tabular-nums text-white/90">
+              {changeSign}{Math.abs(changeRounded).toFixed(2)}
             </span>
           </div>
         )}
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <div className="rounded-2xl bg-white/10 px-4 py-3">
-            <p className="text-[10px] font-medium text-white/40">보유 원화</p>
-            <p className="mt-1.5 text-[15px] font-bold text-white">{fmtKRW(krwBalance)}원</p>
+          <div className="rounded-2xl bg-white/15 px-4 py-3">
+            <p className="text-[10px] font-medium text-white/80">보유 원화</p>
+            <p className="mt-1.5 font-numeric text-[15px] font-bold text-white">{fmtKRW(krwBalance)}원</p>
           </div>
-          <div className="rounded-2xl bg-white/10 px-4 py-3">
-            <p className="text-[10px] font-medium text-white/40">보유 달러</p>
-            <p className="mt-1.5 text-[15px] font-bold text-white">{fmtUSD(usdBalance)}</p>
+          <div className="rounded-2xl bg-white/15 px-4 py-3">
+            <p className="text-[10px] font-medium text-white/80">보유 달러</p>
+            <p className="mt-1.5 font-numeric text-[15px] font-bold text-white">{fmtUSD(usdBalance)}</p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl bg-white px-5 py-4 shadow-sm">
+      <div className="rounded-2xl bg-card px-5 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] text-muted-foreground">살 때 (원화→달러)</p>
-            <p className="mt-1 text-[15px] font-bold text-foreground">{fmtRate(buyRate)}원</p>
+            <p className="mt-1 font-numeric text-[15px] font-bold tabular-nums text-foreground">{fmtRate(buyRate)}원</p>
           </div>
           <div className="h-8 w-px bg-border" />
           <div className="text-right">
             <p className="text-[11px] text-muted-foreground">팔 때 (달러→원화)</p>
-            <p className="mt-1 text-[15px] font-bold text-foreground">{fmtRate(sellRate)}원</p>
+            <p className="mt-1 font-numeric text-[15px] font-bold tabular-nums text-foreground">{fmtRate(sellRate)}원</p>
           </div>
         </div>
       </div>
@@ -264,8 +267,8 @@ function MainView({
       <button
         type="button"
         onClick={() => onSelect("krw-to-usd")}
-        className="h-14 w-full rounded-2xl text-base font-bold"
-        style={{ background: "linear-gradient(135deg, #0046FF 0%, #6B3FF5 100%)", color: "white" }}
+        className="h-14 w-full rounded-2xl text-base font-bold text-white"
+        style={{ backgroundImage: "var(--grad-1)" }}
       >
         환전하기
       </button>
@@ -358,7 +361,7 @@ function ExchangeInputView({
 
         <div className="mb-4 flex items-center justify-between">
           <span className="text-[13px] text-muted-foreground">
-            환전가능금액 {fromBalanceStr}
+            환전가능금액 <span className="font-numeric tabular-nums">{fromBalanceStr}</span>
           </span>
           <button
             type="button"
@@ -376,7 +379,7 @@ function ExchangeInputView({
             placeholder={fromPlaceholder}
             value={inputRaw}
             onChange={handleInput}
-            className={`h-auto flex-1 border-0 bg-transparent p-0 text-[17px] shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-0 ${
+            className={`h-auto flex-1 border-0 bg-transparent p-0 font-numeric text-[17px] tabular-nums shadow-none placeholder:font-sans placeholder:text-muted-foreground/40 focus-visible:ring-0 ${
               isOver ? "text-destructive" : "text-foreground"
             }`}
           />
@@ -413,12 +416,12 @@ function ExchangeInputView({
           <span className="text-[14px] text-muted-foreground">로 바꿀게요</span>
         </div>
 
-        <p className="mb-4 text-[13px] text-muted-foreground">잔고 {toBalanceStr}</p>
+        <p className="mb-4 text-[13px] text-muted-foreground">잔고 <span className="font-numeric tabular-nums">{toBalanceStr}</span></p>
 
         <div className="flex items-center gap-3 border-b border-border pb-4">
           <span className="shrink-0 text-[17px] text-muted-foreground">≒</span>
           <span
-            className={`flex-1 text-[17px] font-bold ${
+            className={`flex-1 font-numeric text-[17px] font-bold tabular-nums ${
               estimatedStr ? "text-foreground" : "text-muted-foreground/30"
             }`}
           >
@@ -429,7 +432,7 @@ function ExchangeInputView({
 
         <div className="mt-4 flex items-center justify-between">
           <span className="text-[12px] font-semibold text-primary">우대환율 적용</span>
-          <span className="text-[12px] text-muted-foreground">적용환율: {fmtRate(rate)}원</span>
+          <span className="text-[12px] text-muted-foreground">적용환율: <span className="font-numeric tabular-nums">{fmtRate(rate)}</span>원</span>
         </div>
       </div>
 
@@ -529,7 +532,7 @@ export default function ExchangePage() {
   }
 
   function handleConfirm(amount: number) {
-    const key = crypto.randomUUID();
+    const key = safeRandomUUID();
     setPendingAmount(amount);
     setPendingKey(key);
     setPendingDir(direction);
