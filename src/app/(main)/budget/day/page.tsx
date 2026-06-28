@@ -90,5 +90,6 @@ export default function BudgetDayPage() {
 
 function formatTime(isoStr: string) {
   const d = parseUTC(isoStr);
+  if (isNaN(d.getTime())) return "";
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }

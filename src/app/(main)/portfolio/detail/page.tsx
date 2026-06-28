@@ -275,9 +275,10 @@ function StockDetailContent({
   const remainAmount = new Decimal(1).minus(frac).times(price);
 
   // 현황: 평가손익 + 온주/소수 분리(FRAC-010)
-  const invested = hv
-    ? toDecimal(hv.invested)
-    : qty.times(toDecimal(holding?.avgBuyPrice));
+  const invested =
+    hv && hv.invested !== null
+      ? toDecimal(hv.invested)
+      : qty.times(toDecimal(holding?.avgBuyPrice));
   const profit =
     hv && hv.profit !== null ? toDecimal(hv.profit) : evalAmount.minus(invested);
   const rate =

@@ -529,9 +529,10 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
     }, new Decimal(0));
   }, [sells, isOverseasOnly]);
 
-  const hasPnL = sells.some((o) => o.realizedPnl !== null);
-  // USD 손익을 KRW로 환산할 수 있는 주문이 하나라도 있는지 — 없으면 "(환산)" 줄 숨김
-  const hasFxKrw = sells.some((o) => o.realizedPnlKrw !== null);
+  const pnlRows = sells.filter((o) => o.realizedPnl !== null);
+  const hasPnL = pnlRows.length > 0;
+  // KRW 월 합계는 모든 P&L row가 환산 가능할 때만 전체 합계로 표시
+  const hasFxKrw = hasPnL && pnlRows.every((o) => o.realizedPnlKrw !== null);
   const groups = groupByDateShort(sells, (o) => o.createdAt);
 
   if (isLoading) return <ListSkeleton />;

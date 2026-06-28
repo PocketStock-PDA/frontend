@@ -174,6 +174,7 @@ export default function MaturityPage() {
             step={5}
             value={depositRatio}
             onChange={(e) => setDepositRatio(Number(e.target.value))}
+            aria-label="예금·배당주 배분 비율"
             className="mt-3.5 w-full cursor-pointer appearance-none"
             style={{
               height: "6px",
@@ -308,6 +309,7 @@ function DividendStockRow({
       type="button"
       onClick={onSelect}
       disabled={alreadyReserved}
+      aria-pressed={selected}
       className={cn(
         "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-150",
         alreadyReserved

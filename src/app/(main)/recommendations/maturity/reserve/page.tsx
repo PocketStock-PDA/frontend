@@ -310,7 +310,7 @@ export default function MaturityReservePage() {
                         onClick={() => adjust(code, -STEP)}
                         disabled={amount <= MIN_AMOUNT}
                         className="flex size-[30px] items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted disabled:opacity-30"
-                        aria-label="금액 감소"
+                        aria-label={`${stock?.stockName ?? code} 금액 감소`}
                       >
                         <Minus className="size-3.5" />
                       </button>
@@ -321,7 +321,7 @@ export default function MaturityReservePage() {
                         type="button"
                         onClick={() => adjust(code, STEP)}
                         className="flex size-[30px] items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted"
-                        aria-label="금액 증가"
+                        aria-label={`${stock?.stockName ?? code} 금액 증가`}
                       >
                         <Plus className="size-3.5" />
                       </button>

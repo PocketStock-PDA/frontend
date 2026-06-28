@@ -79,9 +79,11 @@ export default function PortfolioPage() {
   const [scope, setScope] = useState<Scope>(initialScope);
 
   const syncParams = (nextLens: Lens, nextScope: Scope) => {
-    const p = new URLSearchParams();
+    const p = new URLSearchParams(searchParams.toString());
     if (nextLens !== "all") p.set("lens", nextLens);
+    else p.delete("lens");
     if (nextScope !== "all") p.set("scope", nextScope);
+    else p.delete("scope");
     const qs = p.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   };

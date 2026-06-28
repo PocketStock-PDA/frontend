@@ -19,12 +19,9 @@ function fmtKRW(v: number) {
   return v.toLocaleString("ko-KR");
 }
 function fmtDate(dateStr: string) {
-  try {
-    const d = parseUTC(dateStr);
-    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
-  } catch {
-    return dateStr.slice(0, 10);
-  }
+  const d = parseUTC(dateStr);
+  if (isNaN(d.getTime())) return dateStr.slice(0, 10);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function groupByDate(items: FxHistoryItem[]) {

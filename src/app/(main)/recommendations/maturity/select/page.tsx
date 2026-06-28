@@ -87,12 +87,12 @@ export default function MaturitySelectPage() {
   const goConvert = (accountId: number) =>
     router.push(`/recommendations/maturity?accountId=${accountId}`);
 
-  // 전환 내역 탭: 최신순 정렬, RESERVED 먼저
+  // 전환 내역 탭: RESERVED 먼저, 각 그룹 내 최신순
   const sortedReservations = useMemo(() => {
-    const reserved = reservations.filter((r) => r.status === "RESERVED");
-    const rest = reservations
-      .filter((r) => r.status !== "RESERVED")
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const byDesc = (a: MaturityReservation, b: MaturityReservation) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    const reserved = reservations.filter((r) => r.status === "RESERVED").sort(byDesc);
+    const rest = reservations.filter((r) => r.status !== "RESERVED").sort(byDesc);
     return [...reserved, ...rest];
   }, [reservations]);
 
@@ -167,7 +167,16 @@ function AccountsTab({
   onConvert: (id: number) => void;
   onLinkAsset: () => void;
 }) {
-  if (isError || accounts.length === 0) {
+  if (isError) {
+    return (
+      <EmptyState
+        title="불러오지 못했어요"
+        description="잠시 후 다시 시도해 주세요."
+      />
+    );
+  }
+
+  if (accounts.length === 0) {
     return (
       <EmptyState
         title="만기 예정 예금·적금이 없어요"
@@ -459,11 +468,11 @@ const DRIP_STATUS_CHIP: Record<DividendPayoutStatus, { label: string; cls: strin
 };
 
 function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
-  const { data: settings, isLoading: settingsLoading } = useDividendReinvest();
-  const { data: history = [], isLoading: historyLoading } = useDividendHistory();
+  const { data: settings, isLoading: settingsLoading, isError: settingsError } = useDividendReinvest();
+  const { data: history = [], isLoading: historyLoading, isError: historyError } = useDividendHistory();
   const { data: holdings = [] } = useHoldings();
   const setReinvest = useSetDividendReinvest();
-  const [pendingCode, setPendingCode] = useState<string | null>(null);
+  const [pendingCodes, setPendingCodes] = useState<Set<string>>(new Set());
 
   // 예약 중인 국내 종목 (RESERVED + DOMESTIC) — drip 설정 가능
   const reservedDomesticCodes = useMemo(
@@ -538,12 +547,17 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
   const hasHistory = received > 0;
 
   const handleToggle = (stockCode: string, enabled: boolean) => {
-    setPendingCode(stockCode);
+    setPendingCodes((prev) => new Set(prev).add(stockCode));
     setReinvest.mutate(
       { stockCode, enabled },
       {
         onError: () => toast.error("설정을 변경하지 못했어요. 잠시 후 다시 시도해 주세요."),
-        onSettled: () => setPendingCode(null),
+        onSettled: () =>
+          setPendingCodes((prev) => {
+            const next = new Set(prev);
+            next.delete(stockCode);
+            return next;
+          }),
       },
     );
   };
@@ -554,6 +568,15 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
         <SkeletonCard lines={3} className="h-32" />
         <SkeletonCard lines={4} />
       </div>
+    );
+  }
+
+  if (settingsError || historyError) {
+    return (
+      <EmptyState
+        title="불러오지 못했어요"
+        description="잠시 후 다시 시도해 주세요."
+      />
     );
   }
 
@@ -658,7 +681,7 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
                       </div>
                       <Switch
                         checked={s.enabled}
-                        disabled={pendingCode === s.stockCode}
+                        disabled={pendingCodes.has(s.stockCode)}
                         onCheckedChange={(v) => handleToggle(s.stockCode, v)}
                         aria-label={`${s.stockName} 배당 재투자 ${s.enabled ? "끄기" : "켜기"}`}
                       />

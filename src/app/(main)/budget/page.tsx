@@ -531,6 +531,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
 
 function formatTxTime(isoStr: string) {
   const d = parseUTC(isoStr);
+  if (isNaN(d.getTime())) return isoStr.slice(11, 16) || "";
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
