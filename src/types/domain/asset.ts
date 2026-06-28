@@ -77,6 +77,10 @@ export interface DividendStockItem {
   dividendYield: number;
   tags: string[];
   exDividendDate: string | null;
+  /** 주당 현금배당금(KRW) — 가장 가까운 배당 지급 기준, 없으면 null */
+  perShareDividend: number | null;
+  /** 배당금 지급일(YYYY-MM-DD) — 없으면 null */
+  payDate: string | null;
   reason: string;
 }
 

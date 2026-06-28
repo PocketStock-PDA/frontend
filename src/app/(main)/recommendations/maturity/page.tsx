@@ -297,6 +297,12 @@ export default function MaturityPage() {
 
 // ── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
 
+// "YYYY-MM-DD" → "M/D" (배당 지급일 표시용)
+function formatMonthDay(dateStr: string): string {
+  const [, mm, dd] = dateStr.split("-");
+  return `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")}`;
+}
+
 function StockLogo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   return (
     <div
@@ -418,6 +424,22 @@ function DividendStockCard({
           </span>
         </div>
       </div>
+
+      {/* 실제 배당 일정 — KIS 예탁원 배당일정(주당배당금·지급일) 있을 때만 */}
+      {stock.perShareDividend != null && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          1주당{" "}
+          <span className="font-numeric font-semibold tabular-nums text-foreground">
+            {formatKRW(stock.perShareDividend)}
+          </span>
+          {stock.payDate && (
+            <>
+              {" "}
+              · <span className="font-numeric tabular-nums">{formatMonthDay(stock.payDate)}</span> 지급
+            </>
+          )}
+        </p>
+      )}
     </button>
   );
 }
