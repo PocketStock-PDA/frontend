@@ -216,11 +216,11 @@ function MainView({
       <div className="rounded-3xl px-5 py-6" style={{ backgroundImage: "var(--grad-1)" }}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-white/50">USD/KRW</span>
-            {updatedAt && <span className="font-numeric text-[11px] text-white/30">· {parseTime(updatedAt)} 기준</span>}
+            <span className="text-[11px] font-medium text-white/80">USD/KRW</span>
+            {updatedAt && <span className="font-numeric text-[11px] text-white/60">· {parseTime(updatedAt)} 기준</span>}
           </div>
           {cmaAccountNo && (
-            <span className="font-numeric text-[11px] text-white/40">포켓스톡 CMA {cmaAccountNo}</span>
+            <span className="font-numeric text-[11px] text-white/60">포켓스톡 CMA {cmaAccountNo}</span>
           )}
         </div>
         {isLoading ? (
@@ -230,19 +230,19 @@ function MainView({
             <span className="font-numeric text-[32px] font-bold leading-none tracking-tight tabular-nums text-white">
               {fmtRate(buyRate)}
             </span>
-            <span className="text-sm font-medium text-white/50">원</span>
+            <span className="text-sm font-medium text-white/80">원</span>
             <span className="ml-1 font-numeric text-sm font-bold tabular-nums text-white/90">
               {changePositive ? "+" : "-"}{Math.abs(change).toFixed(2)}
             </span>
           </div>
         )}
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <div className="rounded-2xl bg-white/10 px-4 py-3">
-            <p className="text-[10px] font-medium text-white/40">보유 원화</p>
+          <div className="rounded-2xl bg-white/15 px-4 py-3">
+            <p className="text-[10px] font-medium text-white/80">보유 원화</p>
             <p className="mt-1.5 font-numeric text-[15px] font-bold text-white">{fmtKRW(krwBalance)}원</p>
           </div>
-          <div className="rounded-2xl bg-white/10 px-4 py-3">
-            <p className="text-[10px] font-medium text-white/40">보유 달러</p>
+          <div className="rounded-2xl bg-white/15 px-4 py-3">
+            <p className="text-[10px] font-medium text-white/80">보유 달러</p>
             <p className="mt-1.5 font-numeric text-[15px] font-bold text-white">{fmtUSD(usdBalance)}</p>
           </div>
         </div>
