@@ -47,6 +47,13 @@ export interface LinkedCard {
   companyName: string;
 }
 
+/** 증권 계좌 상태 항목 (GET /api/trading/accounts) */
+export interface SecuritiesAccountStatus {
+  type: "DOMESTIC" | "OVERSEAS";
+  accountNo: string;
+  status: string;
+}
+
 /** CMA 계좌 개설 결과 (POST /api/cma/account) */
 export interface CmaAccountResult {
   cmaAccountNo: string | null;

@@ -103,6 +103,8 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
   const [authOpen, setAuthOpen] = useState(false);
   // 주문 멱등키: 동일 주문(side+가격+방식+수량) 재시도 시 동일 키 재사용 (issue #4)
   const orderKey = useRef<{ sig: string; key: string } | null>(null);
+  // 따닥 탭 방지: React re-render 전에도 즉시 잠금. pending state보다 선행.
+  const submitting = useRef(false);
 
   const basePrice = detailQ.data?.price?.currentPrice ?? 0;
   const obQ = useOrderBook(stockCode);
@@ -174,19 +176,37 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
         ? ctx.price
         : fastest;
 
+  // 소수점 QUANTITY 매수 hold = qty × bestAsk × (1+buffer). 국내 1%, 해외 2%.
+  const fracBuyBuffer = isUSD ? 0.02 : 0.01;
+
   const maxQty =
     ctx?.side === "BUY"
       ? execPrice > 0
         ? method === "WHOLE"
           ? new Decimal(buyingPower).div(execPrice).floor().toNumber()
           : new Decimal(buyingPower)
-              .div(execPrice)
+              .div(new Decimal(execPrice).times(1 + fracBuyBuffer))
               .toDecimalPlaces(4, Decimal.ROUND_DOWN)
               .toNumber()
         : 0
       : method === "WHOLE"
         ? holdingQty.floor().toNumber()
         : holdingQty.toDecimalPlaces(4, Decimal.ROUND_DOWN).toNumber();
+
+  const sheetIsOverLimit = (() => {
+    if (!ctx || qty <= 0) return false;
+    if (ctx.side === "BUY") {
+      // FRACTION: hold = qty × execPrice × (1+buffer). WHOLE: 버퍼 없음.
+      const need =
+        method === "FRACTION"
+          ? new Decimal(qty).times(execPrice).times(1 + fracBuyBuffer)
+          : new Decimal(qty).times(execPrice);
+      return need.gt(buyingPower);
+    }
+    return new Decimal(qty).gt(holdingQty);
+  })();
+  const sheetOverLimitMsg =
+    ctx?.side === "BUY" ? "매수 가능 금액을 초과했어요" : "보유 수량을 초과했어요";
 
   const openSheet = (side: Side, p: OrderPrice) => {
     setCtx({ side, price: p });
@@ -212,7 +232,8 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
   };
 
   const confirm = () => {
-    if (!ctx || pending) return;
+    if (!ctx || pending || submitting.current) return;
+    submitting.current = true;
     const { side, price: rowPrice } = ctx;
     if (qty <= 0) {
       toast.error("주문 수량을 입력해 주세요.");
@@ -233,6 +254,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
     const clientOrderId = keyFor(sig);
     const baseOpts = {
       onError: (err: unknown) => {
+        submitting.current = false;
         if (err instanceof ApiError && err.code === "TXN_AUTH_REQUIRED") {
           setAuthOpen(true);
           return;
@@ -254,6 +276,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
       const opts = {
         ...baseOpts,
         onSuccess: (data: SplitOrderResponse) => {
+          submitting.current = false;
           orderKey.current = null;
           setCtx(null);
           const t = splitOrderToast(side, data);
@@ -281,6 +304,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
     const opts = {
       ...baseOpts,
       onSuccess: (data: WholeOrderResponse) => {
+        submitting.current = false;
         orderKey.current = null;
         setCtx(null);
         const t = wholeOrderToast(data, fmtAmount);
@@ -511,12 +535,18 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
             </div>
           </div>
 
+          {sheetIsOverLimit && (
+            <p className="mt-3 text-center text-xs font-medium text-destructive">
+              {sheetOverLimitMsg}
+            </p>
+          )}
           <Button
             onClick={confirm}
-            disabled={pending || qty <= 0}
+            disabled={pending || qty <= 0 || sheetIsOverLimit}
             className={cn(
               "mt-4 h-12 w-full text-base font-bold text-white",
               ctx?.side === "BUY" ? "bg-up hover:bg-up/90" : "bg-down hover:bg-down/90",
+              sheetIsOverLimit && "opacity-40",
             )}
           >
             {action}하기

@@ -143,7 +143,7 @@ export function WelcomeEventDialog({
               aria-label={`${STOCKS[stockIdx % STOCKS.length]?.name ?? "주식"} 퍼즐 조각`}
               initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.55, rotate: -18 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
-              transition={reduce ? { duration: 0.15 } : { delay: 0.9, duration: 0.85, ease: EASE_OUT }}
+              transition={reduce ? { duration: 0.15 } : { delay: 0.1, duration: 0.65, ease: EASE_OUT }}
               style={{ transformOrigin: "center" }}
             >
               <div className="-translate-x-[6px] -translate-y-[6px]">

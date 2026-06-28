@@ -31,11 +31,13 @@ export const queryKeys = {
     portfolioSummary: ["trading", "portfolio", "summary"] as const,
     history: ["trading", "history"] as const,
     orders: ["trading", "orders"] as const,
+    pendingOrders: ["trading", "orders", "pending"] as const,
     stockDetail: (code: string) => ["trading", "stock", code] as const,
     search: (q: string) => ["trading", "search", q] as const,
     rankings: (market: string, sort: string) =>
       ["trading", "rankings", market, sort] as const,
     orderbook: (code: string) => ["trading", "orderbook", code] as const,
+    orderbookForeign: (code: string) => ["trading", "orderbook-foreign", code] as const,
     valuations: (code: string) => ["trading", "valuations", code] as const,
     wholeShares: ["trading", "whole-shares"] as const,
     autoInvest: (code: string) => ["trading", "autoInvest", code] as const,
@@ -49,6 +51,7 @@ export const queryKeys = {
     maturityReservations: ["trading", "maturity-reservations"] as const,
     dividendReinvest: ["trading", "dividend-reinvest"] as const,
     dividendHistory: ["trading", "dividend-history"] as const,
+    accounts: ["trading", "accounts"] as const,
   },
   cma: {
     all: ["cma"] as const,

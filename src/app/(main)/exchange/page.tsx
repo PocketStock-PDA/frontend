@@ -194,6 +194,7 @@ function MainView({
   sellRate,
   change,
   updatedAt,
+  cmaAccountNo,
   isLoading,
   onSelect,
 }: {
@@ -203,6 +204,7 @@ function MainView({
   sellRate: number;
   change: number;
   updatedAt?: string | undefined;
+  cmaAccountNo?: string | undefined;
   isLoading: boolean;
   onSelect: (dir: Direction) => void;
 }) {
@@ -211,9 +213,14 @@ function MainView({
   return (
     <div className="flex flex-col gap-4 pb-8">
       <div className="rounded-3xl px-5 py-6" style={{ background: "linear-gradient(135deg, #0046FF 0%, #6B3FF5 100%)" }}>
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-[11px] font-medium text-white/50">USD/KRW</span>
-          {updatedAt && <span className="text-[11px] text-white/30">· {parseTime(updatedAt)} 기준</span>}
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-medium text-white/50">USD/KRW</span>
+            {updatedAt && <span className="text-[11px] text-white/30">· {parseTime(updatedAt)} 기준</span>}
+          </div>
+          {cmaAccountNo && (
+            <span className="text-[11px] text-white/40">포켓스톡 CMA {cmaAccountNo}</span>
+          )}
         </div>
         {isLoading ? (
           <div className="h-9 w-40 animate-pulse rounded-xl bg-white/20" />
@@ -556,6 +563,7 @@ export default function ExchangePage() {
           sellRate={rate?.sellRate ?? 0}
           change={rate?.change ?? 0}
           updatedAt={rate?.updatedAt}
+          cmaAccountNo={cma?.cmaAccountNo}
           isLoading={isLoading}
           onSelect={handleSelect}
         />

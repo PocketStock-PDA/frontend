@@ -9,6 +9,8 @@ import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
 
 export interface CmaBalanceCardProps {
+  /** CMA 계좌번호 */
+  accountNo?: string;
   /** 원화 잔액 */
   krwBalance: number;
   /** 달러 잔액(USD) */
@@ -46,6 +48,7 @@ function BalanceRow({
 
 /** 홈 포켓스톡 CMA 잔액 카드. '상세보기'로 원화/달러 잔액을 펼친다. */
 export function CmaBalanceCard({
+  accountNo,
   krwBalance,
   usdBalance,
   interestRate,
@@ -67,7 +70,9 @@ export function CmaBalanceCard({
       className={cn("rounded-xl p-5 text-white", className)}
     >
       <div className="flex items-center justify-between">
-        <p className="text-sm text-white/90">포켓스톡 CMA</p>
+        <p className="text-sm text-white/90">
+          포켓스톡 CMA{accountNo ? ` - ${accountNo}` : ""}
+        </p>
         <button
           type="button"
           onClick={() => router.push("/cma")}
