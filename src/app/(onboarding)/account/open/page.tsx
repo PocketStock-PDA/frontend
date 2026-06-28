@@ -12,6 +12,7 @@ import { PinKeypad } from "@/components/common/PinKeypad";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
+import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import {
   useAgreeTerms,
   useSetAccountPassword,
@@ -65,6 +66,13 @@ export default function AccountOpenPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [verify, setVerify] = useState<AccountVerifyRequestResult | null>(null);
   const [accountNo, setAccountNo] = useState<string | null>(null);
+
+  // CMA 계좌를 이미 보유한 회원에게는 계좌개설 페이지를 노출하지 않는다.
+  // /api/cma/home 200(isSuccess)=보유 → 홈으로 돌려보냄.
+  const cmaQ = useCmaHome();
+  useEffect(() => {
+    if (cmaQ.isSuccess) router.replace("/home");
+  }, [cmaQ.isSuccess, router]);
 
   const bankQ = useBankAccounts();
   const agreeTerms = useAgreeTerms();

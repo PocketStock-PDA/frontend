@@ -19,6 +19,7 @@ import {
 import { markEventSeen } from "@/lib/auth/session";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useMyProfile } from "@/hooks/queries/useMyProfile";
+import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import { PocketStockEntrySheet } from "./_components/PocketStockEntrySheet";
 import { PocketStockIntro } from "./_components/PocketStockIntro";
 
@@ -26,6 +27,8 @@ export default function SuperSolPage() {
   const router = useRouter();
   const { status } = useAuth();
   const { data: profile } = useMyProfile();
+  // CMA 계좌 보유 여부 — /api/cma/home 200=보유, 404=미보유(isNoCmaAccount).
+  const cmaQ = useCmaHome();
   const [popupOpen, setPopupOpen] = useState(false);
   const [intro, setIntro] = useState(false); // 포켓스톡 전환 영상 재생 중
 
@@ -41,11 +44,17 @@ export default function SuperSolPage() {
     setPopupOpen(true);
   }, [status]);
 
-  // 팝업/추천서비스 어느 경로로든 포켓스톡 진입 — 전환 영상 재생 후 메인 홈으로.
+  // 팝업/추천서비스 어느 경로로든 포켓스톡 진입.
+  // CMA 계좌 보유 회원은 계좌개설 온보딩을 건너뛰고 바로 홈으로,
+  // 미보유 회원만 전환 영상 → /home(계좌개설 CTA) 흐름을 탄다.
   const goToPocketStock = () => {
     markEventSeen(); // 슈퍼쏠 확인 완료 표시 → 가드가 홈 진입 허용
     setPopupOpen(false);
-    setIntro(true); // 영상 끝나면 onDone 에서 /home 으로 이동
+    if (isNoCmaAccount(cmaQ.error)) {
+      setIntro(true); // 영상 끝나면 onDone 에서 /home 으로 이동
+    } else {
+      router.replace("/home"); // 계좌 보유 회원 → 바로 홈
+    }
   };
 
   if (status !== "authed") return null;
