@@ -165,7 +165,7 @@ function BalanceHeader({
   const eff: BalScope = hasUsd ? scope : "krw";
 
   let label = "CMA 총 잔액";
-  let value = balance?.totalKrwEquivalent ?? 0;
+  let value: number | string = balance?.totalKrwEquivalent ?? 0;
   let currency: Currency = "KRW";
   let rate: number | null = null;
   let showInterest = true;
@@ -178,7 +178,7 @@ function BalanceHeader({
   } else if (eff === "usd") {
     label = "달러 잔액";
     const usdBal = usd?.balance ?? 0;
-    value = showKrw && fx !== null ? toDecimal(usdBal).times(fx).toNumber() : usdBal;
+    value = showKrw && fx !== null ? toDecimal(usdBal).times(fx).toString() : usdBal;
     currency = showKrw ? "KRW" : "USD";
     rate = usd?.interestRate ?? null;
     showInterest = false;
@@ -349,7 +349,7 @@ export default function CmaHistoryPage() {
               <ChevronLeft className="size-4.5 text-muted-foreground" />
             </button>
             <span className="min-w-[36px] text-center text-[14px] font-bold text-foreground">
-              {month.month}월
+              {month.year !== now.getFullYear() ? `${month.year}년 ` : ""}{month.month}월
             </span>
             <button
               type="button"
@@ -398,7 +398,7 @@ export default function CmaHistoryPage() {
                           positive ? "text-down" : "text-foreground",
                         )}>
                           {positive ? "+" : "−"}
-                          {fmtMoney(t.currency, Math.abs(t.amount))}
+                          {fmtMoney(t.currency, toDecimal(t.amount).abs())}
                         </p>
                         <p className="mt-0.5 font-numeric text-xs text-muted-foreground">
                           잔액 {fmtMoney(t.currency, t.balanceAfter)}

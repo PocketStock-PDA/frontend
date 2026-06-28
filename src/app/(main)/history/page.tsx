@@ -57,9 +57,9 @@ const MONTHS = buildMonths();
 function calcPnL(o: OrderHistoryItem): Decimal | null {
   if (!o.avgBuyPriceAtSell || !o.quantity) return null;
   const qty = toDecimal(o.quantity);
-  const fillAmt = o.price
-    ? toDecimal(o.price).times(qty)
-    : toDecimal(o.filledAmount ?? 0);
+  const fillAmt = o.filledAmount !== null
+    ? toDecimal(o.filledAmount)
+    : toDecimal(o.price ?? 0).times(qty);
   const cost = toDecimal(o.avgBuyPriceAtSell).times(qty);
   return fillAmt.minus(cost);
 }
@@ -351,7 +351,7 @@ function MonthFilterRow({ month, onMonth, showSide, side, onSide }: MonthFilterR
           <ChevronLeft className="size-4.5 text-muted-foreground" />
         </button>
         <span className="min-w-[36px] text-center text-[14px] font-bold text-foreground">
-          {month.month}월
+          {month.year !== now.getFullYear() ? `${month.year}년 ` : ""}{month.month}월
         </span>
         <button
           type="button"
@@ -426,9 +426,9 @@ function TradesTab({ orders, detailMap, isLoading, isError, market, month, side,
               const isBuy = o.side === "BUY";
               const isRejected = o.status === "REJECTED" || o.status === "CANCELLED";
               const qty = toDecimal(o.quantity ?? 0);
-              const fillAmt = o.price
-                ? toDecimal(o.price).times(qty)
-                : toDecimal(o.filledAmount ?? 0);
+              const fillAmt = o.filledAmount !== null
+                ? toDecimal(o.filledAmount)
+                : toDecimal(o.price ?? 0).times(qty);
               const isPending = o.status === "PENDING" || o.status === "QUEUED";
               return (
                 <div key={o.orderId} className="flex items-center gap-3 py-3">
@@ -531,6 +531,8 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
   }, [sells, isOverseasOnly]);
 
   const hasPnL = sells.some((o) => o.avgBuyPriceAtSell !== null && o.avgBuyPriceAtSell !== undefined);
+  // USD 손익을 KRW로 환산할 수 있는 주문이 하나라도 있는지 — 없으면 "(환산)" 줄 숨김
+  const hasFxKrw = sells.some((o) => o.currency !== "USD" || o.fxRateAtFill !== null);
   const groups = groupByDateShort(sells, (o) => o.createdAt);
 
   if (isLoading) return <ListSkeleton />;
@@ -545,7 +547,7 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
         </p>
         {isOverseasOnly ? (
           <>
-            {showKrw && hasPnL ? (
+            {showKrw && hasPnL && hasFxKrw ? (
               <>
                 <p className={cn(
                   "font-numeric mt-1 text-[28px] font-bold tracking-tight",
@@ -565,7 +567,7 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
                 )}>
                   {totalPnLUsd.gt(0) ? "+" : ""}{formatUSD(totalPnLUsd.toFixed(2))}
                 </p>
-                {hasPnL && (
+                {hasPnL && hasFxKrw && (
                   <p className="font-numeric text-[13px] text-muted-foreground">
                     ≈ {totalPnLKrw.gt(0) ? "+" : ""}{formatKRW(totalPnLKrw.toFixed(0))} (환산)
                   </p>
@@ -636,9 +638,10 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
                           <p className="font-numeric text-[13px] text-muted-foreground">
                             {fmtMoney(
                               o.currency,
-                              toDecimal(o.price ?? 0)
-                                .times(qty)
-                                .toDecimalPlaces(o.currency === "USD" ? 2 : 0),
+                              (o.filledAmount !== null
+                                ? toDecimal(o.filledAmount)
+                                : toDecimal(o.price ?? 0).times(qty)
+                              ).toDecimalPlaces(o.currency === "USD" ? 2 : 0),
                             )}
                           </p>
                         )}
