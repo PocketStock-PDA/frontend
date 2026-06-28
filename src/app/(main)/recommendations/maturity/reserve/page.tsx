@@ -247,7 +247,7 @@ export default function MaturityReservePage() {
             {codes.map((code) => {
               const stock = stockMap[code];
               const amount = amounts[code] ?? 0;
-              const overseas = stock?.market === "US";
+              const logo = logoByCode.get(code) ?? null;
               const currentPrice = priceMap[code] ?? null;
               const estimatedShares = currentPrice && currentPrice > 0
                 ? new Decimal(amount).dividedBy(currentPrice).toDecimalPlaces(4).toNumber()
@@ -263,7 +263,7 @@ export default function MaturityReservePage() {
                 <li key={code} className="px-4 py-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="size-9 shrink-0 rounded-xl">
-                      {logoByCode.get(code) && <AvatarImage src={logoByCode.get(code)!} alt="" />}
+                      {logo && <AvatarImage src={logo} alt="" />}
                       <AvatarFallback className="rounded-xl bg-muted text-[11px] font-semibold text-muted-foreground">
                         {(stock?.stockName ?? code).trim().charAt(0).toUpperCase()}
                       </AvatarFallback>
