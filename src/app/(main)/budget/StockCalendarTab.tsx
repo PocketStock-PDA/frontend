@@ -3,32 +3,46 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ko } from "date-fns/locale";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Decimal from "decimal.js";
 import { FinanceCalendar } from "@/components/common/FinanceCalendar";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
-import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { EmptyState } from "@/components/common/EmptyState";
+import {
+  CalendarFilterBar,
+  type CalendarLens,
+} from "@/components/features/budget/CalendarFilterBar";
 import { useStockCalendar } from "@/hooks/queries/useStockCalendar";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useOrders } from "@/hooks/queries/useOrders";
+import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
 import type { StockEvent, StockEventType } from "@/types/domain/stockCalendar";
 import type { OrderHistoryItem } from "@/types/domain/order";
+import type { AutoInvestStock } from "@/types/domain/autoInvest";
 
 // 거래(매수/매도) 색 — 한국식: 매수 red, 매도 blue
 const TRADE_BUY = "#F04452";
 const TRADE_SELL = "#3182F6";
+// 모으기(자동적립) 시그니처 보라 — 매도파랑·브랜드파랑과 분리
+const GATHER = "#7C5CFF";
+const GATHER_SOFT = "#F1EEFF";
+const GATHER_INK = "#6A45E6";
+// 일정(배당/실적) 정보성 슬레이트
+const EVENT_INK = "#64748B";
+const EVENT_SOFT = "#EEF1F5";
+const BRAND = "#2563EB";
 
-// 이벤트 뱃지/범례 색 (배당 green, 실적 amber)
-const EVENT_COLORS: Record<StockEventType, string> = {
-  RECOMMEND: "#0471E9",
-  DIVIDEND: "#22C55E",
-  EARNINGS: "#F59E0B",
-};
+// 달력 셀 배경 퍼즐(시그니처) — 날짜 뒤 중앙에 깔리는 조각. Material 'extension' path(viewBox 24).
+const PUZZLE_PATH =
+  "M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z";
+// 여러 종류 겹친 날 — 코너 뱃지 그라데이션
+const BADGE_GRAD = "linear-gradient(135deg,#F04452,#7C5CFF,#3182F6)";
 
 const EVENT_LABELS: Record<StockEventType, string> = {
   RECOMMEND: "추천",
@@ -36,10 +50,110 @@ const EVENT_LABELS: Record<StockEventType, string> = {
   EARNINGS: "실적",
 };
 
+// ── 글리프/아이콘 ──────────────────────────────────────────────
+function TriUp({ size = 9 }: { size?: number }) {
+  return (
+    <span
+      className="inline-block h-0 w-0"
+      style={{
+        borderLeft: `${size / 2}px solid transparent`,
+        borderRight: `${size / 2}px solid transparent`,
+        borderBottom: `${(size * 8) / 9}px solid ${TRADE_BUY}`,
+      }}
+    />
+  );
+}
+function TriDn({ size = 9 }: { size?: number }) {
+  return (
+    <span
+      className="inline-block h-0 w-0"
+      style={{
+        borderLeft: `${size / 2}px solid transparent`,
+        borderRight: `${size / 2}px solid transparent`,
+        borderTop: `${(size * 8) / 9}px solid ${TRADE_SELL}`,
+      }}
+    />
+  );
+}
+function PuzzleIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <path d="M7 2.5a2 2 0 0 1 4 0c0 .5.3.6.7.6H14a1 1 0 0 1 1 1v2.2c0 .4.2.7.6.7a2 2 0 0 1 0 4c-.4 0-.6.3-.6.7V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h2.3c.4 0 .7-.1.7-.5z" />
+    </svg>
+  );
+}
+function CoinIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      className={className}
+    >
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 5v6M6 7h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function BarsIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" className={className}>
+      <rect x="2" y="9" width="3" height="5" rx="1" />
+      <rect x="6.5" y="5" width="3" height="9" rx="1" />
+      <rect x="11" y="2" width="3" height="12" rx="1" />
+    </svg>
+  );
+}
+
+// ── 모으기(자동적립) 날짜 전개 — 표시월 평일 스케줄 기준 ───────
+// 백엔드 실행내역 대신 활성 종목의 period/periodDay를 그 달에 펼쳐 표시한다(평일만).
+function buildGatherMap(
+  stocks: AutoInvestStock[],
+  month: Date,
+): Map<string, AutoInvestStock[]> {
+  const map = new Map<string, AutoInvestStock[]>();
+  const year = month.getFullYear();
+  const mon = month.getMonth();
+  const daysInMonth = new Date(year, mon + 1, 0).getDate();
+  const active = stocks.filter((s) => s.isActive);
+  if (active.length === 0) return map;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, mon, day);
+    const dow = date.getDay(); // 0=일 … 6=토
+    if (dow === 0 || dow === 6) continue; // 평일만
+    const hits = active.filter((s) => {
+      if (s.period === "DAILY") return true;
+      if (s.period === "WEEKLY") return s.periodDay === dow; // periodDay 1~5(월~금)=dow 1~5
+      if (s.period === "MONTHLY") return s.periodDay === day;
+      return false;
+    });
+    if (hits.length) map.set(format(date, "yyyy-MM-dd"), hits);
+  }
+  return map;
+}
+
+/** 그 날 모으기 금액 합(금액형 종목만). 0이면 금액 미정(수량형). */
+function gatherAmount(stocks: AutoInvestStock[]): number {
+  return stocks.reduce(
+    (sum, s) => sum + (s.amountType === "AMOUNT" ? (s.buyAmount ?? 0) : 0),
+    0,
+  );
+}
+/** 모으기 표시 이름: 1종목이면 종목명, 여러 개면 "자동적립 N종목" */
+function gatherName(stocks: AutoInvestStock[]): string {
+  if (stocks.length === 1 && stocks[0]) return stocks[0].stockName;
+  return `자동적립 ${stocks.length}종목`;
+}
+
 export function StockCalendarTab() {
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<"month" | "day">("month");
+  const [lens, setLens] = useState<CalendarLens>("all");
 
   const calendarQ = useStockCalendar(
     calendarMonth.getFullYear(),
@@ -55,6 +169,13 @@ export function StockCalendarTab() {
     list.push(e);
     eventMap.set(e.eventDate, list);
   });
+
+  // ── 모으기(자동적립) — 종합조회 스케줄을 표시월 평일에 전개 ──
+  const autoInvestQ = useAutoInvestSummary();
+  const gatherMap = buildGatherMap(
+    autoInvestQ.data?.stocks ?? [],
+    calendarMonth,
+  );
 
   // ── 보유주식 총 수익률 (포트폴리오 페이지와 동일하게 decimal.js 계산) ──
   const holdingsQ = useHoldings();
@@ -99,7 +220,7 @@ export function StockCalendarTab() {
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-  // 날짜별 매수/매도 유무 (달력 점 마커용)
+  // 날짜별 매수/매도 유무 (달력 마커용)
   const tradeMap = new Map<string, { buy: boolean; sell: boolean }>();
   monthTrades.forEach((o) => {
     const key = format(new Date(o.createdAt), "yyyy-MM-dd");
@@ -108,11 +229,6 @@ export function StockCalendarTab() {
     else cur.buy = true;
     tradeMap.set(key, cur);
   });
-
-  // 선택한 날짜의 거래만 (달력에서 날짜 클릭 시 해당 일자 거래 노출)
-  const selectedDayTrades = monthTrades.filter((o) =>
-    isSameDay(new Date(o.createdAt), selectedDate),
-  );
 
   // 종목코드 → 이름 (보유 + 이벤트 상세에서, 없으면 코드 폴백)
   const nameByCode = new Map<string, string>();
@@ -128,15 +244,35 @@ export function StockCalendarTab() {
   const changeMonth = (m: Date) => {
     setCalendarMonth(m);
     setSelectedDate(new Date(m.getFullYear(), m.getMonth(), 1));
+    setViewMode("month");
+  };
+
+  // 날짜 클릭: 처음 누르면 그 날 카드 노출, 같은 날 다시 누르면 닫힘 (가계부 탭과 동일)
+  const handleSelectDate = (date: Date) => {
+    if (viewMode === "day" && isSameDay(date, selectedDate)) {
+      setViewMode("month");
+    } else {
+      setSelectedDate(date);
+      setViewMode("day");
+    }
   };
 
   const today = startOfDay(new Date());
+
+  // ── 선택한 날 항목(거래 + 모으기 + 일정) — 히어로 카드용 ──
+  const selKey = format(selectedDate, "yyyy-MM-dd");
+  const selTrades = monthTrades.filter((o) =>
+    isSameDay(new Date(o.createdAt), selectedDate),
+  );
+  const selGather = gatherMap.get(selKey) ?? [];
+  const selEvents = eventMap.get(selKey) ?? [];
+  const selCount = selTrades.length + (selGather.length ? 1 : 0) + selEvents.length;
 
   return (
     <div>
       {/* ── 상단 요약 (월 네비 + 총 수익률) — 가계부 탭과 동일 레이아웃 ── */}
       <div className="mb-3 mt-4">
-        <div className="mb-0.5 flex items-center justify-between">
+        <div className="flex h-[42px] items-center justify-between gap-2">
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -164,34 +300,41 @@ export function StockCalendarTab() {
               <ChevronRight className="size-5 text-muted-foreground" />
             </button>
           </div>
-        </div>
-        {/* 총 수익률 — 탭 시 포트폴리오로 이동 */}
-        {/* h-[52px] 고정: 가계부 탭과 달력 시작 y 정렬용 (양 탭 동일 높이) */}
-        <button
-          type="button"
-          onClick={() => router.push("/portfolio")}
-          className="flex h-[52px] w-full flex-col items-end justify-center gap-1"
-        >
-          <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
-            내 보유주식 수익률
-            <ChevronRight className="size-3" />
-          </span>
-          {returnLoading ? (
-            <span className="font-numeric text-xs text-muted-foreground">
-              계산 중...
+
+          {/* 총 수익률 — 월 네비 행 우측, 두 줄(라벨 / 수익률·금액). 탭 시 포트폴리오 */}
+          <button
+            type="button"
+            onClick={() => router.push("/portfolio")}
+            className="flex flex-col items-end gap-0.5"
+          >
+            <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
+              내 보유주식 수익률
+              <ChevronRight className="size-3" />
             </span>
-          ) : hasHoldings ? (
-            <div className="flex items-baseline gap-1.5">
-              <ChangeIndicator value={totalRate.toNumber()} percent size="sm" />
-              <span className="font-numeric text-[11px] text-muted-foreground">
-                {totalProfit.gte(0) ? "+" : "-"}
-                {formatKRW(totalProfit.abs().toString())}
+            {returnLoading ? (
+              <span className="font-numeric text-xs text-muted-foreground">
+                계산 중...
               </span>
-            </div>
-          ) : (
-            <span className="text-xs text-muted-foreground">보유 종목 없음</span>
-          )}
-        </button>
+            ) : hasHoldings ? (
+              <div className="flex items-baseline gap-1.5">
+                <ChangeIndicator value={totalRate.toNumber()} percent size="sm" />
+                <span className="font-numeric text-[11px] text-muted-foreground">
+                  {totalProfit.gte(0) ? "+" : "-"}
+                  {formatKRW(totalProfit.abs().toString())}
+                </span>
+              </div>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">보유 종목 없음</span>
+            )}
+          </button>
+        </div>
+
+        {/* h-[52px] 고정 슬롯: 가계부 탭 요약 블록과 동일 높이 → 달력 시작 y 정렬.
+            증권 탭은 이 자리에 필터(렌즈)를 둔다(수익률은 위 월 네비 행으로 올림).
+            items-end: 필터를 슬롯 아래로 붙여 달력과의 간격↓·위 간격↑ (정렬은 유지) */}
+        <div className="flex h-[52px] items-end">
+          <CalendarFilterBar value={lens} onChange={setLens} />
+        </div>
       </div>
 
       {/* ── 달력 ── */}
@@ -199,7 +342,7 @@ export function StockCalendarTab() {
         month={calendarMonth}
         onMonthChange={changeMonth}
         selectedDate={selectedDate}
-        onSelectDate={setSelectedDate}
+        onSelectDate={handleSelectDate}
         showHeader={false}
         className="pt-4"
         renderDay={(date, isCurrentMonth) => {
@@ -207,70 +350,135 @@ export function StockCalendarTab() {
 
           const key = format(date, "yyyy-MM-dd");
           const dayEvents = eventMap.get(key);
+          const trade = tradeMap.get(key);
+          const gather = gatherMap.get(key);
+          const hasBuy = !!trade?.buy;
+          const hasSell = !!trade?.sell;
+          const hasGather = !!gather?.length;
+          const hasEvent = !!dayEvents?.length;
           const isFuture = isAfter(startOfDay(date), today);
+          // 링은 항상 selectedDate(기본=오늘) 따라감 — 진입 시 오늘 테두리 표시(가계부와 동일).
+          // 카드만 viewMode로 게이트(클릭 시 노출).
           const isSelected = isSameDay(date, selectedDate);
           const isToday = isSameDay(date, today);
-          const first = dayEvents?.[0];
-          const trade = tradeMap.get(key);
-          // 매수/매도 점 마커 (우상단)
-          const tradeDots = trade ? (
-            <span className="absolute right-1 top-1 flex gap-0.5">
-              {trade.buy && (
-                <span
-                  className="size-1.5 rounded-full"
-                  style={{ background: TRADE_BUY }}
-                />
-              )}
-              {trade.sell && (
-                <span
-                  className="size-1.5 rounded-full"
-                  style={{ background: TRADE_SELL }}
-                />
-              )}
-            </span>
-          ) : null;
 
-          // 가계부 탭과 동일: 주말(일 빨강/토 파랑)·오늘·미래 날짜색
-          // 단, 이벤트(배당/실적)가 있는 날은 미래여도 회색 처리하지 않고 정상 색 유지
-          const dow = date.getDay(); // 0=일, 6=토
-          const dateColor = isFuture && !first
-            ? "#B5BBC3"
-            : isToday
-              ? "#2563EB"
-              : dow === 0
-                ? "#F2696B"
-                : dow === 6
-                  ? "#1D4ED8"
-                  : "#1A1D23";
+          // 렌즈 매칭 — 매칭 날만 퍼즐 표시, 비매칭은 흐리게(날짜만)
+          const matches =
+            lens === "all"
+              ? hasBuy || hasSell || hasGather || hasEvent
+              : lens === "trade"
+                ? hasBuy || hasSell
+                : lens === "gather"
+                  ? hasGather
+                  : hasEvent;
+          const faded = lens !== "all" && !matches;
+
+          // 렌즈별 개수 (전체=거래수+모으기1+일정수 / 거래=거래수 / 모으기=종목수 / 일정=일정수)
+          const tradeCount = (hasBuy ? 1 : 0) + (hasSell ? 1 : 0);
+          const catCount =
+            (hasBuy || hasSell ? 1 : 0) + (hasGather ? 1 : 0) + (hasEvent ? 1 : 0);
+          const count =
+            lens === "all"
+              ? tradeCount + (hasGather ? 1 : 0) + (dayEvents?.length ?? 0)
+              : lens === "trade"
+                ? tradeCount
+                : lens === "gather"
+                  ? (gather?.length ?? 0)
+                  : (dayEvents?.length ?? 0);
+
+          // 배경 퍼즐 소프트색 / 코너 뱃지 강조색 — 미래는 회색, 여러 종류는 그라데이션
+          const softFill = isFuture
+            ? "#EEF0F3"
+            : lens === "gather"
+              ? "#E5DCFF"
+              : lens === "event"
+                ? "#E6EBF1"
+                : lens === "trade"
+                  ? hasBuy && hasSell
+                    ? "#ECE6FB"
+                    : hasBuy
+                      ? "#FBD7DB"
+                      : "#D9E6FB"
+                  : catCount > 1
+                    ? "#ECE6FB"
+                    : hasGather
+                      ? "#E5DCFF"
+                      : hasBuy
+                        ? "#FBD7DB"
+                        : hasSell
+                          ? "#D9E6FB"
+                          : "#E6EBF1";
+          const badgeBg = isFuture
+            ? "#C2C8D0"
+            : lens === "gather"
+              ? GATHER
+              : lens === "event"
+                ? EVENT_INK
+                : lens === "trade"
+                  ? hasBuy && hasSell
+                    ? BADGE_GRAD
+                    : hasBuy
+                      ? TRADE_BUY
+                      : TRADE_SELL
+                  : catCount > 1
+                    ? BADGE_GRAD
+                    : hasGather
+                      ? GATHER
+                      : hasBuy
+                        ? TRADE_BUY
+                        : hasSell
+                          ? TRADE_SELL
+                          : EVENT_INK;
+
+          // 날짜 숫자 색 (가계부 탭과 동일 규칙) — 오늘만 파랑 볼드
+          const dow = date.getDay();
+          const dateColor =
+            isFuture && !matches
+              ? "#B5BBC3"
+              : isToday
+                ? BRAND
+                : dow === 0
+                  ? "#F2696B"
+                  : dow === 6
+                    ? "#1D4ED8"
+                    : "#1A1D23";
 
           return (
             <span
               className={cn(
-                "relative flex aspect-square w-full flex-col items-center justify-center overflow-hidden rounded-[14px] bg-card transition-shadow",
-                first
-                  ? "shadow-[0_1px_4px_rgba(0,0,0,0.1)]"
-                  : "shadow-[0_1px_3px_rgba(0,0,0,0.06)]",
+                "relative flex aspect-square w-full flex-col items-center justify-center overflow-hidden rounded-[14px] bg-card shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-opacity",
                 isSelected && "ring-1 ring-[#0471E9]",
               )}
+              style={{ opacity: faded ? 0.3 : 1 }}
             >
-              {tradeDots}
+              {/* 배경 퍼즐 — 날짜 뒤 중앙 (활동/렌즈 매칭 시) */}
+              {matches && (
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                  className="pointer-events-none absolute left-1/2 top-1/2 size-[30px] -translate-x-1/2 -translate-y-1/2"
+                >
+                  <path d={PUZZLE_PATH} fill={softFill} />
+                </svg>
+              )}
+
               <span
                 className={cn(
-                  "font-numeric relative text-[11px] leading-none",
+                  "font-numeric relative z-[1] text-[11px] leading-none",
                   isToday && "font-bold",
                 )}
                 style={{ color: dateColor }}
               >
                 {date.getDate()}
               </span>
-              {first && (
+
+              {/* 코너 개수 뱃지 — 퍼즐 우상단 */}
+              {matches && count > 0 && (
                 <span
-                  className="absolute inset-x-0.5 bottom-1 overflow-hidden whitespace-nowrap text-clip rounded-[3px] px-0.5 py-px text-center text-[8px] leading-none text-white"
-                  style={{ background: EVENT_COLORS[first.eventType] }}
+                  className="font-numeric absolute right-1 top-1 z-[2] flex h-[13px] min-w-[13px] items-center justify-center rounded-full px-[3px] text-[8px] font-extrabold leading-none text-white shadow-[0_0_0_1.5px_#fff]"
+                  style={{ background: badgeBg }}
                 >
-                  {dayEvents && dayEvents.length > 1
-                    ? `+${dayEvents.length}`
-                    : (nameByCode.get(first.stockCode) ?? first.stockCode)}
+                  {count}
                 </span>
               )}
             </span>
@@ -278,123 +486,192 @@ export function StockCalendarTab() {
         }}
         legend={
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
-            {(["DIVIDEND", "EARNINGS"] as StockEventType[]).map((type) => (
-              <span key={type} className="flex items-center gap-1">
-                <span className="size-3 rounded-[3px]" style={{ background: EVENT_COLORS[type] }} />
-                {EVENT_LABELS[type]}
-              </span>
-            ))}
             <span className="flex items-center gap-1">
               <span className="size-1.5 rounded-full" style={{ background: TRADE_BUY }} />
               매수
-              <span className="ml-0.5 size-1.5 rounded-full" style={{ background: TRADE_SELL }} />
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="size-1.5 rounded-full" style={{ background: TRADE_SELL }} />
               매도
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="size-1.5 rounded-[2.5px]" style={{ background: GATHER }} />
+              모으기
+            </span>
+            <span className="flex items-center gap-1">
+              <span
+                className="size-1.5 rounded-full"
+                style={{ boxShadow: "inset 0 0 0 1.5px #94A3B8" }}
+              />
+              종목 일정
             </span>
           </div>
         }
       />
 
-      <div className="-mx-5 mt-4 h-2 bg-muted" />
-      <p className="pb-2 pt-[15px] text-xs font-medium text-muted-foreground">이번 달 주요 일정</p>
+      {/* ── 선택한 날 카드 (히어로) — 날짜 클릭 시에만 노출 (가계부 탭과 동일) ── */}
+      <AnimatePresence>
+        {viewMode === "day" && (
+          <motion.div
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+            transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.32, 0.72, 0, 1] }}
+            className="mt-3"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">
+                {format(selectedDate, "M월 d일 (eee)", { locale: ko })} 거래·일정
+              </p>
+              <button
+                type="button"
+                onClick={() => setViewMode("month")}
+                className="flex items-center gap-0.5 text-xs text-muted-foreground"
+              >
+                <X className="size-3.5" />
+                닫기
+              </button>
+            </div>
 
-      {calendarQ.isLoading ? (
-        <SkeletonCard lines={4} />
-      ) : calendarQ.isError ? (
-        <EmptyState title="일정을 불러오지 못했어요" />
-      ) : events.length === 0 ? (
-        <EmptyState title="이번 달 일정이 없어요" />
-      ) : (
-        <div className="divide-y divide-border">
-          {events.map((event) => (
-            <EventRow key={`${event.eventDate}-${event.stockCode}`} event={event} />
-          ))}
-        </div>
-      )}
+            {selCount === 0 ? (
+              <EmptyState title="이 날은 거래·일정이 없어요" />
+            ) : (
+              <div className="divide-y divide-border/50">
+                {selTrades.map((o) => (
+                  <TimelineTradeRow
+                    key={o.orderId}
+                    order={o}
+                    name={nameByCode.get(o.stockCode) ?? o.stockCode}
+                  />
+                ))}
+                {selGather.length > 0 && <TimelineGatherRow stocks={selGather} />}
+                {selEvents.map((e) => (
+                  <TimelineEventRow
+                    key={`${e.eventDate}-${e.stockCode}`}
+                    event={e}
+                    isFuture={isAfter(startOfDay(selectedDate), today)}
+                  />
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* ── 선택한 날 거래(매수/매도) — 거래 있을 때만 노출 ── */}
-      {selectedDayTrades.length > 0 && (
-        <>
-          <p className="pb-2 pt-5 text-xs font-medium text-muted-foreground">
-            {format(selectedDate, "M월 d일")} 거래
-          </p>
-          <div className="divide-y divide-border">
-            {selectedDayTrades.map((o) => (
-              <TradeRow
-                key={o.orderId}
-                order={o}
-                name={nameByCode.get(o.stockCode) ?? o.stockCode}
-              />
-            ))}
-          </div>
-        </>
+    </div>
+  );
+}
+
+// ── 히어로 카드 타임라인 행 ────────────────────────────────────
+function tradeDetail(order: OrderHistoryItem): string | null {
+  const quantity = toDecimal(order.quantity);
+  const hasQty = quantity.gt(0);
+  const hasPrice = order.price !== null && order.price !== undefined;
+  const fmtMoney = (v: number | string | null | undefined) =>
+    order.currency === "USD" ? formatUSD(v) : formatKRW(v);
+  const amountText =
+    order.orderAmount !== null && order.orderAmount !== undefined
+      ? fmtMoney(order.orderAmount)
+      : null;
+  return hasQty
+    ? [`${quantity.toString()}주`, hasPrice ? fmtMoney(order.price) : null]
+        .filter(Boolean)
+        .join(" · ")
+    : amountText;
+}
+
+function TimelineTradeRow({
+  order,
+  name,
+}: {
+  order: OrderHistoryItem;
+  name: string;
+}) {
+  const isBuy = order.side !== "SELL";
+  const color = isBuy ? TRADE_BUY : TRADE_SELL;
+  const detail = tradeDetail(order);
+  return (
+    <div className="flex items-center gap-3.5 py-3.5">
+      <div
+        className="flex size-10 shrink-0 items-center justify-center rounded-full"
+        style={{ background: isBuy ? "#FFF1F2" : "#EEF4FF" }}
+      >
+        {isBuy ? <TriUp size={13} /> : <TriDn size={13} />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-foreground">{name}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {isBuy ? "매수" : "매도"}
+        </p>
+      </div>
+      {detail && (
+        <span
+          className="font-numeric shrink-0 text-sm font-bold"
+          style={{ color }}
+        >
+          {detail}
+        </span>
       )}
     </div>
   );
 }
 
-function TradeRow({ order, name }: { order: OrderHistoryItem; name: string }) {
-  const isBuy = order.side !== "SELL";
-  const quantity = toDecimal(order.quantity);
-  const hasQty = quantity.gt(0);
-  const hasPrice = order.price !== null && order.price !== undefined;
-  // 통화에 맞춰 포맷 — 해외(USD)는 $·소수 2자리, 국내(KRW)는 원
-  const fmtMoney = (v: number | string | null | undefined) =>
-    order.currency === "USD" ? formatUSD(v) : formatKRW(v);
-  // 금액(AMOUNT) 주문은 수량 대신 주문 금액 표시
-  const amountText =
-    order.orderAmount !== null && order.orderAmount !== undefined
-      ? fmtMoney(order.orderAmount)
-      : null;
-  // 수량 주문: "X주 · 체결가" / 금액 주문: 금액만
-  const detail = hasQty
-    ? [`${quantity.toString()}주`, hasPrice ? fmtMoney(order.price) : null]
-        .filter(Boolean)
-        .join(" · ")
-    : amountText;
-
+function TimelineGatherRow({ stocks }: { stocks: AutoInvestStock[] }) {
+  const amount = gatherAmount(stocks);
   return (
-    <div className="flex items-center justify-between py-3">
-      <div className="flex items-center gap-2.5">
-        <span
-          className="shrink-0 rounded-full px-2 py-[3px] text-[11px] text-white"
-          style={{ background: isBuy ? TRADE_BUY : TRADE_SELL }}
-        >
-          {isBuy ? "매수" : "매도"}
-        </span>
-        <div className="space-y-[2px]">
-          <p className="text-xs font-medium text-foreground">{name}</p>
-          {detail && (
-            <p className="font-numeric text-[11px] text-muted-foreground">{detail}</p>
-          )}
-        </div>
+    <div className="flex items-center gap-3.5 py-3.5">
+      <div
+        className="flex size-10 shrink-0 items-center justify-center rounded-full"
+        style={{ background: GATHER_SOFT, color: GATHER_INK }}
+      >
+        <PuzzleIcon className="size-[17px]" />
       </div>
-      <span className="shrink-0 text-[11px] text-muted-foreground">
-        {format(new Date(order.createdAt), "HH:mm")}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-foreground">
+          {gatherName(stocks)}
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">모으기</p>
+      </div>
+      <span
+        className="font-numeric shrink-0 text-sm font-bold"
+        style={{ color: GATHER_INK }}
+      >
+        {amount > 0 ? `+${formatKRW(amount)}` : `${stocks.length}종목`}
       </span>
     </div>
   );
 }
 
-function EventRow({ event }: { event: StockEvent }) {
-  const badgeColor = EVENT_COLORS[event.eventType];
-
+function TimelineEventRow({
+  event,
+  isFuture,
+}: {
+  event: StockEvent;
+  isFuture: boolean;
+}) {
+  const isDividend = event.eventType === "DIVIDEND";
   return (
-    <div className="space-y-2 py-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="shrink-0 rounded-full px-2 py-[3px] text-[11px] text-white"
-            style={{ background: badgeColor }}
-          >
-            {EVENT_LABELS[event.eventType]}
-          </span>
-          <div className="space-y-[2px]">
-            <p className="text-xs font-medium text-foreground">{event.title}</p>
-            <p className="text-[11px] text-muted-foreground">{event.detail}</p>
-          </div>
-        </div>
-        <span className="shrink-0 text-[11px] text-muted-foreground">{event.eventDate}</span>
+    <div className="flex items-center gap-3.5 py-3.5">
+      <div
+        className="flex size-10 shrink-0 items-center justify-center rounded-full"
+        style={{ background: EVENT_SOFT, color: EVENT_INK }}
+      >
+        {isDividend ? <CoinIcon className="size-[17px]" /> : <BarsIcon className="size-[17px]" />}
       </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-foreground">
+          {event.title}
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {EVENT_LABELS[event.eventType] ?? "일정"}
+        </p>
+      </div>
+      {isFuture && (
+        <span className="shrink-0 text-sm font-medium" style={{ color: EVENT_INK }}>
+          예정
+        </span>
+      )}
     </div>
   );
 }
+
