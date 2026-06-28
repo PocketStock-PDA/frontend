@@ -584,10 +584,10 @@ function tradeDetail(order: OrderHistoryItem): string | null {
   const hasPrice = order.price !== null && order.price !== undefined;
   const fmtMoney = (v: number | string | null | undefined) =>
     order.currency === "USD" ? formatUSD(v) : formatKRW(v);
-  const amountText =
-    order.orderAmount !== null && order.orderAmount !== undefined
-      ? fmtMoney(order.orderAmount)
-      : null;
+  // 금액(AMOUNT) 주문은 요청액(orderAmount)이 아니라 실제 체결액(filledAmount)을 우선 표시
+  // — 부분 배분·소수점 체결에서 둘이 달라질 수 있어 filledAmount가 원천값.
+  const settledAmount = order.filledAmount ?? order.orderAmount;
+  const amountText = settledAmount !== null ? fmtMoney(settledAmount) : null;
   return hasQty
     ? [`${quantity.toString()}주`, hasPrice ? fmtMoney(order.price) : null]
         .filter(Boolean)
