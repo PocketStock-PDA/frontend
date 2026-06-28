@@ -20,6 +20,7 @@ import { useTxnAuth } from "@/hooks/mutations/useTxnAuth";
 import { useUpdateAutoSettings } from "@/hooks/mutations/useUpdateAutoSettings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import type { FxHistoryItem } from "@/types/domain/exchange";
+import { parseUTC } from "@/lib/utils/date";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ function fmtKRW(v: number) {
 }
 function parseTime(updatedAt: string) {
   try {
-    const d = new Date(updatedAt);
+    const d = parseUTC(updatedAt);
     if (!isNaN(d.getTime()))
       return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
     return updatedAt.slice(0, 5);
@@ -44,7 +45,7 @@ function parseTime(updatedAt: string) {
 }
 function fmtDate(dateStr: string) {
   try {
-    const d = new Date(dateStr);
+    const d = parseUTC(dateStr);
     return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, "0")}`;
   } catch {
     return dateStr.slice(5, 10).replace("-", ".");

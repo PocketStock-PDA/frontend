@@ -20,6 +20,7 @@ import { FacetCard, MiniPuzzle } from "@/components/features/portfolio/FacetCard
 import { CollectIcon } from "@/components/features/portfolio/ActionIcons";
 import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { useHoldings } from "@/hooks/queries/useHoldings";
+import { usePortfolioSummary } from "@/hooks/queries/usePortfolioSummary";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useOrders } from "@/hooks/queries/useOrders";
@@ -36,6 +37,7 @@ import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { useCancelOrder } from "@/hooks/mutations/useCancelOrder";
 import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
+import { parseUTC } from "@/lib/utils/date";
 import { toDecimal } from "@/lib/utils/decimal";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { splitOrderToast } from "@/lib/utils/orderResult";
@@ -143,6 +145,7 @@ function StockDetailContent({
 }) {
   const router = useRouter();
   const holdingsQ = useHoldings();
+  const summaryQ = usePortfolioSummary();
   const detailQ = useStockDetail(stockCode);
   const exchangeRateQ = useExchangeRate(); // 해외 종목 원화 환산 토글용(매매기준율)
   const ordersQ = useOrders();
@@ -263,13 +266,26 @@ function StockDetailContent({
     .times(PIECES_PER_SHARE)
     .toDecimalPlaces(0, Decimal.ROUND_DOWN)
     .toNumber(); // 0~100, 버림(정수 조각)
-  const evalAmount = qty.times(price);
+  // 평가금액·평가손익·수익률은 백엔드 summary 단일소스(native 통화, HALF_UP 반올림) — 포트폴리오 홈과 일치.
+  // 직접 qty×price로 재계산하면 반올림 방향이 달라 같은 보유분이 홈/상세에서 어긋난다(예: 999 vs 1,000).
+  // summary 미로딩 또는 미평가(priced=false, 현재가 조회 실패) 시에만 현재가×수량으로 폴백.
+  const hv = summaryQ.data?.holdings.find((h) => h.stockCode === stockCode);
+  const evalAmount =
+    hv && hv.evalAmount !== null ? toDecimal(hv.evalAmount) : qty.times(price);
   const remainAmount = new Decimal(1).minus(frac).times(price);
 
   // 현황: 평가손익 + 온주/소수 분리(FRAC-010)
-  const invested = qty.times(toDecimal(holding?.avgBuyPrice));
-  const profit = evalAmount.minus(invested);
-  const rate = invested.gt(0) ? profit.div(invested).times(100) : new Decimal(0);
+  const invested = hv
+    ? toDecimal(hv.invested)
+    : qty.times(toDecimal(holding?.avgBuyPrice));
+  const profit =
+    hv && hv.profit !== null ? toDecimal(hv.profit) : evalAmount.minus(invested);
+  const rate =
+    hv && hv.profitRate !== null
+      ? toDecimal(hv.profitRate)
+      : invested.gt(0)
+        ? profit.div(invested).times(100)
+        : new Decimal(0);
   const fractionalQtyD = toDecimal(holding?.fractionalQty);
   const canConvert = fractionalQtyD.gte(1); // 신탁 소수가 1주 이상이면 온주 전환 가능
   const convHistory = (wholeQ.data ?? []).filter(
@@ -737,7 +753,7 @@ function StockDetailContent({
                       className="flex items-center justify-between py-3"
                     >
                       <span className="text-xs text-muted-foreground">
-                        {format(new Date(c.convertedAt), "yyyy.MM.dd")}
+                        {format(parseUTC(c.convertedAt), "yyyy.MM.dd")}
                       </span>
                       <span className="font-numeric text-sm font-bold text-foreground">
                         {c.wholeQty}주 전환
@@ -846,7 +862,7 @@ function StockDetailContent({
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {format(new Date(o.createdAt), "yyyy.MM.dd")}
+                        {format(parseUTC(o.createdAt), "yyyy.MM.dd")}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">

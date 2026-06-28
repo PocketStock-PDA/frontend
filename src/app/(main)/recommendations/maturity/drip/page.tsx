@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRight, Calendar, ChevronRight } from "lucide-react";
+import { ArrowRight, Calendar, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
@@ -145,13 +145,18 @@ export default function MaturityDripPage() {
             </div>
           </section>
         ) : (
-          <section className="rounded-2xl border border-border bg-card p-4">
-            <p className="text-sm font-bold text-foreground">
-              받은 배당을 자동으로 재투자해요
+          <section className="rounded-2xl bg-brand-surface p-5">
+            <div className="flex items-center gap-1.5 text-[13.5px] font-bold text-primary">
+              <CheckCircle2 className="size-[17px]" />
+              예약 완료
+            </div>
+            <p className="mt-2.5 text-[15.5px] font-bold leading-snug text-foreground">
+              배당이 들어오면 자동으로
+              <br />
+              같은 주식을 더 사드려요
             </p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-              배당주를 켜두면, 지급된 배당으로 같은 주식을 더 사 복리를 굴려드려요.
-              아직 받은 배당이 없어요.
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#3c5170]">
+              받은 배당으로 같은 주식을 더 사 복리를 굴려요. 아직 받은 배당은 없어요.
             </p>
           </section>
         )}

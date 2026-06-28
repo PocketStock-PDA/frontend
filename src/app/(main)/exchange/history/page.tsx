@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useExchangeHistory } from "@/hooks/queries/useExchangeHistory";
 import type { FxHistoryItem } from "@/types/domain/exchange";
+import { parseUTC } from "@/lib/utils/date";
 
 const PAGE_SIZE = 15;
 
@@ -19,7 +20,7 @@ function fmtKRW(v: number) {
 }
 function fmtDate(dateStr: string) {
   try {
-    const d = new Date(dateStr);
+    const d = parseUTC(dateStr);
     return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
   } catch {
     return dateStr.slice(0, 10);

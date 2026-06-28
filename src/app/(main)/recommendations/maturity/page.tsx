@@ -2,13 +2,15 @@
 
 import { useState, useMemo } from "react";
 import Decimal from "decimal.js";
-import { Info, X } from "lucide-react";
+import { Info, Check } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
 import { useMaturityReservations } from "@/hooks/queries/useMaturityReservations";
+import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { formatKRW } from "@/lib/utils/currency";
 import { parseAccountId } from "@/lib/utils/params";
 import { cn } from "@/lib/utils";
@@ -29,6 +31,14 @@ export default function MaturityPage() {
 
   const account = data?.triggerAccount ?? null;
   const stocks = data?.recommendations ?? [];
+
+  const stockCodes = useMemo(() => stocks.map((s) => s.stockCode), [stocks]);
+  const stockDetailQueries = useStockDetails(stockCodes);
+  const logoByCode = useMemo(() => {
+    const m = new Map<string, string | null>();
+    stockCodes.forEach((code, i) => m.set(code, stockDetailQueries[i]?.data?.logoUrl ?? null));
+    return m;
+  }, [stockCodes, stockDetailQueries]);
 
   const { depositAmount, dividendAmount } = useMemo(() => {
     if (!account) return { depositAmount: 0, dividendAmount: 0 };
@@ -70,6 +80,7 @@ export default function MaturityPage() {
 
   // 종목당 매수금액이 최소 주문금액 미만이면 0원 예약이 만들어지므로 진행을 막는다.
   const belowMin = perStockAmount < MIN_AMOUNT;
+  const hasSelection = selectedCodes.size > 0;
 
   const handleGoToReserve = () => {
     if (!account?.accountId || selectedCodes.size === 0 || belowMin) return;
@@ -84,10 +95,9 @@ export default function MaturityPage() {
       <>
         <AppHeader variant="sub" title="만기 자금 굴리기" />
         <div className="space-y-4">
-          <SkeletonCard lines={1} className="h-14" />
-          <SkeletonCard lines={3} className="h-28" />
-          <SkeletonCard lines={4} className="h-44" />
-          <SkeletonCard lines={4} className="h-44" />
+          <SkeletonCard lines={1} className="h-20" />
+          <SkeletonCard lines={3} className="h-32" />
+          <SkeletonCard lines={4} className="h-48" />
         </div>
       </>
     );
@@ -107,36 +117,56 @@ export default function MaturityPage() {
 
   const [, mm, dd] = account.maturityDate.split("-");
   const formattedMaturity = `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")}`;
-
-  const hasBottomSection = selectedCodes.size > 0;
+  const ddTone =
+    account.daysUntilMaturity <= 7
+      ? "text-red-600"
+      : account.daysUntilMaturity <= 30
+        ? "text-amber-600"
+        : "text-muted-foreground";
 
   return (
     <>
       <AppHeader variant="sub" title="만기 자금 굴리기" />
 
-      <div className={cn("space-y-4", hasBottomSection && "pb-6")}>
-        {/* ── 트리거 계좌 ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <div>
-            <p className="text-sm font-bold text-foreground">
-              {account.accountName}{" "}
-              <span className="font-numeric tabular-nums">
-                {formatKRW(account.principalAmount)}
-              </span>
-            </p>
-            <p className="mt-0.5 font-numeric text-xs tabular-nums text-muted-foreground">
-              {formattedMaturity} 만기 · D-{account.daysUntilMaturity} · 연{" "}
-              {account.interestRate}%
-            </p>
+      <div className={cn("space-y-4", hasSelection && "pb-40")}>
+        {/* ── 히어로: 만기 자금 (brand-surface) ────────────────────────── */}
+        <section className="rounded-2xl bg-brand-surface p-5">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-primary">만기 자금</p>
+            <span
+              className={cn(
+                "rounded-full bg-white/70 px-2.5 py-0.5 font-numeric text-[11.5px] font-bold tabular-nums",
+                ddTone,
+              )}
+            >
+              D-{account.daysUntilMaturity}
+            </span>
           </div>
-          <span className="text-xs font-bold text-amber-700">만기 도래</span>
-        </div>
-
-        {/* ── 슬라이더 ─────────────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="mb-3.5 text-sm font-bold text-foreground">
-            얼마나 나눠 담을까요?
+          <p className="mt-1 font-numeric text-[30px] font-semibold leading-tight tabular-nums text-foreground">
+            {formatKRW(account.principalAmount)}
           </p>
+          <p className="mt-1.5 font-numeric text-[12.5px] tabular-nums text-[#3c5170]">
+            {account.accountName} · {formattedMaturity} 만기 · 연 {account.interestRate}%
+          </p>
+        </section>
+
+        {/* ── 배분 슬라이더 ────────────────────────────────────────────── */}
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <p className="text-sm font-bold text-foreground">얼마나 나눠 담을까요?</p>
+          <div className="mt-3.5 flex items-end justify-between">
+            <div>
+              <p className="text-[11.5px] font-semibold text-muted-foreground">예금 재예치</p>
+              <p className="mt-0.5 font-numeric text-[18px] font-bold tabular-nums text-foreground">
+                {formatKRW(depositAmount)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11.5px] font-semibold text-primary">배당주 투자</p>
+              <p className="mt-0.5 font-numeric text-[18px] font-bold tabular-nums text-primary">
+                {formatKRW(dividendAmount)}
+              </p>
+            </div>
+          </div>
           <input
             type="range"
             min={0}
@@ -144,63 +174,37 @@ export default function MaturityPage() {
             step={5}
             value={depositRatio}
             onChange={(e) => setDepositRatio(Number(e.target.value))}
-            className="w-full cursor-pointer appearance-none"
+            className="mt-3.5 w-full cursor-pointer appearance-none"
             style={{
               height: "6px",
               borderRadius: "9999px",
               outline: "none",
-              background: `linear-gradient(to right, #c9d2dd 0%, #c9d2dd ${depositRatio}%, #2563eb ${depositRatio}%, #2563eb 100%)`,
+              background: `linear-gradient(to right, #cfd6df 0%, #cfd6df ${depositRatio}%, #2563eb ${depositRatio}%, #2563eb 100%)`,
             }}
           />
-          <div className="mt-3 flex items-center justify-between text-xs">
-            <span className="font-bold text-muted-foreground">
-              예금 재예치{" "}
-              <span className="font-numeric tabular-nums">
-                {formatKRW(depositAmount)}
-              </span>
+          <div className="mt-2.5 flex items-center justify-between font-numeric text-[11px] tabular-nums">
+            <span className="text-muted-foreground">
+              예금 <b className="font-bold text-muted-foreground">{depositRatio}%</b>
             </span>
-            <span className="font-bold text-primary">
-              배당주{" "}
-              <span className="font-numeric tabular-nums">
-                {formatKRW(dividendAmount)}
-              </span>
+            <span className="text-muted-foreground">
+              배당주 <b className="font-bold text-primary">{100 - depositRatio}%</b>
             </span>
           </div>
-          <div className="mt-3 rounded-xl bg-muted px-3 py-2.5 text-xs text-muted-foreground">
-            {depositRatio === 100 ? (
-              "전액 예금 재예치로 안전하게 굴려요."
-            ) : depositRatio === 0 ? (
-              "전액 배당주에 투자해 배당 수익을 노려요."
-            ) : (
-              <>
-                원금{" "}
-                <span className="font-semibold text-foreground">
-                  {depositRatio}%
-                </span>
-                는 안전하게 예금에, 나머지{" "}
-                <span className="font-numeric font-semibold tabular-nums text-foreground">
-                  {formatKRW(dividendAmount)}
-                </span>
-                으로 배당을 받기 시작해요.
-              </>
-            )}
-          </div>
-          <div className="mt-3 flex items-start gap-1.5 text-[10px] text-muted-foreground">
+          <div className="mt-3.5 flex items-start gap-1.5 rounded-xl bg-muted px-3 py-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
             <Info className="mt-px size-3 shrink-0" />
             <span>
-              예금은 원금이 보장(예금자보호)되지만, 배당주는 원금·배당이 변동할
-              수 있어요.
+              예금은 원금이 보장(예금자보호)되지만, 배당주는 원금·배당이 변동할 수 있어요.
             </span>
           </div>
-        </div>
+        </section>
 
-        {/* ── 배당주 고르기 ─────────────────────────────────────────────── */}
+        {/* ── 배당주 고르기 (divide-y 행) ──────────────────────────────── */}
         {dividendAmount > 0 && (
           <section>
-            <div className="mb-2.5 flex items-center justify-between">
+            <div className="mb-2.5 flex items-center justify-between px-0.5">
               <h2 className="text-base font-bold text-foreground">배당주 고르기</h2>
               <span className="font-numeric text-xs tabular-nums text-muted-foreground">
-                {account.interestRate}% 이상
+                연 {account.interestRate}% 이상
               </span>
             </div>
             {stocks.length === 0 ? (
@@ -209,148 +213,95 @@ export default function MaturityPage() {
                 description="만기 계좌의 이율보다 높은 배당주가 없어요."
               />
             ) : (
-              <div className="space-y-2.5">
+              <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
                 {stocks.map((stock) => (
-                  <DividendStockCard
-                    key={stock.stockCode}
-                    stock={stock}
-                    dividendAmount={dividendAmount}
-                    depositRate={account.interestRate}
-                    selected={selectedCodes.has(stock.stockCode)}
-                    alreadyReserved={reservedCodes.has(stock.stockCode)}
-                    onSelect={() => toggleStock(stock.stockCode)}
-                  />
+                  <li key={stock.stockCode}>
+                    <DividendStockRow
+                      stock={stock}
+                      logoUrl={logoByCode.get(stock.stockCode) ?? null}
+                      depositRate={account.interestRate}
+                      selected={selectedCodes.has(stock.stockCode)}
+                      alreadyReserved={reservedCodes.has(stock.stockCode)}
+                      onSelect={() => toggleStock(stock.stockCode)}
+                    />
+                  </li>
                 ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ── 예약된 매수 + 선택 종목 + 예약 버튼 ─────────────────────── */}
-        {hasBottomSection && (
-          <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-            <h2 className="text-base font-bold text-foreground">예약된 매수</h2>
-
-            {/* 선택 중 (미예약) */}
-            {selectedCodes.size > 0 && (
-              <div className="rounded-xl border border-dashed border-primary/40 bg-brand-surface px-3 py-2">
-                <p className="mb-2 text-xs font-semibold text-primary">
-                  선택됨 · 종목당{" "}
-                  <span className="font-numeric tabular-nums">
-                    {formatKRW(perStockAmount)}
-                  </span>{" "}
-                  씩
-                </p>
-                <div className="divide-y divide-border">
-                  {[...selectedCodes].map((code) => {
-                    const stock = stocks.find((s) => s.stockCode === code);
-                    if (!stock) return null;
-                    return (
-                      <div key={code} className="flex items-center gap-3 py-2.5">
-                        <StockLogo name={stock.stockName} size="sm" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-foreground">
-                            {stock.stockName}
-                          </p>
-                          <p className="font-numeric text-xs tabular-nums text-muted-foreground">
-                            {formattedMaturity} 만기일 매수
-                          </p>
-                        </div>
-                        <span className="font-numeric text-sm font-semibold tabular-nums text-foreground">
-                          {formatKRW(perStockAmount)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => toggleStock(code)}
-                          className="rounded-md p-0.5 text-muted-foreground hover:bg-muted/60"
-                          aria-label="선택 해제"
-                        >
-                          <X className="size-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 예약하기 버튼 */}
-            {selectedCodes.size > 0 && (
-              <>
-                {belowMin && (
-                  <p className="text-center text-xs font-medium text-destructive">
-                    종목당 최소 {formatKRW(MIN_AMOUNT)}부터 예약할 수 있어요. 종목 수를
-                    줄이거나 배당주 비중을 높여주세요.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={handleGoToReserve}
-                  disabled={belowMin}
-                  className="flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-opacity active:opacity-80 disabled:opacity-50"
-                >
-                  {selectedCodes.size}종목 예약 확인하기
-                </button>
-              </>
+              </ul>
             )}
           </section>
         )}
       </div>
+
+      {/* ── 하단 고정 요약바 (선택 시) ────────────────────────────────── */}
+      {hasSelection && (
+        <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
+          {belowMin && (
+            <p className="mb-2 text-center text-[11.5px] font-semibold text-red-600">
+              종목당 최소 {formatKRW(MIN_AMOUNT)}부터 예약할 수 있어요. 종목 수를 줄이거나
+              배당주 비중을 높여주세요.
+            </p>
+          )}
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="font-semibold text-muted-foreground">
+              {selectedCodes.size}종목 선택
+            </span>
+            <span className="text-muted-foreground">
+              종목당{" "}
+              <b className="font-numeric font-bold tabular-nums text-foreground">
+                {formatKRW(perStockAmount)}
+              </b>
+              씩
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleGoToReserve}
+            disabled={belowMin}
+            className="flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-opacity active:opacity-80 disabled:opacity-50"
+          >
+            {selectedCodes.size}종목 예약 확인하기
+          </button>
+        </div>
+      )}
     </>
   );
 }
 
 // ── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
 
-// "YYYY-MM-DD" → "M/D" (배당 지급일 표시용)
+// "YYYY-MM-DD" → "M/D"
 function formatMonthDay(dateStr: string): string {
   const [, mm, dd] = dateStr.split("-");
   return `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")}`;
 }
 
-function StockLogo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
-  return (
-    <div
-      className={cn(
-        "shrink-0 rounded-full border border-[#e2ecfb] bg-brand-surface font-numeric font-bold text-primary",
-        size === "sm"
-          ? "flex size-8 items-center justify-center text-sm"
-          : "flex size-10 items-center justify-center text-[15px]",
-      )}
-    >
-      {name.slice(0, 1)}
-    </div>
-  );
-}
-
-interface DividendStockCardProps {
+interface DividendStockRowProps {
   stock: DividendStockItem;
-  dividendAmount: number;
+  logoUrl: string | null;
   depositRate: number;
   selected: boolean;
   alreadyReserved: boolean;
   onSelect: () => void;
 }
 
-function DividendStockCard({
+function DividendStockRow({
   stock,
-  dividendAmount,
+  logoUrl,
   depositRate,
   selected,
   alreadyReserved,
   onSelect,
-}: DividendStockCardProps) {
-  const depositInterest = new Decimal(dividendAmount)
-    .times(new Decimal(depositRate).dividedBy(100))
-    .toDecimalPlaces(0)
-    .toNumber();
-
-  const annualIncome = new Decimal(dividendAmount)
-    .times(new Decimal(stock.dividendYield).dividedBy(100))
-    .toDecimalPlaces(0)
-    .toNumber();
-
+}: DividendStockRowProps) {
   const yieldStr = new Decimal(stock.dividendYield).toFixed(2);
+  const deltaPp = new Decimal(stock.dividendYield).minus(depositRate).toDecimalPlaces(1);
+  const initial = stock.stockName.trim().charAt(0).toUpperCase();
+
+  const metaParts: string[] = [];
+  if (stock.perShareDividend !== null) {
+    metaParts.push(`1주당 ${formatKRW(stock.perShareDividend)}`);
+  }
+  if (stock.payDate) metaParts.push(`지급 ${formatMonthDay(stock.payDate)}`);
+  else if (stock.exDividendDate) metaParts.push(`배당락 ${formatMonthDay(stock.exDividendDate)}`);
 
   return (
     <button
@@ -358,94 +309,52 @@ function DividendStockCard({
       onClick={onSelect}
       disabled={alreadyReserved}
       className={cn(
-        "w-full rounded-2xl border p-4 text-left transition-colors duration-150",
+        "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-150",
         alreadyReserved
-          ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
+          ? "cursor-not-allowed opacity-55"
           : selected
-            ? "border-primary bg-[#f7faff]"
-            : "border-border bg-card hover:bg-muted/30 active:bg-muted/50",
+            ? "bg-brand-surface hover:bg-brand-surface/70"
+            : "bg-card hover:bg-muted/40",
       )}
     >
-      <div className="flex items-start gap-3">
-        <StockLogo name={stock.stockName} />
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-bold text-foreground">
-            {stock.stockName}
-            <span className="ml-1.5 font-numeric text-xs font-normal text-muted-foreground">
-              {stock.stockCode}
+      <Avatar className="size-9 shrink-0 rounded-xl">
+        {logoUrl && <AvatarImage src={logoUrl} alt="" />}
+        <AvatarFallback className="rounded-xl bg-muted text-[11px] font-semibold text-muted-foreground">
+          {initial}
+        </AvatarFallback>
+      </Avatar>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <span className="text-[14px] font-semibold text-foreground">{stock.stockName}</span>
+          {alreadyReserved && (
+            <span className="rounded-full bg-brand-surface px-1.5 py-0.5 text-[10px] font-bold text-primary">
+              예약됨
             </span>
-          </p>
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {stock.tags.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
-              >
-                {tag}
-              </span>
-            ))}
-            {alreadyReserved && (
-              <span className="rounded-full bg-brand-surface px-2 py-0.5 text-[10px] font-bold text-primary">
-                예약됨
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-start gap-2.5">
-          <div className="text-right">
-            <p className="font-numeric text-lg font-bold tabular-nums text-foreground">
-              {yieldStr}%
-            </p>
-            <p className="text-[10px] text-muted-foreground">배당수익률</p>
-          </div>
-          <div
-            className={cn(
-              "mt-0.5 size-5 shrink-0 rounded-full border-2 transition-colors duration-150",
-              selected
-                ? "border-primary bg-primary shadow-[inset_0_0_0_3px_white]"
-                : "border-border bg-card",
-            )}
-          />
-        </div>
-      </div>
-
-      {/* 예금 vs 배당 비교 */}
-      <div
-        className={cn(
-          "mt-3 rounded-xl px-3 py-2.5 text-xs",
-          selected ? "border border-[#dbe7fb] bg-white" : "bg-brand-surface",
-        )}
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-[#41556f]">예금 이자 (연 {depositRate}%)</span>
-          <span className="font-numeric font-semibold tabular-nums text-foreground">
-            {formatKRW(depositInterest)}
-          </span>
-        </div>
-        <div className="mt-1 flex items-center justify-between">
-          <span className="text-[#41556f]">이 주식 배당 (연 {yieldStr}%)</span>
-          <span className="font-numeric font-bold tabular-nums text-primary">
-            {formatKRW(annualIncome)}
-          </span>
-        </div>
-      </div>
-
-      {/* 실제 배당 일정 — KIS 예탁원 배당일정(주당배당금·지급일) 있을 때만 */}
-      {stock.perShareDividend !== null && (
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          1주당{" "}
-          <span className="font-numeric font-semibold tabular-nums text-foreground">
-            {formatKRW(stock.perShareDividend)}
-          </span>
-          {stock.payDate && (
-            <>
-              {" "}
-              · <span className="font-numeric tabular-nums">{formatMonthDay(stock.payDate)}</span> 지급
-            </>
           )}
+        </div>
+        <p className="mt-0.5 font-numeric text-[11.5px] tabular-nums text-muted-foreground">
+          {metaParts.join(" · ")}
+          {metaParts.length > 0 && " · "}
+          <span className="font-bold text-up">+{deltaPp.toString()}%p</span>
         </p>
-      )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2.5">
+        <span className="font-numeric text-[17px] font-bold tabular-nums text-foreground">
+          {yieldStr}%
+        </span>
+        <span
+          className={cn(
+            "grid size-[22px] place-items-center rounded-full border-2 transition-colors",
+            selected
+              ? "border-primary bg-primary text-white"
+              : "border-border bg-card text-transparent",
+          )}
+        >
+          <Check className="size-3" strokeWidth={3} />
+        </span>
+      </div>
     </button>
   );
 }
-

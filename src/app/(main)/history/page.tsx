@@ -16,6 +16,7 @@ import {
   shortDateHeader,
   isInMonth,
 } from "@/components/features/history/shared";
+import { parseUTC } from "@/lib/utils/date";
 import { useOrders } from "@/hooks/queries/useOrders";
 import { usePendingOrders } from "@/hooks/queries/usePendingOrders";
 import { useSecuritiesAccounts } from "@/hooks/queries/useSecuritiesAccounts";
@@ -52,16 +53,17 @@ function buildMonths() {
 }
 const MONTHS = buildMonths();
 
-// ── P&L 계산 ────────────────────────────────────────────────────────────────
+// ── P&L (백엔드 실현손익 단일소스) ────────────────────────────────────────────
+// 판매수익은 백엔드가 체결 스냅샷에서 산출한 realizedPnl(native)·realizedPnlKrw를 그대로 쓴다.
+// 프론트에서 체결가×수량으로 재계산하면 반올림(버림) 방향이 백엔드와 달라 합계가 어긋난다.
 
-function calcPnL(o: OrderHistoryItem): Decimal | null {
-  if (!o.avgBuyPriceAtSell || !o.quantity) return null;
-  const qty = toDecimal(o.quantity);
-  const fillAmt = o.filledAmount !== null
-    ? toDecimal(o.filledAmount)
-    : toDecimal(o.price ?? 0).times(qty);
-  const cost = toDecimal(o.avgBuyPriceAtSell).times(qty);
-  return fillAmt.minus(cost);
+/** native 실현손익(매도 FILLED만). 없으면 null. */
+function pnlNative(o: OrderHistoryItem): Decimal | null {
+  return o.realizedPnl !== null ? toDecimal(o.realizedPnl) : null;
+}
+/** 환산 KRW 실현손익 — 해외는 체결환율 있을 때만, 국내는 native와 동일. */
+function pnlKrw(o: OrderHistoryItem): Decimal | null {
+  return o.realizedPnlKrw !== null ? toDecimal(o.realizedPnlKrw) : null;
 }
 
 // ── 날짜 그룹 (연도 없음) ────────────────────────────────────────────────────
@@ -70,7 +72,7 @@ function groupByDateShort<T>(items: T[], getIso: (t: T) => string) {
   const map = new Map<string, { header: string; rows: T[] }>();
   for (const it of items) {
     const iso = getIso(it);
-    const d = new Date(iso);
+    const d = parseUTC(iso);
     const key = isNaN(d.getTime())
       ? iso.slice(0, 10)
       : `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
@@ -511,28 +513,25 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
 
   const isOverseasOnly = market === "OVERSEAS";
 
+  // 월 합계 = 백엔드 per-order 실현손익의 단순 합(라인 항목과 합계가 정확히 일치).
   const totalPnLKrw = useMemo(() => {
     return sells.reduce((sum, o) => {
-      const pnl = calcPnL(o);
-      if (!pnl) return sum;
-      if (o.currency === "USD") {
-        return o.fxRateAtFill ? sum.plus(pnl.times(toDecimal(o.fxRateAtFill))) : sum;
-      }
-      return sum.plus(pnl);
+      const krw = pnlKrw(o);
+      return krw ? sum.plus(krw) : sum;
     }, new Decimal(0));
   }, [sells]);
 
   const totalPnLUsd = useMemo(() => {
     if (!isOverseasOnly) return new Decimal(0);
     return sells.reduce((sum, o) => {
-      const pnl = calcPnL(o);
+      const pnl = pnlNative(o);
       return pnl ? sum.plus(pnl) : sum;
     }, new Decimal(0));
   }, [sells, isOverseasOnly]);
 
-  const hasPnL = sells.some((o) => o.avgBuyPriceAtSell !== null && o.avgBuyPriceAtSell !== undefined);
+  const hasPnL = sells.some((o) => o.realizedPnl !== null);
   // USD 손익을 KRW로 환산할 수 있는 주문이 하나라도 있는지 — 없으면 "(환산)" 줄 숨김
-  const hasFxKrw = sells.some((o) => o.currency !== "USD" || o.fxRateAtFill !== null);
+  const hasFxKrw = sells.some((o) => o.realizedPnlKrw !== null);
   const groups = groupByDateShort(sells, (o) => o.createdAt);
 
   if (isLoading) return <ListSkeleton />;
@@ -599,11 +598,10 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
                   const detail = detailMap.get(o.stockCode);
                   const name = detail?.stockName ?? o.stockCode;
                   const qty = toDecimal(o.quantity ?? 0);
-                  const pnl = calcPnL(o);
-                  const pnlKrw =
-                    pnl && o.currency === "USD" && o.fxRateAtFill
-                      ? pnl.times(toDecimal(o.fxRateAtFill))
-                      : null;
+                  const pnl = pnlNative(o);
+                  // ≈KRW 보조줄은 해외(USD) 주문에만 — 국내는 native가 이미 KRW.
+                  const pnlKrwView =
+                    o.currency === "USD" ? pnlKrw(o) : null;
                   return (
                     <div key={o.orderId} className="flex items-center gap-3 py-3">
                       <StockAvatar detail={detail} stockCode={o.stockCode} />
@@ -625,12 +623,12 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
                                 ? formatUSD(pnl.toDecimalPlaces(2).toString())
                                 : formatKRW(pnl.toDecimalPlaces(0).toString())}
                             </p>
-                            {pnlKrw && (
+                            {pnlKrwView && (
                               <p className={cn(
                                 "font-numeric text-[11px]",
-                                pnlKrw.gt(0) ? "text-up/70" : pnlKrw.lt(0) ? "text-down/70" : "text-muted-foreground",
+                                pnlKrwView.gt(0) ? "text-up/70" : pnlKrwView.lt(0) ? "text-down/70" : "text-muted-foreground",
                               )}>
-                                ≈ {pnlKrw.gt(0) ? "+" : ""}{formatKRW(pnlKrw.toDecimalPlaces(0).toString())}
+                                ≈ {pnlKrwView.gt(0) ? "+" : ""}{formatKRW(pnlKrwView.toDecimalPlaces(0).toString())}
                               </p>
                             )}
                           </>

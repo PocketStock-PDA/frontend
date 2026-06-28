@@ -19,6 +19,7 @@ import {
 } from "@/hooks/mutations/useMarkNotificationRead";
 import { cn } from "@/lib/utils";
 import type { NotificationItem } from "@/types/domain/notification";
+import { parseUTC } from "@/lib/utils/date";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ function startOfDay(d: Date) {
 
 /** 그룹 헤더: 오늘 / 어제 / N일 전 / YYYY.MM.DD */
 function dayLabel(iso: string) {
-  const d = new Date(iso);
+  const d = parseUTC(iso);
   if (isNaN(d.getTime())) return iso.slice(0, 10);
   const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / DAY_MS);
   if (diff <= 0) return "오늘";
@@ -41,7 +42,7 @@ function dayLabel(iso: string) {
 
 /** 우측 상대시간: 방금 / N분 전 / N시간 전 / 어제 HH:mm / MM.DD HH:mm */
 function relTime(iso: string) {
-  const d = new Date(iso);
+  const d = parseUTC(iso);
   if (isNaN(d.getTime())) return "";
   const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / DAY_MS);

@@ -28,6 +28,7 @@ import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
+import { parseUTC } from "@/lib/utils/date";
 import type { CmaBalance, CmaTransaction, Currency } from "@/types/domain/cma";
 
 // ── 거래 분류·라벨 ───────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ function groupByDateShort<T>(items: T[], getIso: (t: T) => string) {
   const map = new Map<string, { header: string; rows: T[] }>();
   for (const it of items) {
     const iso = getIso(it);
-    const d = new Date(iso);
+    const d = parseUTC(iso);
     const key = isNaN(d.getTime())
       ? iso.slice(0, 10)
       : `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;

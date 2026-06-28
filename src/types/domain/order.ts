@@ -100,8 +100,12 @@ export interface OrderHistoryItem {
   createdAt: string;
   /** 체결금액 — 소수점 체결분은 백엔드 배분합(allocations), 온주·미체결은 null. 내역 금액은 이 값(라이브가 추정 금지) */
   filledAmount: number | null;
-  /** 매도 체결 시점 평단(판매수익 계산용). 매도 FILLED만 non-null. 국내=KRW, 해외=USD. */
+  /** 매도 체결 시점 평단(실현손익 산출 입력값). 매도 FILLED만 non-null. 국내=KRW, 해외=USD. */
   avgBuyPriceAtSell: number | null;
   /** 해외 매도 체결 시점 USD/KRW 환율. 국내·매수·환율 취득 실패 시 null. */
   fxRateAtFill: number | null;
+  /** 실현손익(판매수익) native — 백엔드 산출(매도 FILLED만, HALF_UP). 프론트 재계산 금지. */
+  realizedPnl: number | null;
+  /** 실현손익 환산 KRW — 해외=native×체결환율(환율없으면 null), 국내=native. */
+  realizedPnlKrw: number | null;
 }

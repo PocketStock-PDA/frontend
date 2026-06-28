@@ -419,11 +419,23 @@ export default function HomePage() {
         <Separator />
 
         {/* 바로가기 (홈화면 편집에서 순서/표시 변경) */}
-        {quickLinks.length > 0 && (
-          <section>
-            <p className="mb-3 text-[13px] font-medium text-muted-foreground">
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[13px] font-medium text-muted-foreground">
               바로가기
             </p>
+            <Link
+              href="/home/edit"
+              className="text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              편집
+            </Link>
+          </div>
+          {quickLinks.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              바로가기를 추가해 보세요
+            </p>
+          ) : (
             <div className="grid grid-cols-4 gap-y-5">
               {quickLinks.map(({ id, label, icon: Icon, href, highlight }) => (
                 <Link
@@ -447,8 +459,8 @@ export default function HomePage() {
                 </Link>
               ))}
             </div>
-          </section>
-        )}
+          )}
+        </section>
       </div>
     </>
   );

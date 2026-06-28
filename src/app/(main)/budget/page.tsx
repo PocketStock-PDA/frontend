@@ -21,6 +21,7 @@ import { useSpendingAnalysis } from "@/hooks/queries/useSpendingAnalysis";
 import { useAutoBudgetGoals } from "@/hooks/mutations/useAutoBudgetGoals";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
+import { parseUTC } from "@/lib/utils/date";
 import { budgetMonthPath } from "@/lib/navigation/routes";
 import { StockCalendarTab } from "./StockCalendarTab";
 import type { BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
@@ -529,7 +530,7 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
 
 
 function formatTxTime(isoStr: string) {
-  const d = new Date(isoStr);
+  const d = parseUTC(isoStr);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 

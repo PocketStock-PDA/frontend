@@ -5,6 +5,7 @@ import Decimal from "decimal.js";
 import { Info, Minus, Plus, Landmark, TrendingUp, ArrowDown, ArrowRightLeft } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ApiError } from "@/lib/api/client";
@@ -73,6 +74,12 @@ export default function MaturityReservePage() {
     codes.forEach((code, i) => {
       m[code] = stockDetailResults[i]?.data?.price?.currentPrice ?? null;
     });
+    return m;
+  }, [codes, stockDetailResults]);
+
+  const logoByCode = useMemo(() => {
+    const m = new Map<string, string | null>();
+    codes.forEach((code, i) => m.set(code, stockDetailResults[i]?.data?.logoUrl ?? null));
     return m;
   }, [codes, stockDetailResults]);
 
@@ -178,64 +185,69 @@ export default function MaturityReservePage() {
   }
 
   const [, mm, dd] = account.maturityDate.split("-");
-  const maturityShort = `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")} 만기일`;
+  const maturityShort = `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")}`;
+  const toName =
+    codes.length > 1
+      ? `${codes.length}종목 · ${codes
+          .map((c) => stockMap[c]?.stockName ?? c)
+          .slice(0, 2)
+          .join(", ")}${codes.length > 2 ? " 외" : ""}`
+      : (stockMap[codes[0] ?? ""]?.stockName ?? codes[0]);
 
   return (
     <>
       <AppHeader variant="sub" title="매수 예약 확인" />
 
       <div className="space-y-4 pb-24">
-        {/* ── 예적금 → 배당주 흐름 카드 ───────────────────────────────────── */}
+        {/* ── 예적금 → 배당주 전환 흐름 ─────────────────────────────────── */}
         <div className="overflow-hidden rounded-2xl border border-border">
-          {/* FROM: 예적금 */}
-          <div className="bg-[#fdf8ee] px-4 py-4">
-            <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest text-amber-600">
+          {/* FROM: 예적금 (중립 muted) */}
+          <div className="bg-muted px-4 py-4">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
               <Landmark className="size-3.5" />
               예금·적금
             </div>
             <p className="mt-1.5 text-sm font-bold text-foreground">{account.accountName}</p>
-            <p className="font-numeric mt-0.5 text-[22px] font-bold tabular-nums text-foreground">
-              {formatKRW(account.principalAmount)}
+            <p className="mt-0.5 font-numeric text-[22px] font-bold tabular-nums text-foreground">
+              {formatKRW(totalAmount)}{" "}
+              <span className="text-xs font-medium text-muted-foreground">배당주로</span>
             </p>
           </div>
 
-          {/* 커넥터: 만기일 */}
+          {/* 커넥터: 만기일 자동 전환 */}
           <div className="relative flex items-center justify-center bg-card py-3.5">
             <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border" />
             <div className="relative flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 shadow-sm">
               <ArrowDown className="size-3 text-primary" />
               <span className="font-numeric text-[11px] font-bold tabular-nums text-primary">
-                {maturityShort} 자동 전환
+                {maturityShort} 만기일 자동 전환
               </span>
             </div>
           </div>
 
-          {/* TO: 배당주 */}
+          {/* TO: 배당주 (brand-surface) */}
           <div className="bg-brand-surface px-4 py-4">
-            <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest text-primary">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
               <TrendingUp className="size-3.5" />
               배당주
             </div>
-            <p className="mt-1.5 text-sm font-bold text-foreground">
-              {codes.length > 1
-                ? `${codes.length}종목 · 총 ${formatKRW(totalAmount)}`
-                : `${stockMap[codes[0] ?? ""]?.stockName ?? codes[0]} · ${formatKRW(totalAmount)}`}
-            </p>
-            <p className="font-numeric mt-0.5 text-[22px] font-bold tabular-nums text-primary">
+            <p className="mt-1.5 text-sm font-bold text-foreground">{toName}</p>
+            <p className="mt-0.5 font-numeric text-[22px] font-bold tabular-nums text-primary">
               연 {formatKRW(totalDividend)} 배당 예상
             </p>
           </div>
         </div>
 
-        {/* ── 담는 종목 ─────────────────────────────────────────────────── */}
+        {/* ── 담는 종목 (divide-y 행 + 스테퍼) ─────────────────────────── */}
         <section>
-          <p className="mb-2.5 text-sm font-bold text-muted-foreground">
+          <p className="mb-2.5 px-0.5 text-sm font-bold text-muted-foreground">
             담는 종목{codes.length > 1 ? ` ${codes.length}개` : ""}
           </p>
-          <div className="space-y-2.5">
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
             {codes.map((code) => {
               const stock = stockMap[code];
               const amount = amounts[code] ?? 0;
+              const overseas = stock?.market === "US";
               const currentPrice = priceMap[code] ?? null;
               const estimatedShares = currentPrice && currentPrice > 0
                 ? new Decimal(amount).dividedBy(currentPrice).toDecimalPlaces(4).toNumber()
@@ -248,11 +260,14 @@ export default function MaturityReservePage() {
                 : 0;
 
               return (
-                <div key={code} className="rounded-2xl border border-border bg-card p-4">
+                <li key={code} className="px-4 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-[#e2ecfb] bg-brand-surface font-numeric text-sm font-bold text-primary">
-                      {(stock?.stockName ?? code).slice(0, 1)}
-                    </div>
+                    <Avatar className="size-9 shrink-0 rounded-xl">
+                      {logoByCode.get(code) && <AvatarImage src={logoByCode.get(code)!} alt="" />}
+                      <AvatarFallback className="rounded-xl bg-muted text-[11px] font-semibold text-muted-foreground">
+                        {(stock?.stockName ?? code).trim().charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-foreground">
                         {stock?.stockName ?? code}
@@ -294,64 +309,62 @@ export default function MaturityReservePage() {
                         type="button"
                         onClick={() => adjust(code, -STEP)}
                         disabled={amount <= MIN_AMOUNT}
-                        className="flex size-7 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted disabled:opacity-30"
+                        className="flex size-[30px] items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted disabled:opacity-30"
                         aria-label="금액 감소"
                       >
                         <Minus className="size-3.5" />
                       </button>
-                      <span className="min-w-[90px] text-center font-numeric text-sm font-bold tabular-nums">
+                      <span className="min-w-[96px] text-center font-numeric text-sm font-bold tabular-nums">
                         {formatKRW(amount)}
                       </span>
                       <button
                         type="button"
                         onClick={() => adjust(code, STEP)}
-                        className="flex size-7 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted"
+                        className="flex size-[30px] items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted"
                         aria-label="금액 증가"
                       >
                         <Plus className="size-3.5" />
                       </button>
                     </div>
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </section>
 
         {/* ── 해외 배당주: 자동환전 안내 (설정 조회 완료 후에만) ──────────── */}
         {needAutoFx && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5">
-              <div className="flex items-start gap-2">
-                <ArrowRightLeft className="mt-0.5 size-4 shrink-0 text-amber-600" />
-                <div className="min-w-0">
-                  <p className="text-[13px] font-bold text-foreground">
-                    해외 배당주는 자동환전이 필요해요
-                  </p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                    만기일에 원화를 달러로 자동환전(원화 → 달러)해 매수해요. 자동환전을
-                    켜야 예약할 수 있어요.
-                  </p>
-                </div>
+          <div className="rounded-2xl border border-[#dbe7fb] bg-brand-surface p-3.5">
+            <div className="flex items-start gap-2">
+              <ArrowRightLeft className="mt-0.5 size-4 shrink-0 text-primary" />
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-foreground">
+                  해외 배당주는 자동환전이 필요해요
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-[#3c5170]">
+                  만기일에 원화를 달러로 자동환전(원화 → 달러)해 매수해요. 자동환전을 켜야
+                  예약할 수 있어요.
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={enableAutoFx}
-                disabled={updateAutoSettings.isPending}
-                className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-amber-600 text-[13px] font-bold text-white transition-opacity active:opacity-80 disabled:opacity-50"
-              >
-                <ArrowRightLeft className="size-3.5" />
-                {updateAutoSettings.isPending ? "켜는 중…" : "자동환전 켜기"}
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={enableAutoFx}
+              disabled={updateAutoSettings.isPending}
+              className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-[13px] font-bold text-white transition-opacity active:opacity-80 disabled:opacity-50"
+            >
+              <ArrowRightLeft className="size-3.5" />
+              {updateAutoSettings.isPending ? "켜는 중…" : "자동환전 켜기"}
+            </button>
+          </div>
         )}
 
         {/* 자동환전이 이미 켜져 있으면 결제 방식만 안내 */}
         {hasOverseas && fxSettings?.autoEnabled && (
-          <div className="flex items-start gap-2 rounded-xl bg-brand-surface px-3 py-2.5 text-xs text-[#41556f]">
+          <div className="flex items-start gap-2 rounded-xl bg-brand-surface px-3 py-2.5 text-xs text-[#3c5170]">
             <ArrowRightLeft className="mt-px size-3 shrink-0 text-primary" />
-            <span>
-              해외 배당주는 만기일에 원화를 달러로 자동환전해 결제돼요.
-            </span>
+            <span>해외 배당주는 만기일에 원화를 달러로 자동환전해 결제돼요.</span>
           </div>
         )}
 
@@ -359,7 +372,8 @@ export default function MaturityReservePage() {
         <div className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-xs text-muted-foreground">
           <Info className="mt-px size-3 shrink-0" />
           <span>
-            {maturityShort} 시세로 체결돼요. 원금·배당은 변동할 수 있고, 만기 전엔 취소 가능해요.
+            {maturityShort} 만기일 시세로 체결돼요. 원금·배당은 변동할 수 있고, 만기 전엔
+            취소 가능해요.
           </span>
         </div>
       </div>

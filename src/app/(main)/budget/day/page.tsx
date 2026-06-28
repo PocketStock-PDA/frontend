@@ -1,6 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
+import { parseUTC } from "@/lib/utils/date";
 import { ko } from "date-fns/locale";
 import { useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/common/AppHeader";
@@ -88,6 +89,6 @@ export default function BudgetDayPage() {
 }
 
 function formatTime(isoStr: string) {
-  const d = new Date(isoStr);
+  const d = parseUTC(isoStr);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
