@@ -42,3 +42,18 @@ export interface AskingFrame {
   /** 누적거래량 */
   accumVolume?: number;
 }
+
+/**
+ * 해외 실시간 호가 (STOMP /topic/foreign/quote/{stockCode} push, ForeignQuoteResponse).
+ * 장외 시간엔 asks/bids 모두 price=0 — 호가 공백으로 판단해 currentPrice로 폴백.
+ */
+export interface ForeignQuoteFrame {
+  symbol: string;
+  realtimeCode?: string;
+  localTime?: string;
+  asks: OrderBookEntry[];
+  bids: OrderBookEntry[];
+  totalAskVolume: number;
+  totalBidVolume: number;
+  asOf?: string;
+}

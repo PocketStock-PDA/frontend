@@ -22,6 +22,7 @@ import {
   OrdersIcon,
 } from "@/components/features/portfolio/ActionIcons";
 import { usePortfolioSummary } from "@/hooks/queries/usePortfolioSummary";
+import { useSecuritiesAccounts } from "@/hooks/queries/useSecuritiesAccounts";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
 import {
@@ -64,6 +65,8 @@ export default function PortfolioPage() {
   const [ovsKrw, setOvsKrw] = useState(false);
   const summaryQ = usePortfolioSummary();
   const summary = summaryQ.data;
+  const accountsQ = useSecuritiesAccounts();
+  const accounts = accountsQ.data ?? [];
   const holdings = summary?.holdings ?? [];
   const codes = holdings.map((h) => h.stockCode);
   const details = useStockDetails(codes);
@@ -146,7 +149,16 @@ export default function PortfolioPage() {
 
   // scope별 집계는 백엔드 summary 단일소스. 전체/국내=KRW, 해외=USD(+환산 KRW).
   const fx = summary?.usdKrwRate ?? null;
-  const hasOverseas = !!summary?.overseas;
+
+  // scope에 따라 표시할 증권계좌번호
+  const domesticAccountNo = accounts.find((a) => a.type === "DOMESTIC")?.accountNo;
+  const overseasAccountNo = accounts.find((a) => a.type === "OVERSEAS")?.accountNo;
+  const displayAccountNo =
+    scope === "domestic"
+      ? domesticAccountNo
+      : scope === "overseas"
+        ? overseasAccountNo
+        : undefined; // 전체는 계좌번호 미표시
 
   // 표시할 평가/원금/손익/통화 — scope + 해외 원화토글(ovsKrw) 반영.
   let displayEval = 0;
@@ -242,16 +254,18 @@ export default function PortfolioPage() {
         {/* 개요: 평가금액(전체/국내/해외 토글) + 동선 스트립을 하나의 카드로 */}
         <section className="overflow-hidden rounded-2xl bg-brand-surface">
           <div className="p-5">
-            {/* 해외 보유가 있을 때만 범위 토글 노출 */}
-            {hasOverseas && (
-              <SegmentedControl
-                options={SCOPE_OPTIONS}
-                value={scope}
-                onChange={setScope}
-                className="mb-4"
-              />
-            )}
-            <p className="text-sm font-medium text-primary">{scopeLabel}</p>
+            <SegmentedControl
+              options={SCOPE_OPTIONS}
+              value={scope}
+              onChange={setScope}
+              className="mb-4"
+            />
+            <div className="mb-1 flex items-baseline gap-1.5">
+              <p className="text-sm font-medium text-primary">{scopeLabel}</p>
+              {displayAccountNo && (
+                <p className="text-xs text-muted-foreground">{displayAccountNo}</p>
+              )}
+            </div>
             <div className="mt-1 flex items-start justify-between gap-3">
               {/* 범위/통화 토글로 값이 바뀔 때만 스왑 애니메이션(시세 틱엔 반응 안 함) */}
               <div key={`${scope}:${displayCurrency}`} className="ps-amount-swap min-w-0">

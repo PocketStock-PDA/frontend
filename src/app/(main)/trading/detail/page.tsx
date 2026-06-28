@@ -29,6 +29,7 @@ import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
 import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
+import { useStockBestAsk } from "@/hooks/useStockBestAsk";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { PIECES_PER_SHARE } from "@/lib/utils/pieces";
@@ -50,7 +51,8 @@ type LiveSel = { mode: "buy" | "sell"; indexes: number[] };
 // 접수(체결 대기) 조각 주문 — 퍼즐 손맛 애니메이션용. 실제 FILLED 시 개별 해제.
 type PendingOrder = { orderId: number; mode: "buy" | "sell"; count: number };
 
-const AMOUNT_CHIPS = [1000, 5000, 10000]; // 금액 빠른 추가(원). 4번째 칩은 최대(동적)
+const AMOUNT_CHIPS_KRW = [1000, 5000, 10000];
+const AMOUNT_CHIPS_USD = [1, 5, 10];
 
 function formatShares(q: Decimal) {
   return q.toDecimalPlaces(4).toString();
@@ -116,6 +118,13 @@ function TradeContent({
     enabled: !!detailQ.data,
   });
 
+  // 최우선 매도호가: WS → REST polling(Redis) → currentPrice 순 폴백
+  const bestAskResult = useStockBestAsk(stockCode, {
+    overseas: detailQ.data?.currency === "USD",
+    currentPrice: detailQ.data?.price?.currentPrice ?? null,
+    enabled: !!detailQ.data,
+  });
+
   const [side, setSide] = useState<Side>(initialSide); // 주문 방향(구매/판매) — 진입 side(보유 상세 매도 등) 반영, 상단에서 전환
   const [tab, setTab] = useState<Tab>("PIECES"); // 조각(퍼즐) 기본 — 소수점/온주는 숫자 입력
   const [inputMode, setInputMode] = useState<InputMode>("QTY");
@@ -136,6 +145,8 @@ function TradeContent({
   const resetKeys = () => {
     orderKeys.current = { BUY: null, SELL: null };
   };
+  // 따닥 탭 방지 — React state 업데이트 지연 없이 즉시 잠금
+  const submitting = useRef(false);
 
   // 접수(체결 대기) 조각 주문들 — 확정 즉시 퍼즐 애니메이션. 동시 다건 누적, 각자 실제 FILLED 시 개별 해제.
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
@@ -224,18 +235,20 @@ function TradeContent({
     showKrw ? formatKRW(toDecimal(v).times(fx).toNumber()) : fmtAmount(v);
 
   // 금액 계산은 decimal.js 필수 (README 가이드라인). API 값은 toDecimal로 안전 변환(null→0)
-  const price = toDecimal(detail.price?.currentPrice);
+  const price = toDecimal(detail.price?.currentPrice); // 표시용 현재가(체결가)
+  // hold 계산용 매도 1호가 — WS/REST/currentPrice 폴백 체인. null이면 시세 미수신.
+  const bestAsk = toDecimal(bestAskResult.bestAsk ?? detail.price?.currentPrice);
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
   const holdingQty = toDecimal(holding?.quantity);
   const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
 
-  // 조각(퍼즐) — 보유 소수분 → 채운 조각(0~99). 1조각 = 현재가/100.
+  // 조각(퍼즐) — 보유 소수분 → 채운 조각(0~99). 1조각 = 매도 1호가/100(hold 기준과 동일).
   const heldPieces = holdingQty
     .minus(holdingQty.floor())
     .times(PIECES_PER_SHARE)
     .toDecimalPlaces(0, Decimal.ROUND_DOWN)
     .toNumber();
-  const perPiece = price.div(PIECES_PER_SHARE);
+  const perPiece = bestAsk.gt(0) ? bestAsk.div(PIECES_PER_SHARE) : price.div(PIECES_PER_SHARE);
   // 백엔드 최소 주문금액(국내 1,000원/해외 $1)을 채우는 최소 조각 수.
   const minPieces = perPiece.gt(0)
     ? new Decimal(minOrder).div(perPiece).ceil().toNumber()
@@ -255,9 +268,18 @@ function TradeContent({
     0,
   );
 
-  // 최대 수량 — 매수는 매수가능/현재가, 매도는 보유수량. 온주는 내림, 소수점은 4자리 내림.
-  const maxBuyQty = price.gt(0)
-    ? new Decimal(buyingPower).div(price)
+  // 소수점 QUANTITY 매수 hold = qty × bestAsk × (1 + buffer). 백엔드와 동일 버퍼 적용해 한도 역산.
+  // 국내 1%, 해외 2% — FractionalOrderService.BUFFER_DOMESTIC/OVERSEAS와 일치.
+  const fracBuyBuffer = isUSD ? 0.02 : 0.01;
+  // 계산용 유효 호가 — bestAsk 없으면 표시가(currentPrice) 사용
+  const calcPrice = bestAsk.gt(0) ? bestAsk : price;
+
+  // 최대 수량 — 매수는 매수가능/bestAsk, 매도는 보유수량. 온주는 내림, 소수점은 4자리 내림.
+  // bestAsk 기준: 백엔드 hold = qty × bestAsk × (1+buffer) 와 동일 소스 → INSUFFICIENT_BALANCE 방지.
+  const maxBuyQty = calcPrice.gt(0)
+    ? tab === "WHOLE"
+      ? new Decimal(buyingPower).div(calcPrice)
+      : new Decimal(buyingPower).div(calcPrice.times(1 + fracBuyBuffer))
     : new Decimal(0);
   const maxQtyBase = side === "BUY" ? maxBuyQty : holdingQty;
   const maxQtyValue =
@@ -301,9 +323,9 @@ function TradeContent({
     resetKeys();
   };
 
-  // 소수점/온주 예상 주문금액 (수량·금액 기반)
+  // 소수점/온주 예상 주문금액 — bestAsk 기준(hold 소스와 일치). AMOUNT 모드는 그대로.
   const orderAmount =
-    inputMode === "AMOUNT" ? new Decimal(amount) : new Decimal(qty).times(price);
+    inputMode === "AMOUNT" ? new Decimal(amount) : new Decimal(qty).times(calcPrice);
 
   const pending =
     buyOrder.isPending || sellOrder.isPending || wholeOrder.isPending;
@@ -314,6 +336,31 @@ function TradeContent({
     tab === "PIECES"
       ? piecesAmount.toDecimalPlaces(amountDp).toNumber()
       : orderAmount.toDecimalPlaces(amountDp).toNumber();
+
+  // 한도 초과 — 버튼 비활성 + 경고 텍스트 즉시 표시. 백엔드 검증과 별도 피드백.
+  const isOverLimit = (() => {
+    if (!stickyValid) return false;
+    if (side === "BUY") {
+      if (tab === "PIECES") return piecesAmount.times(1 + fracBuyBuffer).gt(buyingPower);
+      // AMOUNT 모드: hold = 금액 그대로(버퍼 없음). QUANTITY/WHOLE: bestAsk × (1+buffer) or bestAsk.
+      const need =
+        inputMode === "AMOUNT"
+          ? new Decimal(amount)
+          : tab === "WHOLE"
+            ? new Decimal(qty).times(calcPrice)
+            : new Decimal(qty).times(calcPrice).times(1 + fracBuyBuffer);
+      return need.gt(buyingPower);
+    }
+    // SELL — PIECES는 퍼즐 UI가 heldPieces 초과 선택 불가하므로 체크 불필요
+    if (tab === "PIECES") return false;
+    const sellQty =
+      inputMode === "AMOUNT" && calcPrice.gt(0)
+        ? new Decimal(amount).div(calcPrice)
+        : new Decimal(qty);
+    return sellQty.gt(holdingQty);
+  })();
+  const overLimitMsg =
+    side === "BUY" ? "매수 가능 금액을 초과했어요" : "보유 수량을 초과했어요";
 
   // 조각 탭: 아직 아무것도 안 골랐으면 버튼이 곧 안내 문구(비활성). 탭/드래그하면 구매/판매로.
   const piecesHint = tab === "PIECES" && selPieces === 0;
@@ -350,6 +397,7 @@ function TradeContent({
     },
     // 실패 시 키 유지 → 같은 주문 재시도 시 동일 키(멱등)
     onError: (err: unknown) => {
+      submitting.current = false;
       // 거래 인증 미완료: 계좌 비밀번호 시트를 띄우고, 인증되면 동일 키로 재시도
       if (err instanceof ApiError && err.code === "TXN_AUTH_REQUIRED") {
         setAuthSide(side);
@@ -413,7 +461,8 @@ function TradeContent({
 
   // 조각 주문 실행 — 소수 주수(조각/100)로 QUANTITY 주문(소수분 차수대기).
   const submitPieces = (s: Side) => {
-    if (pending || !pieceSel || pieceSel.indexes.length <= 0) return;
+    if (pending || submitting.current || !pieceSel || pieceSel.indexes.length <= 0) return;
+    submitting.current = true;
     const quantity = new Decimal(pieceSel.indexes.length)
       .div(PIECES_PER_SHARE)
       .toNumber();
@@ -424,6 +473,7 @@ function TradeContent({
     const opts = {
       ...makeOpts(s),
       onSuccess: (data: SplitOrderResponse) => {
+        submitting.current = false;
         // 소수분 접수됨 → 퍼즐에 즉시 손맛 애니메이션(실제 체결 전까지 pending). 동시 다건 누적.
         const fid = data.fractionalOrderId;
         if (fid !== null) {
@@ -456,7 +506,8 @@ function TradeContent({
 
   // 소수점/온주 숫자 주문 실행
   const submit = (side: Side) => {
-    if (pending || !numericValid) return;
+    if (pending || submitting.current || !numericValid) return;
+    submitting.current = true;
     const clientOrderId = orderKeys.current[side] ?? genClientOrderId();
     orderKeys.current[side] = clientOrderId;
     const opts = makeOpts(side);
@@ -468,6 +519,7 @@ function TradeContent({
         {
           ...opts,
           onSuccess: (data: WholeOrderResponse) => {
+            submitting.current = false;
             resetAfterSuccess(side);
             const t = wholeOrderToast(data, fmtAmount);
             toast.success(
@@ -491,9 +543,9 @@ function TradeContent({
           `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${fmtAmount(minOrder)}으로 맞췄어요`,
         );
       }
-    } else if (price.gt(0) && new Decimal(qty).times(price).lt(minOrder)) {
+    } else if (calcPrice.gt(0) && new Decimal(qty).times(calcPrice).lt(minOrder)) {
       correctedQty = new Decimal(minOrder)
-        .div(price)
+        .div(calcPrice)
         .toDecimalPlaces(4, Decimal.ROUND_UP)
         .toNumber();
       setQty(correctedQty);
@@ -501,24 +553,28 @@ function TradeContent({
         `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${formatShares(new Decimal(correctedQty))}주로 조정했어요`,
       );
     }
-    // 보정 후 실제 주문 가능 범위 검증 — 매수 가능 금액 / 매도 가능 수량 초과 시 차단(초과 주문 방지).
+    // 보정 후 실제 주문 가능 범위 검증 — 매수 가능 금액 / 매도 가능 수량 초과 시 차단.
+    // bestAsk 기준: 백엔드 hold 계산과 동일 소스 → INSUFFICIENT_BALANCE 방지.
     if (side === "BUY") {
+      // AMOUNT 모드: hold = 금액 그대로. QUANTITY: hold = qty × bestAsk × (1+buffer).
       const need =
         inputMode === "AMOUNT"
           ? new Decimal(correctedAmount)
-          : new Decimal(correctedQty).times(price);
+          : new Decimal(correctedQty).times(calcPrice).times(1 + fracBuyBuffer);
       if (need.gt(buyingPower)) {
+        submitting.current = false;
         toast.error("매수 가능 금액을 초과했어요.");
         return;
       }
     } else {
       const sellQty =
         inputMode === "AMOUNT"
-          ? price.gt(0)
-            ? new Decimal(correctedAmount).div(price)
+          ? calcPrice.gt(0)
+            ? new Decimal(correctedAmount).div(calcPrice)
             : new Decimal(0)
           : new Decimal(correctedQty);
       if (sellQty.gt(holdingQty)) {
+        submitting.current = false;
         toast.error("보유 수량을 초과했어요.");
         return;
       }
@@ -531,6 +587,7 @@ function TradeContent({
     const fracOpts = {
       ...opts,
       onSuccess: (data: SplitOrderResponse) => {
+        submitting.current = false;
         resetAfterSuccess(side);
         const t = splitOrderToast(side, data);
         toast.success(
@@ -785,24 +842,41 @@ function TradeContent({
             ) : (
               <>
                 <Stepper
-                  value={amount}
-                  onChange={onAmountChange}
-                  step={1000}
+                  value={
+                    showKrw && fx
+                      ? toDecimal(amount).times(fx).toDecimalPlaces(0).toNumber()
+                      : amount
+                  }
+                  onChange={(v) => {
+                    const native =
+                      showKrw && fx
+                        ? toDecimal(v).div(fx).toDecimalPlaces(amountDp).toNumber()
+                        : v;
+                    onAmountChange(native);
+                  }}
+                  step={!isUSD || showKrw ? 1000 : 1}
                   min={0}
-                  precision={0}
-                  suffix="원"
+                  precision={showKrw ? 0 : amountDp}
+                  suffix={isUSD && !showKrw ? "달러" : "원"}
                   placeholder={amountPlaceholder}
                   editable
                 />
                 <div className="flex gap-2">
-                  {AMOUNT_CHIPS.map((n) => (
+                  {(showKrw || !isUSD ? AMOUNT_CHIPS_KRW : AMOUNT_CHIPS_USD).map((n) => (
                     <button
                       key={n}
                       type="button"
-                      onClick={() => onAmountChange(new Decimal(amount).plus(n).toNumber())}
+                      onClick={() => {
+                        if (showKrw && fx) {
+                          const newKrw = toDecimal(amount).times(fx).plus(n).toDecimalPlaces(0).toNumber();
+                          onAmountChange(toDecimal(newKrw).div(fx).toDecimalPlaces(amountDp).toNumber());
+                        } else {
+                          onAmountChange(new Decimal(amount).plus(n).toDecimalPlaces(amountDp).toNumber());
+                        }
+                      }}
                       className="flex-1 rounded-lg border border-border bg-background py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
                     >
-                      +{n.toLocaleString("ko-KR")}원
+                      +{!isUSD || showKrw ? `${n.toLocaleString("ko-KR")}원` : `$${n}`}
                     </button>
                   ))}
                   {/* 최대 = 매수 가능 최대금액으로 설정(누적 아님). 통화 자릿수로 정리(KRW 0·USD 2)해 백엔드 금액과 일치 */}
@@ -879,7 +953,7 @@ function TradeContent({
                 }
                 className="overflow-hidden"
               >
-                <div className="flex items-center justify-between pb-2.5 text-sm">
+                <div className="flex items-center justify-between pb-1.5 text-sm">
                   <span className="text-muted-foreground">예상 주문금액</span>
                   <span
                     key={stickyAmount}
@@ -888,15 +962,37 @@ function TradeContent({
                     {fmtView(stickyAmount)}
                   </span>
                 </div>
+                {/* 소수점·조각 매수: 실제 예약 차감액(bestAsk × qty × 1+buffer). AMOUNT·매도·온주는 미표시. */}
+                {side === "BUY" && tab !== "WHOLE" && inputMode !== "AMOUNT" && (() => {
+                  const holdQty = tab === "PIECES"
+                    ? new Decimal(selPieces).div(PIECES_PER_SHARE)
+                    : new Decimal(qty);
+                  const holdAmt = holdQty.times(calcPrice).times(1 + fracBuyBuffer);
+                  if (holdAmt.lte(0)) return null;
+                  return (
+                    <div className="flex items-center justify-between pb-1.5 text-xs">
+                      <span className="text-muted-foreground">예약 차감</span>
+                      <span className="font-numeric text-muted-foreground">
+                        약 {fmtView(holdAmt.toDecimalPlaces(amountDp).toNumber())}
+                      </span>
+                    </div>
+                  );
+                })()}
               </motion.div>
             )}
           </AnimatePresence>
+          {stickyValid && isOverLimit && (
+            <p className="pb-2 text-center text-xs font-medium text-destructive">
+              {overLimitMsg}
+            </p>
+          )}
           <Button
             onClick={() => submitForTab(side)}
-            disabled={pending || !stickyValid}
+            disabled={pending || !stickyValid || isOverLimit}
             className={cn(
               "mb-3 h-12 w-full text-base font-bold text-white",
               side === "BUY" ? "bg-up hover:bg-up/90" : "bg-down hover:bg-down/90",
+              isOverLimit && "opacity-40",
             )}
           >
             {ctaLabel}

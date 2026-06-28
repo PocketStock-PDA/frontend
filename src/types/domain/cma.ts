@@ -32,6 +32,8 @@ export interface CollectSource {
 }
 
 export interface CmaHome {
+  /** CMA 계좌번호 (복호화된 평문, 예: 1234567890-90) */
+  cmaAccountNo: string;
   /** 통화별 CMA 잔액 (예: { KRW, USD }) */
   cmaBalance: Record<Currency, number>;
   /** 연이율 (0.035 = 3.5%) */

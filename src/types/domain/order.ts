@@ -100,4 +100,8 @@ export interface OrderHistoryItem {
   createdAt: string;
   /** 체결금액 — 소수점 체결분은 백엔드 배분합(allocations), 온주·미체결은 null. 내역 금액은 이 값(라이브가 추정 금지) */
   filledAmount: number | null;
+  /** 매도 체결 시점 평단(판매수익 계산용). 매도 FILLED만 non-null. 국내=KRW, 해외=USD. */
+  avgBuyPriceAtSell: number | null;
+  /** 해외 매도 체결 시점 USD/KRW 환율. 국내·매수·환율 취득 실패 시 null. */
+  fxRateAtFill: number | null;
 }

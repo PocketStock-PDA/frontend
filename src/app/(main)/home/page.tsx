@@ -264,6 +264,7 @@ export default function HomePage() {
       <div className="space-y-4">
         {/* TODO: usdToKrwRate는 환율 API 연동 시 전달(펼침 시 'N원 기준' 표기) */}
         <CmaBalanceCard
+          accountNo={data.cmaAccountNo}
           krwBalance={data.cmaBalance.KRW}
           usdBalance={data.cmaBalance.USD}
           interestRate={data.interestRate}

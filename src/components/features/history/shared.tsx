@@ -34,6 +34,20 @@ function dateHeader(iso: string) {
   return !isNaN(d.getTime()) && isSameDay(d, new Date()) ? `오늘 · ${key}` : key;
 }
 
+/** 연도 없는 짧은 날짜 헤더 — "오늘 · 06.28" / "06.27" */
+export function shortDateHeader(iso: string) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso.slice(5, 10);
+  const mmdd = `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+  return isSameDay(d, new Date()) ? `오늘 · ${mmdd}` : mmdd;
+}
+
+/** 주어진 ISO가 특정 연월에 속하는지 */
+export function isInMonth(iso: string, year: number, month: number) {
+  const d = new Date(iso);
+  return d.getFullYear() === year && d.getMonth() + 1 === month;
+}
+
 /** 최신순 입력 순서를 보존하며 날짜별 그룹핑 */
 export function groupByDate<T>(items: T[], getIso: (t: T) => string) {
   const map = new Map<string, { header: string; rows: T[] }>();
