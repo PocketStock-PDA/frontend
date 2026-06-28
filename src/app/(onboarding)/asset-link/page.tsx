@@ -10,6 +10,7 @@ import {
   LineChart,
   Lock,
   Plus,
+  Star,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -387,17 +388,31 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const grouped = useMemo(() => {
+  // 신한 계열사(신한은행·증권·카드·포인트 등)는 카테고리와 무관하게 최상단에 따로 모아 노출하고,
+  // 나머지 기관만 기존처럼 카테고리(은행/증권/카드/포인트)별로 그룹핑한다(신한 계열사는 중복 제외).
+  // 식별 필드가 별도로 없어 companyName 기준으로 판별한다.
+  const { shinhan, grouped } = useMemo(() => {
+    const shinhanList: Institution[] = [];
     const map = new Map<InstitutionCategory, Institution[]>();
     for (const inst of data ?? []) {
+      if (inst.companyName.includes("신한")) {
+        shinhanList.push(inst);
+        continue;
+      }
       const list = map.get(inst.category) ?? [];
       list.push(inst);
       map.set(inst.category, list);
     }
-    return CATEGORY_ORDER.filter((c) => map.has(c)).map((c) => ({
+    // 신한 계열사도 카테고리 순서(은행→증권→카드→포인트)대로 정렬해 표시
+    shinhanList.sort(
+      (a, b) =>
+        CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category),
+    );
+    const grouped = CATEGORY_ORDER.filter((c) => map.has(c)).map((c) => ({
       category: c,
       items: map.get(c) as Institution[],
     }));
+    return { shinhan: shinhanList, grouped };
   }, [data]);
 
   // 현재 연동 현황·카테고리 매핑 — 해제는 카테고리별 경로가 필요.
@@ -529,6 +544,25 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
       </button>
 
       <div className="mt-2 space-y-6">
+        {shinhan.length > 0 && (
+          <section>
+            <p className="flex items-center gap-1.5 px-1 pb-2 text-[13px] font-bold text-primary">
+              <Star className="size-4 fill-primary" />
+              신한 계열사
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {shinhan.map((inst) => (
+                <InstitutionTile
+                  key={inst.companyCode}
+                  inst={inst}
+                  on={selected.has(inst.companyCode)}
+                  onToggle={() => toggle(inst.companyCode)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         {grouped.map(({ category, items }) => {
           const CatIcon = CATEGORY_ICON[category];
           return (
