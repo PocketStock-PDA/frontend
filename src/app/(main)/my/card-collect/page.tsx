@@ -133,7 +133,7 @@ export default function CardCollectSettingPage() {
           )}
         </div>
 
-        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom)+0.75rem)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 px-5">
+        <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 px-5">
           <Button
             onClick={handleSave}
             disabled={isError || isLoading || saveSettings.isPending}

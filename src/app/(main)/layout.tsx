@@ -13,7 +13,7 @@ export default function MainLayout({
     <RequireAuth>
       <div className="flex min-h-screen flex-col">
         {/* 모바일 폭 + 좌우 공통 여백을 모든 (main) 페이지에 일괄 적용 */}
-        <main className="flex-1 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+        <main className="flex-1 pb-[var(--bottom-nav-offset)]">
           <PageContainer>{children}</PageContainer>
         </main>
         <BottomTabBar />
