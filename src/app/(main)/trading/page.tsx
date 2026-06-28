@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { SearchInput } from "@/components/common/SearchInput";
@@ -41,8 +41,25 @@ const SORT_TABS: { label: string; value: RankingSort }[] = [
 /** T1. 종목 탐색 — 검색창 + 실시간 순위. 입력 시 연관 결과를 검색창 아래 드롭다운으로. */
 export default function TradingExplorePage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
+
+  const marketParam = searchParams.get("market");
+  const [market, setMarket] = useState<StockMarket>(
+    marketParam === "overseas" ? "overseas" : "domestic",
+  );
+
   const goStock = (code: string) => router.push(tradingDetailPath(code));
+  const goCollect = (code: string) => router.push(tradingAutoDetailPath(code));
+  const handleMarketChange = (v: StockMarket) => {
+    setMarket(v);
+    const p = new URLSearchParams(searchParams.toString());
+    if (v === "domestic") p.delete("market");
+    else p.set("market", v);
+    const qs = p.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
 
   return (
     <>
@@ -55,11 +72,11 @@ export default function TradingExplorePage() {
             placeholder="종목명 또는 코드 검색"
           />
           {query.trim().length > 0 && (
-            <SearchDropdown query={query} onPick={goStock} />
+            <SearchDropdown query={query} onPick={goStock} onCollect={goCollect} />
           )}
         </div>
 
-        <Rankings onPick={goStock} />
+        <Rankings market={market} onMarketChange={handleMarketChange} onPick={goStock} />
       </div>
     </>
   );
@@ -69,9 +86,11 @@ export default function TradingExplorePage() {
 function SearchDropdown({
   query,
   onPick,
+  onCollect,
 }: {
   query: string;
   onPick: (code: string) => void;
+  onCollect: (code: string) => void;
 }) {
   const { data, isLoading } = useStockSearch(query);
   // 백엔드가 드물게 data:null을 주면 api 클라가 {}를 반환 → 배열 가드로 크래시 방지
@@ -91,7 +110,11 @@ function SearchDropdown({
         <ul>
           {stocks.map((s) => (
             <li key={s.stockCode}>
-              <SearchRow item={s} onClick={() => onPick(s.stockCode)} />
+              <SearchRow
+                item={s}
+                onClick={() => onPick(s.stockCode)}
+                onCollect={() => onCollect(s.stockCode)}
+              />
             </li>
           ))}
         </ul>
@@ -103,36 +126,54 @@ function SearchDropdown({
 function SearchRow({
   item,
   onClick,
+  onCollect,
 }: {
   item: StockSearchItem;
   onClick: () => void;
+  onCollect: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted"
-    >
-      <Avatar className="size-8">
-        {item.logoUrl && <AvatarImage src={item.logoUrl} alt={item.stockName} />}
-        <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-foreground">
-          {item.stockName}
-        </p>
-        <p className="truncate text-xs text-muted-foreground">
-          {item.exchange} · {item.stockCode}
-        </p>
-      </div>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-    </button>
+    <div className="flex w-full items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <Avatar className="size-8">
+          {item.logoUrl && <AvatarImage src={item.logoUrl} alt={item.stockName} />}
+          <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold text-foreground">
+            {item.stockName}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {item.exchange} · {item.stockCode}
+          </p>
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={onCollect}
+        aria-label={`${item.stockName} 모으기 설정`}
+        className="shrink-0 rounded-full bg-brand-surface px-3.5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-brand-surface/70"
+      >
+        모으기
+      </button>
+    </div>
   );
 }
 
 // ── 실시간 순위 (국내/해외 × 거래대금/시총) ───────────────────────────
-function Rankings({ onPick }: { onPick: (code: string) => void }) {
-  const [market, setMarket] = useState<StockMarket>("domestic");
+function Rankings({
+  market,
+  onMarketChange,
+  onPick,
+}: {
+  market: StockMarket;
+  onMarketChange: (v: StockMarket) => void;
+  onPick: (code: string) => void;
+}) {
   const [sort, setSort] = useState<RankingSort>("tradevalue");
   // 해외 순위 한정: 달러 ↔ 원화 표시 토글
   const [ovsKrw, setOvsKrw] = useState(false);
@@ -157,15 +198,15 @@ function Rankings({ onPick }: { onPick: (code: string) => void }) {
         : formatKRW(price);
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-4">
       <SegmentedControl
         options={MARKET_TABS}
         value={market}
-        onChange={setMarket}
+        onChange={onMarketChange}
       />
 
-      <div className="rounded-2xl border border-border p-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="rounded-2xl border border-border px-4 pt-4 pb-1">
+        <div className="mb-2 flex items-center justify-between gap-2">
           <h2 className="text-base font-bold text-foreground">실시간 순위</h2>
           {/* 해외 순위 + 환율 보유 시: 달러 ↔ 원화 토글 (맨 오른쪽) */}
           {market === "overseas" && fx !== null && (
@@ -174,7 +215,7 @@ function Rankings({ onPick }: { onPick: (code: string) => void }) {
         </div>
 
         {/* 정렬: 거래대금 / 시가총액 */}
-        <div className="mb-1 flex gap-2">
+        <div className="mb-3 flex gap-2">
           {SORT_TABS.map((t) => (
             <button
               key={t.value}
@@ -273,7 +314,7 @@ function RankingRow({
             {item.stockName}
           </p>
           <div className="flex items-center gap-1.5">
-            <span className="font-numeric text-xs font-medium text-foreground">
+            <span className="font-numeric tabular-nums text-xs font-medium text-foreground">
               {priceText}
             </span>
             <ChangeIndicator value={changeRate} percent size="sm" />

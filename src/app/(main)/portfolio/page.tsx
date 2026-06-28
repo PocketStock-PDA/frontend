@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,9 +31,22 @@ import {
 } from "@/lib/navigation/routes";
 import type { AutoInvestStock } from "@/types/domain/autoInvest";
 import { toPieceParts } from "@/lib/utils/pieces";
+import { toDecimal } from "@/lib/utils/decimal";
 import { queryKeys } from "@/lib/utils/queryKeys";
+import Decimal from "decimal.js";
 
 type Lens = "all" | "auto" | "pieces";
+
+/**
+ * 해외 원화토글의 환산 KRW 수익률(%) — 백엔드 segment.profitRate는 USD 기준(환차 제외)이라
+ * 원화 보기엔 환산 KRW 손익/원금으로 직접 계산한다(백엔드 KRW 환산수익률 필드 없음).
+ * 백엔드 rate() 규약과 동일하게 원금≤0이면 0, 소수 2자리 HALF_UP.
+ */
+function krwRate(profitKrw?: number | null, investedKrw?: number | null): number {
+  const inv = toDecimal(investedKrw);
+  if (inv.lte(0)) return 0;
+  return toDecimal(profitKrw).div(inv).times(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+}
 
 const LENS_OPTIONS: { label: string; value: Lens }[] = [
   { label: "전체", value: "all" },
@@ -51,16 +64,29 @@ const SCOPE_OPTIONS: { label: string; value: Scope }[] = [
 
 export default function PortfolioPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  // 바로가기 등에서 ?lens=pieces 로 진입 시 해당 렌즈로 시작 (scope 는 전체 유지)
+
   const lensParam = searchParams.get("lens");
+  const scopeParam = searchParams.get("scope");
   const initialLens: Lens =
     lensParam === "auto" || lensParam === "pieces" ? lensParam : "all";
+  const initialScope: Scope =
+    scopeParam === "domestic" || scopeParam === "overseas" ? scopeParam : "all";
   const [lens, setLens] = useState<Lens>(initialLens);
-  // 사용자가 렌즈를 직접 고르기 전까지만 자동 기본값 적용 (딥링크 진입이면 고른 것으로 간주)
-  const [lensPicked, setLensPicked] = useState(initialLens !== "all");
-  const [scope, setScope] = useState<Scope>("all");
+  const [lensPicked, setLensPicked] = useState(lensParam !== null);
+  const [scope, setScope] = useState<Scope>(initialScope);
+
+  const syncParams = (nextLens: Lens, nextScope: Scope) => {
+    const p = new URLSearchParams(searchParams.toString());
+    if (nextLens !== "all") p.set("lens", nextLens);
+    else p.delete("lens");
+    if (nextScope !== "all") p.set("scope", nextScope);
+    else p.delete("scope");
+    const qs = p.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
   // 해외 평가금액을 원화로 환산해 볼지 (false=달러 $, true=원화 ₩)
   const [ovsKrw, setOvsKrw] = useState(false);
   const summaryQ = usePortfolioSummary();
@@ -162,33 +188,33 @@ export default function PortfolioPage() {
 
   // 표시할 평가/원금/손익/통화 — scope + 해외 원화토글(ovsKrw) 반영.
   let displayEval = 0;
-  let displayInvested = 0;
   let displayProfit = 0;
   let displayCurrency: "KRW" | "USD" = "KRW";
+  // 수익률(%)도 백엔드 segment.profitRate 단일소스. 예외: 해외 원화토글은 백엔드에 KRW
+  // 기준 환산수익률 필드가 없어(overseas.profitRate=USD 기준·환차 제외) 환산 KRW 손익/원금으로 계산.
+  let displayRate = 0;
   let scopeLabel = "총 평가금액";
   if (scope === "domestic") {
     const d = summary?.domestic;
     displayEval = d?.evalKrw ?? 0;
-    displayInvested = d?.investedKrw ?? 0;
     displayProfit = d?.profitKrw ?? 0;
+    displayRate = d?.profitRate ?? 0;
     scopeLabel = "국내 평가금액";
   } else if (scope === "overseas") {
     const o = summary?.overseas;
     const showKrw = ovsKrw && fx !== null; // 토글 ON + 환율 보유 시 원화 환산
     displayEval = (showKrw ? o?.evalKrw : o?.evalUsd) ?? 0;
-    displayInvested = (showKrw ? o?.investedKrw : o?.investedUsd) ?? 0;
     displayProfit = (showKrw ? o?.profitKrw : o?.profitUsd) ?? 0;
+    displayRate = showKrw ? krwRate(o?.profitKrw, o?.investedKrw) : o?.profitRate ?? 0;
     displayCurrency = showKrw ? "KRW" : "USD";
     scopeLabel = "해외 평가금액";
   } else {
     const t = summary?.total;
     displayEval = t?.evalKrw ?? 0;
-    displayInvested = t?.investedKrw ?? 0;
     displayProfit = t?.profitKrw ?? 0;
+    displayRate = t?.profitRate ?? 0;
   }
-  // 수익률 = 손익 / 원금 (표시 통화 기준). 원금 0이면 0.
-  const scopeRate =
-    displayInvested !== 0 ? (displayProfit / displayInvested) * 100 : 0;
+  const scopeRate = displayRate;
 
   // scope로 아래 목록도 필터 — 국내(KRW)만 / 해외(USD)만 / 전체.
   const scopedRows =
@@ -205,7 +231,7 @@ export default function PortfolioPage() {
       ? {
           evalAmount: r.evalKrw,
           profit: r.profitKrw,
-          rate: r.investedKrw !== 0 ? (r.profitKrw / r.investedKrw) * 100 : 0,
+          rate: krwRate(r.profitKrw, r.investedKrw),
           currency: "KRW" as const,
         }
       : { evalAmount: r.evalAmount, profit: r.profit, rate: r.rate, currency: r.currency };
@@ -257,7 +283,10 @@ export default function PortfolioPage() {
             <SegmentedControl
               options={SCOPE_OPTIONS}
               value={scope}
-              onChange={setScope}
+              onChange={(v) => {
+                setScope(v);
+                syncParams(lens, v);
+              }}
               className="mb-4"
             />
             <div className="mb-1 flex items-baseline gap-1.5">
@@ -293,32 +322,30 @@ export default function PortfolioPage() {
           </div>
 
           {/* 동선 — 기능별 타일(아이콘 + 라벨) */}
-          {rows.length > 0 && (
-            <div className="grid grid-cols-4 gap-2 border-t border-primary/10 p-4">
-              <ActionTile
-                icon={<StockIcon className="size-8" />}
-                label="주식 투자"
-                onClick={() =>
-                  router.push(topCode ? tradingDetailPath(topCode) : "/trading")
-                }
-              />
-              <ActionTile
-                icon={<CollectIcon className="size-8" />}
-                label="주식 모으기"
-                onClick={() => router.push("/trading")}
-              />
-              <ActionTile
-                icon={<CalendarIcon className="size-8" />}
-                label="증권 캘린더"
-                onClick={() => router.push("/budget?tab=stock")}
-              />
-              <ActionTile
-                icon={<OrdersIcon className="size-8" />}
-                label="주문내역"
-                onClick={() => router.push("/history")}
-              />
-            </div>
-          )}
+          <div className="grid grid-cols-4 gap-2 border-t border-primary/10 p-4">
+            <ActionTile
+              icon={<StockIcon className="size-8" />}
+              label="주식 투자"
+              onClick={() =>
+                router.push(topCode ? tradingDetailPath(topCode) : "/trading")
+              }
+            />
+            <ActionTile
+              icon={<CollectIcon className="size-8" />}
+              label="주식 모으기"
+              onClick={() => router.push("/trading")}
+            />
+            <ActionTile
+              icon={<CalendarIcon className="size-8" />}
+              label="증권 캘린더"
+              onClick={() => router.push("/budget?tab=stock")}
+            />
+            <ActionTile
+              icon={<OrdersIcon className="size-8" />}
+              label="주문내역"
+              onClick={() => router.push("/history")}
+            />
+          </div>
         </section>
 
         {/* 보유 — 렌즈 칩 + 렌즈별 리스트. 보유·모으기 둘 다 없을 때만 빈 화면 */}
@@ -340,6 +367,7 @@ export default function PortfolioPage() {
               onChange={(v) => {
                 setLensPicked(true);
                 setLens(v);
+                syncParams(v, scope);
               }}
             />
 

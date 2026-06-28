@@ -8,6 +8,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Decimal from "decimal.js";
 import { FinanceCalendar } from "@/components/common/FinanceCalendar";
+import { parseUTC } from "@/lib/utils/date";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
@@ -16,6 +17,7 @@ import {
 } from "@/components/features/budget/CalendarFilterBar";
 import { useStockCalendar } from "@/hooks/queries/useStockCalendar";
 import { useHoldings } from "@/hooks/queries/useHoldings";
+import { usePortfolioSummary } from "@/hooks/queries/usePortfolioSummary";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useOrders } from "@/hooks/queries/useOrders";
 import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
@@ -196,29 +198,21 @@ export function StockCalendarTab() {
   const holdingsQ = useHoldings();
   const holdings = holdingsQ.data ?? [];
   const codes = holdings.map((h) => h.stockCode);
-  const details = useStockDetails(codes);
+  const details = useStockDetails(codes); // 캘린더 셀 종목명 표시용(가격 합산엔 더 이상 사용 안 함)
+  const summaryQ = usePortfolioSummary();
   // 캘린더 이벤트 종목명 조회용 (보유에 없는 코드만 추가 조회) — 셀에 코드 대신 이름 표시
   const eventCodes = [...new Set(events.map((e) => e.stockCode))].filter(
     (c) => !codes.includes(c),
   );
   const eventDetails = useStockDetails(eventCodes);
-  const detailsLoading = codes.length > 0 && details.some((d) => d.isLoading);
-  const returnLoading = holdingsQ.isLoading || detailsLoading;
-
-  const totals = holdings.reduce(
-    (acc, h, i) => {
-      const qty = toDecimal(h.quantity);
-      const price = toDecimal(details[i]?.data?.price?.currentPrice);
-      acc.eval = acc.eval.plus(qty.times(price));
-      acc.invested = acc.invested.plus(qty.times(toDecimal(h.avgBuyPrice)));
-      return acc;
-    },
-    { eval: new Decimal(0), invested: new Decimal(0) },
-  );
-  const totalProfit = totals.eval.minus(totals.invested);
-  const totalRate = totals.invested.gt(0)
-    ? totalProfit.div(totals.invested).times(100)
-    : new Decimal(0);
+  // 보유주식 총 수익률·평가손익은 백엔드 summary 단일소스(total = 환산 KRW, HALF_UP).
+  // 직접 holdings×현재가로 합산하면 ① 홈과 반올림이 어긋나고(999 vs 1,000) ② 해외(USD)를
+  // 원화로 환산하지 않아 통화가 섞인다. 집계는 PortfolioSummaryService가 단독 책임.
+  const summaryTotal = summaryQ.data?.total;
+  const hasSummaryTotal = summaryTotal?.profitKrw != null && summaryTotal?.profitRate != null;
+  const returnLoading = summaryQ.isLoading;
+  const totalProfit = hasSummaryTotal ? toDecimal(summaryTotal.profitKrw) : null;
+  const totalRate = hasSummaryTotal ? toDecimal(summaryTotal.profitRate) : null;
   const hasHoldings = holdings.length > 0;
 
   // ── 이번 달 거래(매수/매도) — 주문내역(useOrders)에서 ──
@@ -227,7 +221,7 @@ export function StockCalendarTab() {
     .filter((o) => {
       // 체결된 거래만(REJECTED·PENDING·QUEUED 제외). AMOUNT 주문은 quantity=null이라 수량 필터 금지
       if (o.status !== "FILLED") return false;
-      const d = new Date(o.createdAt);
+      const d = parseUTC(o.createdAt);
       return (
         d.getFullYear() === calendarMonth.getFullYear() &&
         d.getMonth() === calendarMonth.getMonth()
@@ -238,7 +232,7 @@ export function StockCalendarTab() {
   // 날짜별 매수/매도 유무 (달력 마커용)
   const tradeMap = new Map<string, { buy: boolean; sell: boolean }>();
   monthTrades.forEach((o) => {
-    const key = format(new Date(o.createdAt), "yyyy-MM-dd");
+    const key = format(parseUTC(o.createdAt), "yyyy-MM-dd");
     const cur = tradeMap.get(key) ?? { buy: false, sell: false };
     if (o.side === "SELL") cur.sell = true;
     else cur.buy = true;
@@ -277,7 +271,7 @@ export function StockCalendarTab() {
   // ── 선택한 날 항목(거래 + 모으기 + 일정) — 히어로 카드용 ──
   const selKey = format(selectedDate, "yyyy-MM-dd");
   const selTrades = monthTrades.filter((o) =>
-    isSameDay(new Date(o.createdAt), selectedDate),
+    isSameDay(parseUTC(o.createdAt), selectedDate),
   );
   const selGather = gatherMap.get(selKey) ?? [];
   const selEvents = eventMap.get(selKey) ?? [];
@@ -330,7 +324,7 @@ export function StockCalendarTab() {
               <span className="font-numeric text-xs text-muted-foreground">
                 계산 중...
               </span>
-            ) : hasHoldings ? (
+            ) : hasHoldings && hasSummaryTotal && totalRate !== null && totalProfit !== null ? (
               <div className="flex items-baseline gap-1.5">
                 <ChangeIndicator value={totalRate.toNumber()} percent size="sm" />
                 <span className="font-numeric text-[11px] text-muted-foreground">

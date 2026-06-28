@@ -3,18 +3,19 @@
 import type Decimal from "decimal.js";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
+import { parseUTC } from "@/lib/utils/date";
 
 // 거래내역(매매·CMA) 공용 helpers ─ /history 와 /cma 에서 함께 사용.
 
 export function fmtTime(iso: string) {
-  const d = new Date(iso);
+  const d = parseUTC(iso);
   return isNaN(d.getTime())
     ? ""
     : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 function dateKey(iso: string) {
-  const d = new Date(iso);
+  const d = parseUTC(iso);
   if (isNaN(d.getTime())) return iso.slice(0, 10);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -29,14 +30,14 @@ function isSameDay(a: Date, b: Date) {
 
 /** "오늘 · 2026.06.04" / "2026.06.03" */
 function dateHeader(iso: string) {
-  const d = new Date(iso);
+  const d = parseUTC(iso);
   const key = dateKey(iso);
   return !isNaN(d.getTime()) && isSameDay(d, new Date()) ? `오늘 · ${key}` : key;
 }
 
 /** 연도 없는 짧은 날짜 헤더 — "오늘 · 06.28" / "06.27" */
 export function shortDateHeader(iso: string) {
-  const d = new Date(iso);
+  const d = parseUTC(iso);
   if (isNaN(d.getTime())) return iso.slice(5, 10);
   const mmdd = `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
   return isSameDay(d, new Date()) ? `오늘 · ${mmdd}` : mmdd;
@@ -44,7 +45,7 @@ export function shortDateHeader(iso: string) {
 
 /** 주어진 ISO가 특정 연월에 속하는지 */
 export function isInMonth(iso: string, year: number, month: number) {
-  const d = new Date(iso);
+  const d = parseUTC(iso);
   return d.getFullYear() === year && d.getMonth() + 1 === month;
 }
 
