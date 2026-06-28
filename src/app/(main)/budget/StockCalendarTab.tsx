@@ -134,12 +134,27 @@ function buildGatherMap(
   return map;
 }
 
-/** 그 날 모으기 금액 합(금액형 종목만). 0이면 금액 미정(수량형). */
-function gatherAmount(stocks: AutoInvestStock[]): number {
-  return stocks.reduce(
-    (sum, s) => sum + (s.amountType === "AMOUNT" ? (s.buyAmount ?? 0) : 0),
-    0,
-  );
+/** 그 날 모으기 금액 — 통화별 합(금액형 종목만). 빈 배열이면 금액 미정(수량형).
+ *  통화 구분 없이 합산하면 USD 적립이 KRW로 둔갑하므로 currency로 묶어 Decimal 합산. */
+function gatherAmountByCurrency(
+  stocks: AutoInvestStock[],
+): { currency: string; amount: Decimal }[] {
+  const byCur = new Map<string, Decimal>();
+  for (const s of stocks) {
+    if (s.amountType !== "AMOUNT" || s.buyAmount === null) continue;
+    const cur = s.currency || "KRW";
+    byCur.set(cur, (byCur.get(cur) ?? new Decimal(0)).plus(s.buyAmount));
+  }
+  return [...byCur.entries()]
+    .filter(([, amt]) => amt.gt(0))
+    .map(([currency, amount]) => ({ currency, amount }));
+}
+
+/** 통화별 모으기 금액 포맷 — USD는 $·소수 2자리, 그 외(KRW)는 원·정수. */
+function formatGatherAmount(currency: string, amount: Decimal): string {
+  return currency === "USD"
+    ? `+${formatUSD(amount.toString())}`
+    : `+${formatKRW(amount.toString())}`;
 }
 /** 모으기 표시 이름: 1종목이면 종목명, 여러 개면 "자동적립 N종목" */
 function gatherName(stocks: AutoInvestStock[]): string {
@@ -617,7 +632,7 @@ function TimelineTradeRow({
 }
 
 function TimelineGatherRow({ stocks }: { stocks: AutoInvestStock[] }) {
-  const amount = gatherAmount(stocks);
+  const amounts = gatherAmountByCurrency(stocks);
   return (
     <div className="flex items-center gap-3.5 py-3.5">
       <div
@@ -636,7 +651,9 @@ function TimelineGatherRow({ stocks }: { stocks: AutoInvestStock[] }) {
         className="font-numeric shrink-0 text-sm font-bold"
         style={{ color: GATHER_INK }}
       >
-        {amount > 0 ? `+${formatKRW(amount)}` : `${stocks.length}종목`}
+        {amounts.length > 0
+          ? amounts.map((a) => formatGatherAmount(a.currency, a.amount)).join(" ")
+          : `${stocks.length}종목`}
       </span>
     </div>
   );
