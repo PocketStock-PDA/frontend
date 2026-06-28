@@ -87,7 +87,10 @@ export default function AssetPage() {
           {data.portfolio.length === 0 ? (
             <EmptyState title="등록된 자산이 없어요" />
           ) : (
-            <AssetPortfolioCard portfolio={data.portfolio} />
+            <AssetPortfolioCard
+              portfolio={data.portfolio}
+              pointSources={data.pointSources}
+            />
           )}
         </section>
 
