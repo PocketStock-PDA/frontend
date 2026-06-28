@@ -289,7 +289,8 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
         <div>
           {/* ── 월 네비(위) + 우측 미니 요약(아래) — 증권 캘린더 탭과 동일 배치 ── */}
           <div className="mb-3 mt-4">
-            <div className="mb-0.5 flex items-center gap-1">
+            {/* h-[42px] 고정: 증권 캘린더 탭 월 네비 행(수익률 두 줄 포함)과 동일 높이 → 달력 시작 y 정렬 */}
+            <div className="flex h-[42px] items-center gap-1">
               <button
                 type="button"
                 onClick={() => handleMonthChange(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}

@@ -134,10 +134,13 @@ export function FinanceCalendar({
                     key={d.toISOString()}
                     type="button"
                     onClick={() => onSelectDate?.(d)}
+                    // 그리드를 채우려 그린 다른 달(앞뒤) 날짜는 빈 칸 — 클릭/포커스 비활성화
+                    disabled={!inMonth}
+                    aria-hidden={!inMonth || undefined}
                     aria-label={format(d, "M월 d일")}
                     className={cn(
                       "aspect-square bg-background p-1",
-                      !inMonth && "opacity-40",
+                      !inMonth && "pointer-events-none opacity-40",
                     )}
                   >
                     {renderDay ? (
