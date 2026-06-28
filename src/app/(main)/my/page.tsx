@@ -233,7 +233,14 @@ export default function MyPage() {
             <Switch
               checked={cardChangeCollect}
               onCheckedChange={toggleCardChangeCollect}
-              disabled={updateSettings.isPending || saveCollect.isPending}
+              // 수집설정 로딩/에러 중에는 비활성화 — OFF 시 해제 대상(enabled CARD)을
+              // 알 수 없어 플래그만 꺼지고 카드 설정이 남는 desync를 막는다.
+              disabled={
+                updateSettings.isPending ||
+                saveCollect.isPending ||
+                collectSettingsQ.isLoading ||
+                collectSettingsQ.isError
+              }
             />
           </div>
         </div>
