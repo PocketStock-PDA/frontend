@@ -68,13 +68,14 @@ export default function MaturitySelectPage() {
 
         <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
           {accounts.map((acc) => (
-            <AccountRow
-              key={acc.accountId}
-              account={acc}
-              onSelect={() =>
-                router.push(`/recommendations/maturity?accountId=${acc.accountId}`)
-              }
-            />
+            <li key={acc.accountId}>
+              <AccountRow
+                account={acc}
+                onSelect={() =>
+                  router.push(`/recommendations/maturity?accountId=${acc.accountId}`)
+                }
+              />
+            </li>
           ))}
         </ul>
       </div>

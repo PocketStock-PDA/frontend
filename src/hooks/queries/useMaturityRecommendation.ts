@@ -11,7 +11,7 @@ export function useMaturityRecommendation(accountId?: number | null) {
     queryKey: queryKeys.asset.maturity(accountId),
     queryFn: () =>
       api.get<MaturityRecommendationResponse>(
-        accountId != null
+        typeof accountId === "number"
           ? `/api/recommendations/maturity?accountId=${accountId}`
           : "/api/recommendations/maturity",
       ),

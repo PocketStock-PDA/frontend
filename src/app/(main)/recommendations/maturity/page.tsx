@@ -10,6 +10,7 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
 import { useMaturityReservations } from "@/hooks/queries/useMaturityReservations";
 import { formatKRW } from "@/lib/utils/currency";
+import { parseAccountId } from "@/lib/utils/params";
 import { cn } from "@/lib/utils";
 import type { DividendStockItem } from "@/types/domain/asset";
 
@@ -19,9 +20,8 @@ const MIN_AMOUNT = 1_000;
 export default function MaturityPage() {
   const router = useRouter();
   const params = useSearchParams();
-  // 선택 화면에서 고른 예적금. 없으면 서버가 가장 가까운 만기를 자동 선택.
-  const accountIdParam = params.get("accountId");
-  const accountId = accountIdParam ? Number(accountIdParam) : null;
+  // 선택 화면에서 고른 예적금(유효한 양의 정수만). 없으면 서버가 가장 가까운 만기를 자동 선택.
+  const accountId = parseAccountId(params.get("accountId"));
   const { data, isLoading, isError } = useMaturityRecommendation(accountId);
   const { data: reservations = [] } = useMaturityReservations();
   const [depositRatio, setDepositRatio] = useState(75);
@@ -431,7 +431,7 @@ function DividendStockCard({
       </div>
 
       {/* 실제 배당 일정 — KIS 예탁원 배당일정(주당배당금·지급일) 있을 때만 */}
-      {stock.perShareDividend != null && (
+      {stock.perShareDividend !== null && (
         <p className="mt-2 text-[11px] text-muted-foreground">
           1주당{" "}
           <span className="font-numeric font-semibold tabular-nums text-foreground">
