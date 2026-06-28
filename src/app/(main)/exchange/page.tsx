@@ -571,7 +571,9 @@ export default function ExchangePage() {
       />
 
       {view === "main" &&
-        (cmaLoading || rateLoading ? (
+        // CMA 종단 상태(미보유·에러)는 환율 로딩과 무관하게 먼저 분기 — 404인데
+        // 환율 로딩 때문에 계좌개설 CTA가 가려지면 안 된다.
+        (cmaLoading ? (
           <div className="h-44 animate-pulse rounded-3xl bg-muted" />
         ) : noCma ? (
           // 홈의 무보유 안내(home/page.tsx)와 동일한 "계좌 필요" 게이트 톤.
@@ -602,6 +604,8 @@ export default function ExchangePage() {
             }
             className="mt-8"
           />
+        ) : rateLoading ? (
+          <div className="h-44 animate-pulse rounded-3xl bg-muted" />
         ) : !rate ? (
           // 환율을 못 불러오면 0.00원으로 거짓 표시·빈 입력 화면이 되므로 진입 자체를 막는다.
           <EmptyState
