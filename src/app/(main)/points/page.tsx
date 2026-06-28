@@ -132,7 +132,7 @@ function EventRow({ item }: { item: EventItem }) {
 }
 
 export default function PointsPage() {
-  const { data } = useCmaHome();
+  const { data, isLoading, isError } = useCmaHome();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
 
@@ -147,6 +147,16 @@ export default function PointsPage() {
     .reduce((sum, s) => sum + s.amount, 0);
   const totalPoint = myShinhanTotal + partnerPointTotal;
 
+  // 조회 중/실패를 실제 0P와 구분 — 로딩은 스켈레톤, 실패는 '—'로 표시.
+  const pointNode = (value: number) =>
+    isLoading ? (
+      <span className="inline-block h-4 w-14 animate-pulse rounded bg-foreground/10 align-[-2px]" />
+    ) : isError ? (
+      "—"
+    ) : (
+      `${value.toLocaleString()}P`
+    );
+
   const visibleItems =
     tab === "all" ? EVENT_ITEMS : EVENT_ITEMS.filter((i) => i.status === tab);
 
@@ -157,22 +167,30 @@ export default function PointsPage() {
         {/* 포인트 히어로 카드 — 전체 포인트 + 신한/제휴사 분리(제휴사 옆 연동 설정) */}
         <div className="overflow-hidden rounded-2xl mb-6 p-5 text-foreground bg-brand-surface">
           <p className="text-sm font-medium text-primary">전체 포인트</p>
-          <p className="mt-0.5 font-numeric text-2xl font-semibold">
-            {totalPoint.toLocaleString()}P
-          </p>
+          {isError ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              포인트를 불러오지 못했어요
+            </p>
+          ) : isLoading ? (
+            <div className="mt-1.5 h-7 w-32 animate-pulse rounded bg-foreground/10" />
+          ) : (
+            <p className="mt-0.5 font-numeric text-2xl font-semibold">
+              {totalPoint.toLocaleString()}P
+            </p>
+          )}
 
           <div className="mt-4 flex divide-x divide-border/35 rounded-xl bg-card border border-border text-left">
             <div className="flex-1 px-4 py-3">
               <p className="text-[12px] text-foreground/70">신한포인트</p>
               <p className="mt-0.5 font-numeric text-[16px] font-semibold">
-                {myShinhanTotal.toLocaleString()}P
+                {pointNode(myShinhanTotal)}
               </p>
             </div>
             <div className="flex flex-1 items-center justify-between gap-2 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-[12px] text-foreground/70">제휴사 포인트</p>
                 <p className="mt-0.5 font-numeric text-[15px] font-semibold">
-                  {partnerPointTotal.toLocaleString()}P
+                  {pointNode(partnerPointTotal)}
                 </p>
               </div>
               <button
