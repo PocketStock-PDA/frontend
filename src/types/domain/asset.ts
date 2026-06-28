@@ -147,4 +147,6 @@ export interface AssetSummaryResponse {
   points: number;
   /** 연동 포인트 출처별 내역 — '기타' 드릴다운 항목 표기용 */
   pointSources: PointSource[];
+  /** CMA·신투 등 일부 평가 미조회 — 증권·순자산이 과소계상됐을 수 있음 */
+  partial: boolean;
 }
