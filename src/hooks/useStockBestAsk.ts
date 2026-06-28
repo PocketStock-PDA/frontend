@@ -43,6 +43,13 @@ export function useStockBestAsk(
 ): BestAskResult {
   const { overseas = false, currentPrice, enabled = true } = options;
   const [wsAsk, setWsAsk] = useState<number | null>(null);
+  // 종목·시장 변경 시 이전 WS 값 초기화 — stale ask가 새 종목 주문 검증에 쓰이는 것 방지.
+  // useEffect 대신 렌더 중 리셋(React 권장): 직전 key와 다르면 즉시 null로 되돌린다.
+  const [wsKey, setWsKey] = useState({ stockCode, overseas });
+  if (wsKey.stockCode !== stockCode || wsKey.overseas !== overseas) {
+    setWsKey({ stockCode, overseas });
+    setWsAsk(null);
+  }
 
   // REST snapshot polling (15s) — 백엔드 Redis 캐시 hit, 공백 시 마지막 스냅샷 반환
   const orderbookQ = useOrderBook(

@@ -282,7 +282,7 @@ export default function CmaHistoryPage() {
   const oldest  = MONTHS[MONTHS.length - 1] ?? MONTHS[0];
   const now     = new Date();
   const isLatest  = month.year === now.getFullYear() && month.month === now.getMonth() + 1;
-  const isOldest  = month.year === oldest.year && month.month === oldest.month;
+  const isOldest  = month.year === oldest?.year && month.month === oldest?.month;
 
   function goMonth(delta: number) {
     const d = new Date(month.year, month.month - 1 + delta, 1);

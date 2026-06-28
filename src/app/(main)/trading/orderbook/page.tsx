@@ -178,6 +178,9 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
 
   // 소수점 QUANTITY 매수 hold = qty × bestAsk × (1+buffer). 국내 1%, 해외 2%.
   const fracBuyBuffer = isUSD ? 0.02 : 0.01;
+  // FRACTION hold 계산용 호가 — bestAsk 기준(백엔드 FractionalOrderService와 동일 소스).
+  // execPrice(표시용)는 refPrice를 유지하고, 한도/maxQty 계산만 bestAsk로 분리.
+  const fracHoldPrice = new Decimal(bestAsk > 0 ? bestAsk : refPrice);
 
   const maxQty =
     ctx?.side === "BUY"
@@ -185,7 +188,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
         ? method === "WHOLE"
           ? new Decimal(buyingPower).div(execPrice).floor().toNumber()
           : new Decimal(buyingPower)
-              .div(new Decimal(execPrice).times(1 + fracBuyBuffer))
+              .div(fracHoldPrice.times(1 + fracBuyBuffer))
               .toDecimalPlaces(4, Decimal.ROUND_DOWN)
               .toNumber()
         : 0
@@ -196,10 +199,10 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
   const sheetIsOverLimit = (() => {
     if (!ctx || qty <= 0) return false;
     if (ctx.side === "BUY") {
-      // FRACTION: hold = qty × execPrice × (1+buffer). WHOLE: 버퍼 없음.
+      // FRACTION: hold = qty × bestAsk × (1+buffer). WHOLE: 버퍼 없음.
       const need =
         method === "FRACTION"
-          ? new Decimal(qty).times(execPrice).times(1 + fracBuyBuffer)
+          ? new Decimal(qty).times(fracHoldPrice).times(1 + fracBuyBuffer)
           : new Decimal(qty).times(execPrice);
       return need.gt(buyingPower);
     }
@@ -241,7 +244,11 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
     }
     // 한도 검증 — 매수=구매가능 / 매도=보유수량
     if (side === "BUY") {
-      if (new Decimal(qty).times(execPrice).gt(buyingPower)) {
+      const need =
+        method === "FRACTION"
+          ? new Decimal(qty).times(fracHoldPrice).times(1 + fracBuyBuffer)
+          : new Decimal(qty).times(execPrice);
+      if (need.gt(buyingPower)) {
         toast.error("구매 가능 금액을 초과했어요.");
         return;
       }
