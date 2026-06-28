@@ -48,9 +48,14 @@ export default function SuperSolPage() {
   // CMA 계좌 보유 회원은 계좌개설 온보딩을 건너뛰고 바로 홈으로,
   // 미보유 회원만 전환 영상 → /home(계좌개설 CTA) 흐름을 탄다.
   const goToPocketStock = () => {
+    const hasCma = cmaQ.isSuccess; // /api/cma/home 200 = 보유
+    const noCma = isNoCmaAccount(cmaQ.error); // 404 = 미보유
+    // CMA 조회가 확정(200/404)되기 전에는 진행하지 않는다 — 로딩 중이거나
+    // 비-404 에러면 분기를 알 수 없어, 잘못 /home 으로 보내는 것을 막는다.
+    if (!hasCma && !noCma) return;
     markEventSeen(); // 슈퍼쏠 확인 완료 표시 → 가드가 홈 진입 허용
     setPopupOpen(false);
-    if (isNoCmaAccount(cmaQ.error)) {
+    if (noCma) {
       setIntro(true); // 영상 끝나면 onDone 에서 /home 으로 이동
     } else {
       router.replace("/home"); // 계좌 보유 회원 → 바로 홈

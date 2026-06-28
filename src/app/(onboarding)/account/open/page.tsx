@@ -12,7 +12,7 @@ import { PinKeypad } from "@/components/common/PinKeypad";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
-import { useCmaHome } from "@/hooks/queries/useCmaHome";
+import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import {
   useAgreeTerms,
   useSetAccountPassword,
@@ -88,6 +88,20 @@ export default function AccountOpenPage() {
     if (prev) setStep(prev);
     else router.back();
   };
+
+  // CMA 미개설(404)이 확정된 회원에게만 계좌개설 UI를 노출한다.
+  // 보유(200)는 위 effect가 /home으로 보내고, 로딩·비-404 에러 상태는
+  // 잘못된 노출을 막기 위해 스플래시로 가린다.
+  if (!isNoCmaAccount(cmaQ.error)) {
+    return (
+      <>
+        <AppHeader variant="sub" title="계좌 개설" showMenu={false} showBack={false} />
+        <div className="p-4">
+          <SkeletonCard lines={3} className="h-48" />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
