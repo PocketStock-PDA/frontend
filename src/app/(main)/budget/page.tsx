@@ -142,16 +142,14 @@ function FirstEntry() {
         </div>
       </section>
 
-      <div className="-mx-5 bg-muted pb-4 pt-1">
-        <div className="mx-5 rounded-xl bg-accent px-4 py-3">
-          <p className="text-sm font-bold text-foreground">
-            가계부 목표 자동 설정
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            소비 패턴을 바탕으로 카테고리별 월 목표 금액을 설정했어요. 나중에
-            변경할 수 있어요.
-          </p>
-        </div>
+      <div className="mt-5 rounded-xl border border-border bg-accent px-4 py-3">
+        <p className="text-sm font-bold text-foreground">
+          가계부 목표 자동 설정
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          소비 패턴을 바탕으로 카테고리별 월 목표 금액을 설정했어요. 나중에
+          변경할 수 있어요.
+        </p>
       </div>
 
       <Button
