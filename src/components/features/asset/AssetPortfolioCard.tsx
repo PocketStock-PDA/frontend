@@ -199,14 +199,20 @@ export function AssetPortfolioCard({
     return [];
   }, [selectedCategory, bankAccounts, externalHoldings, ownHoldings, ownNameByCode, pointSources]);
 
-  // 드릴다운 그룹별 소계(증권: 자체/타사, 기타: 입출금/포인트) + 타사 증권사별 합(서브헤더용)
+  // 드릴다운 그룹별 소계(증권: 자체/타사, 기타: 입출금/포인트) + 타사 증권사별 합(서브헤더용).
+  // 금액 합산은 Decimal로 — 포맷 경계에서만 toNumber().
   const { groupTotals, companyTotals } = useMemo(() => {
-    const groupTotals = new Map<SubGroup, number>();
-    const companyTotals = new Map<string, number>();
+    const groupTotals = new Map<SubGroup, Decimal>();
+    const companyTotals = new Map<string, Decimal>();
     for (const it of subItems) {
-      if (it.group) groupTotals.set(it.group, (groupTotals.get(it.group) ?? 0) + it.amount);
+      if (it.group) {
+        groupTotals.set(it.group, (groupTotals.get(it.group) ?? new Decimal(0)).plus(it.amount));
+      }
       if (it.group === "ext" && it.company) {
-        companyTotals.set(it.company, (companyTotals.get(it.company) ?? 0) + it.amount);
+        companyTotals.set(
+          it.company,
+          (companyTotals.get(it.company) ?? new Decimal(0)).plus(it.amount),
+        );
       }
     }
     return { groupTotals, companyTotals };
@@ -235,7 +241,10 @@ export function AssetPortfolioCard({
   const selected = selectedIdx !== null ? portfolio[selectedIdx] : null;
   const totalAmount = portfolio.reduce((s, i) => s + i.amount, 0);
 
-  const subTotal = subItems.reduce((s, i) => s + i.amount, 0);
+  const subTotal = useMemo(
+    () => subItems.reduce((s, i) => s.plus(i.amount), new Decimal(0)),
+    [subItems],
+  );
   const catColor = getCategoryColor(selectedCategory ?? "");
   const subColors = useMemo(
     () => generateSubColors(catColor, subItems.length),
@@ -474,7 +483,9 @@ export function AssetPortfolioCard({
               <div className="space-y-1">
                 {subItems.map((subItem, i) => {
                   const prev = subItems[i - 1];
-                  const ratio = subTotal > 0 ? (subItem.amount / subTotal) * 100 : 0;
+                  const ratio = subTotal.gt(0)
+                    ? new Decimal(subItem.amount).div(subTotal).times(100)
+                    : new Decimal(0);
                   // 그룹 헤더(증권: 신한투자증권/타사, 기타: 입출금/포인트) — 그룹이 바뀌는 첫 항목 앞
                   const showGroup = !!subItem.group && subItem.group !== prev?.group;
                   const groupLabel = subItem.group ? GROUP_LABELS[subItem.group] : "";
@@ -492,7 +503,7 @@ export function AssetPortfolioCard({
                         <div className="flex items-center justify-between px-1 pb-1 pt-2.5">
                           <span className="text-xs font-bold text-foreground">{groupLabel}</span>
                           <span className="font-numeric text-[11px] font-semibold text-muted-foreground">
-                            {formatKRW(groupTotal ?? 0)}
+                            {formatKRW(groupTotal?.toNumber() ?? 0)}
                           </span>
                         </div>
                       )}
@@ -503,7 +514,7 @@ export function AssetPortfolioCard({
                             {subItem.company}
                           </span>
                           <span className="font-numeric text-[10px] text-muted-foreground">
-                            {formatKRW(companyTotals.get(subItem.company ?? "") ?? 0)}
+                            {formatKRW(companyTotals.get(subItem.company ?? "")?.toNumber() ?? 0)}
                           </span>
                         </div>
                       )}
