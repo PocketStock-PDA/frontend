@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { ChevronRight } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { SearchInput } from "@/components/common/SearchInput";
 import { SegmentedControl } from "@/components/common/SegmentedControl";

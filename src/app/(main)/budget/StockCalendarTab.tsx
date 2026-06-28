@@ -209,10 +209,16 @@ export function StockCalendarTab() {
   // 직접 holdings×현재가로 합산하면 ① 홈과 반올림이 어긋나고(999 vs 1,000) ② 해외(USD)를
   // 원화로 환산하지 않아 통화가 섞인다. 집계는 PortfolioSummaryService가 단독 책임.
   const summaryTotal = summaryQ.data?.total;
-  const hasSummaryTotal = summaryTotal?.profitKrw != null && summaryTotal?.profitRate != null;
   const returnLoading = summaryQ.isLoading;
-  const totalProfit = hasSummaryTotal ? toDecimal(summaryTotal.profitKrw) : null;
-  const totalRate = hasSummaryTotal ? toDecimal(summaryTotal.profitRate) : null;
+  const totalProfit =
+    summaryTotal !== undefined && summaryTotal.profitKrw !== null
+      ? toDecimal(summaryTotal.profitKrw)
+      : null;
+  const totalRate =
+    summaryTotal !== undefined && summaryTotal.profitRate !== null
+      ? toDecimal(summaryTotal.profitRate)
+      : null;
+  const hasSummaryTotal = totalProfit !== null && totalRate !== null;
   const hasHoldings = holdings.length > 0;
 
   // ── 이번 달 거래(매수/매도) — 주문내역(useOrders)에서 ──

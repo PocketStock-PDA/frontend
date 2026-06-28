@@ -30,7 +30,7 @@ export default function MaturityPage() {
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
 
   const account = data?.triggerAccount ?? null;
-  const stocks = data?.recommendations ?? [];
+  const stocks = useMemo(() => data?.recommendations ?? [], [data]);
 
   const stockCodes = useMemo(() => stocks.map((s) => s.stockCode), [stocks]);
   const stockDetailQueries = useStockDetails(stockCodes);
