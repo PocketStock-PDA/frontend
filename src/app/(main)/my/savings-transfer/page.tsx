@@ -124,7 +124,7 @@ export default function SavingsTransferPage() {
         )}
       </div>
 
-      <div className="fixed bottom-20 left-0 right-0 px-5">
+      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom)+0.75rem)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 px-5">
         <Button
           className="h-14 w-full text-base font-bold"
           disabled={selectedId === null || isError || isLoading || setAccount.isPending}
