@@ -231,7 +231,7 @@ function MainView({
               {fmtRate(buyRate)}
             </span>
             <span className="text-sm font-medium text-white/50">원</span>
-            <span className={`ml-1 font-numeric text-sm font-bold tabular-nums ${changePositive ? "text-up" : "text-down"}`}>
+            <span className="ml-1 font-numeric text-sm font-bold tabular-nums text-white/90">
               {changePositive ? "+" : "-"}{Math.abs(change).toFixed(2)}
             </span>
           </div>
