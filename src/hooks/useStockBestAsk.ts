@@ -55,7 +55,7 @@ export function useStockBestAsk(
   const orderbookQ = useOrderBook(
     stockCode,
     overseas ? "overseas" : "domestic",
-    enabled ? { refetchInterval: 15_000 } : undefined,
+    enabled ? { refetchInterval: 15_000 } : { enabled: false },
   );
 
   // 국내 호가 WS: /topic/asking/{stockCode} (LS UH1)

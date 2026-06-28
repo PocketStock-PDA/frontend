@@ -773,10 +773,9 @@ export default function HistoryPage() {
   const accountsQ = useSecuritiesAccounts();
   const fxRate = useExchangeRate().data?.baseRate ?? null;
 
-  const orders = useMemo(
-    () => (ordersQ.data ?? []).filter((o) => toDecimal(o.quantity ?? 0).gt(0)),
-    [ordersQ.data],
-  );
+  // 백엔드가 client_order_id IS NOT NULL 필터로 감사 row를 제거하므로 프론트 quantity 필터 불필요.
+  // AMOUNT 주문은 quantity=null이 정상이므로 quantity 기준으로 필터하면 안 됨.
+  const orders = useMemo(() => ordersQ.data ?? [], [ordersQ.data]);
   const pendingOrders = useMemo(() => pendingQ.data ?? [], [pendingQ.data]);
   const accounts = useMemo(() => accountsQ.data ?? [], [accountsQ.data]);
 

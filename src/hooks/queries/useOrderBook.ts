@@ -13,7 +13,7 @@ export type OrderBookMarket = "domestic" | "overseas";
 export function useOrderBook(
   stockCode: string,
   market: OrderBookMarket = "domestic",
-  options?: { refetchInterval?: number },
+  options?: { refetchInterval?: number; enabled?: boolean },
 ) {
   const isOverseas = market === "overseas";
   return useQuery<OrderBook>({
@@ -24,7 +24,7 @@ export function useOrderBook(
       api.get<OrderBook>(
         `/api/trading/stocks/${stockCode}/orderbook${isOverseas ? "?market=overseas" : ""}`,
       ),
-    enabled: !!stockCode,
+    enabled: !!stockCode && options?.enabled !== false,
     staleTime: 10_000,
     refetchInterval: options?.refetchInterval ?? false,
   });
