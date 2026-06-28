@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -685,9 +686,20 @@ function InstitutionTile({
           <X className="size-3" />
         </span>
       ) : null}
-      <span className="flex size-10 items-center justify-center rounded-full bg-muted text-base font-bold text-muted-foreground">
-        {inst.companyName.charAt(0)}
-      </span>
+      {/* 기관 로고: 백엔드 logoUrl이 있으면 우선, 없으면 companyCode 기준 정적 에셋
+          (public/institution-logo/{companyCode}.png). 둘 다 없거나 로드 실패 시
+          회사명 첫 글자 fallback. 로고가 앱 아이콘형 둥근 사각 배지(워드마크 포함)라
+          원형으로 자르면 글자가 잘려 rounded-xl 사각형으로 표시한다. */}
+      <Avatar className="size-10 rounded-xl after:rounded-xl">
+        <AvatarImage
+          src={inst.logoUrl ?? `/institution-logo/${inst.companyCode}.png`}
+          alt=""
+          className="rounded-xl object-contain"
+        />
+        <AvatarFallback className="rounded-xl bg-muted text-base font-bold text-muted-foreground">
+          {inst.companyName.charAt(0)}
+        </AvatarFallback>
+      </Avatar>
       <span className="line-clamp-2 text-xs font-medium leading-tight text-foreground">
         {inst.companyName}
       </span>
