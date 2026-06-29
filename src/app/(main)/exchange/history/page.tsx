@@ -152,7 +152,8 @@ export default function ExchangeHistoryPage() {
             </div>
 
             {isFetchingNextPage && (
-              <div className="rounded-2xl bg-card shadow-sm">
+              <div role="status" aria-live="polite" className="rounded-2xl bg-card shadow-sm">
+                <span className="sr-only">환전 내역을 더 불러오는 중</span>
                 <div className="divide-y divide-border">
                   {Array.from({ length: 3 }).map((_, i) => (
                     <SkeletonRow key={i} />
