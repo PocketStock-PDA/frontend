@@ -23,6 +23,7 @@ import { useUpdateAutoSettings } from "@/hooks/mutations/useUpdateAutoSettings";
 import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import type { FxHistoryItem } from "@/types/domain/exchange";
 import { parseUTC } from "@/lib/utils/date";
+import { toDecimal } from "@/lib/utils/decimal";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -199,6 +200,8 @@ function MainView({
   updatedAt,
   cmaAccountNo,
   isLoading,
+  isRefreshing,
+  onRefresh,
   onSelect,
 }: {
   krwBalance: number;
@@ -209,6 +212,8 @@ function MainView({
   updatedAt?: string | undefined;
   cmaAccountNo?: string | undefined;
   isLoading: boolean;
+  isRefreshing: boolean;
+  onRefresh: () => void;
   onSelect: (dir: Direction) => void;
 }) {
   // 보합(0)은 부호 없이 — change >= 0 으로 묶으면 0도 "+0.00"으로 표시돼 상승처럼 보임.
@@ -222,9 +227,18 @@ function MainView({
     <div className="flex flex-col gap-4 pb-8">
       <div className="rounded-3xl bg-brand-surface px-5 py-6">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-medium text-brand">USD/KRW</span>
             {updatedAt && <span className="font-numeric text-[11px] text-muted-foreground">· {parseTime(updatedAt)} 기준</span>}
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              aria-label="환율 새로고침"
+              className="flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-muted disabled:opacity-60"
+            >
+              <RefreshCw className={`size-3 ${isRefreshing ? "animate-spin" : ""}`} />
+            </button>
           </div>
           {cmaAccountNo && (
             <span className="font-numeric text-[11px] text-muted-foreground">포켓스톡 CMA {cmaAccountNo}</span>
@@ -309,17 +323,25 @@ function ExchangeInputView({
   const isBuy = direction === "krw-to-usd";
   const rate = isBuy ? buyRate : sellRate;
   const fromBalance = isBuy ? krwBalance : usdBalance;
-  const inputAmount = isBuy
-    ? Number(inputRaw.replace(/,/g, "")) || 0
-    : Number(inputRaw.replace(/[^0-9.]/g, "")) || 0;
-  const isOver = inputAmount > fromBalance;
 
-  const estimated =
-    inputAmount > 0 ? (isBuy ? inputAmount / buyRate : inputAmount * sellRate) : null;
+  // 입력값은 Decimal로 다뤄 부동소수점 오차를 차단 — 비교·예상금액·제출이 모두 이 값에서 파생.
+  const cleaned = isBuy
+    ? inputRaw.replace(/,/g, "")
+    : inputRaw.replace(/[^0-9.]/g, "");
+  const inputDecimal = toDecimal(cleaned);
+  const inputAmount = inputDecimal.toNumber();
+  const isOver = inputDecimal.greaterThan(fromBalance);
+
+  // KRW→USD: 입력 KRW / 매수환율, USD→KRW: 입력 USD × 매도환율
+  const estimated = inputDecimal.greaterThan(0)
+    ? isBuy
+      ? inputDecimal.div(buyRate)
+      : inputDecimal.times(sellRate)
+    : null;
 
   function handleFullAmount() {
     if (isBuy) setInputRaw(fmtKRW(krwBalance));
-    else setInputRaw(usdBalance.toFixed(2));
+    else setInputRaw(toDecimal(usdBalance).toFixed(2));
   }
 
   function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -328,7 +350,16 @@ function ExchangeInputView({
       const n = Number(raw);
       setInputRaw(n > 0 ? fmtKRW(n) : "");
     } else {
-      setInputRaw(e.target.value.replace(/[^0-9.]/g, ""));
+      // 숫자·소수점만 허용하되 소수점은 1개, 소수 둘째 자리(센트)까지.
+      // 정규화 없이 두면 "1.2.3" → Number(NaN) → 0 으로 조용히 처리돼버린다.
+      let v = e.target.value.replace(/[^0-9.]/g, "");
+      const firstDot = v.indexOf(".");
+      if (firstDot !== -1) {
+        const intPart = v.slice(0, firstDot);
+        const decPart = v.slice(firstDot + 1).replace(/\./g, "").slice(0, 2);
+        v = `${intPart}.${decPart}`;
+      }
+      setInputRaw(v);
     }
   }
 
@@ -347,8 +378,8 @@ function ExchangeInputView({
   const estimatedStr =
     estimated !== null
       ? isBuy
-        ? fmtUSD(estimated)
-        : fmtKRW(Math.round(estimated))
+        ? fmtUSD(estimated.toNumber())
+        : fmtKRW(estimated.toDecimalPlaces(0).toNumber())
       : null;
 
   return (
@@ -378,7 +409,6 @@ function ExchangeInputView({
 
         <div className="flex items-center gap-2 border-b border-border pb-4">
           <Input
-            autoFocus
             inputMode={isBuy ? "numeric" : "decimal"}
             placeholder={fromPlaceholder}
             value={inputRaw}
@@ -505,7 +535,12 @@ export default function ExchangePage() {
   const [pendingDir, setPendingDir] = useState<Direction>("krw-to-usd");
 
   const router = useRouter();
-  const { data: rate, isLoading: rateLoading, refetch: refetchRate } = useExchangeRate();
+  const {
+    data: rate,
+    isLoading: rateLoading,
+    isFetching: rateFetching,
+    refetch: refetchRate,
+  } = useExchangeRate();
   const {
     data: cma,
     isLoading: cmaLoading,
@@ -631,6 +666,8 @@ export default function ExchangePage() {
             updatedAt={rate.updatedAt}
             cmaAccountNo={cma?.cmaAccountNo}
             isLoading={false}
+            isRefreshing={rateFetching}
+            onRefresh={() => refetchRate()}
             onSelect={handleSelect}
           />
         ))}

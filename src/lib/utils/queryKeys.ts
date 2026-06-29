@@ -67,6 +67,7 @@ export const queryKeys = {
     all: ["exchange"] as const,
     rate: ["exchange", "rate"] as const,
     history: (page = 0, size = 5) => ["exchange", "history", page, size] as const,
+    historyInfinite: (size = 15) => ["exchange", "history", "infinite", size] as const,
     autoSettings: ["exchange", "auto-settings"] as const,
   },
   stockCalendar: {
