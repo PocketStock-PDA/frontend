@@ -61,6 +61,39 @@ export async function enablePush(): Promise<PushEnableResult> {
   return "ok";
 }
 
+/** 마스터 토글 초기 상태용. permission="unsupported"=미지원·SW미등록(dev 등). subscribed=구독 존재 여부. */
+export interface PushState {
+  permission: NotificationPermission | "unsupported";
+  subscribed: boolean;
+}
+
+/** 현재 푸시 상태 조회(권한 요청 없음) — 설정 화면 마스터 토글 초기값. */
+export async function getPushState(): Promise<PushState> {
+  if (!isPushSupported()) return { permission: "unsupported", subscribed: false };
+  const permission = Notification.permission;
+  if (permission !== "granted") return { permission, subscribed: false };
+  const reg = await getRegistration();
+  if (!reg) return { permission: "unsupported", subscribed: false };
+  const sub = await reg.pushManager.getSubscription();
+  return { permission, subscribed: !!sub };
+}
+
+/**
+ * 푸시 끄기(사용자 동작) — 브라우저 구독 해제 + 백엔드 토큰 제거.
+ * 구독 해제가 핵심이라 토큰 제거(DELETE) 실패는 무시(best-effort).
+ */
+export async function disablePush(): Promise<void> {
+  if (!isPushSupported()) return;
+  const reg = await getRegistration();
+  const sub = reg ? await reg.pushManager.getSubscription() : undefined;
+  if (sub) await sub.unsubscribe();
+  try {
+    await api.delete<void>("/api/notifications/token");
+  } catch {
+    // 서버 토큰 제거 실패는 무시 — 브라우저 구독은 이미 해제됨
+  }
+}
+
 /**
  * 앱 로드 시 토큰 보장(자동) — 이미 권한 허용된 경우에만 구독 재등록.
  * 권한 요청은 하지 않음(거슬리지 않게). 실패는 조용히 무시.
