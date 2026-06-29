@@ -264,13 +264,16 @@ function AutoSettingsForm({
 
       {/* 한도 입력 시트 */}
       <Sheet open={limitSheetOpen} onOpenChange={setLimitSheetOpen}>
-        <SheetContent side="bottom" className="rounded-t-3xl px-5 pb-10 pt-6">
+        <SheetContent
+          side="bottom"
+          className="rounded-t-3xl px-5 pb-10 pt-6"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <SheetHeader className="mb-6 text-left">
             <SheetTitle>1회 최대 환전 한도</SheetTitle>
           </SheetHeader>
           <div className="flex items-baseline gap-2 rounded-xl bg-muted/50 px-4 py-3">
             <Input
-              autoFocus
               inputMode="numeric"
               placeholder="제한 없음"
               value={limitInputRaw}
