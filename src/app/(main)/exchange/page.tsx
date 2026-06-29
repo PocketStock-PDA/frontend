@@ -214,40 +214,43 @@ function MainView({
   // 보합(0)은 부호 없이 — change >= 0 으로 묶으면 0도 "+0.00"으로 표시돼 상승처럼 보임.
   const changeRounded = Number(change.toFixed(2));
   const changeSign = changeRounded > 0 ? "+" : changeRounded < 0 ? "-" : "";
+  // 상승 빨강 / 하락 파랑 / 보합 회색 (포트폴리오 카드와 동일한 등락 색 규칙)
+  const changeColor =
+    changeRounded > 0 ? "text-up" : changeRounded < 0 ? "text-down" : "text-muted-foreground";
 
   return (
     <div className="flex flex-col gap-4 pb-8">
-      <div className="rounded-3xl px-5 py-6" style={{ backgroundImage: "var(--grad-1)" }}>
+      <div className="rounded-3xl bg-brand-surface px-5 py-6">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-white/80">USD/KRW</span>
-            {updatedAt && <span className="font-numeric text-[11px] text-white/60">· {parseTime(updatedAt)} 기준</span>}
+            <span className="text-[11px] font-medium text-brand">USD/KRW</span>
+            {updatedAt && <span className="font-numeric text-[11px] text-muted-foreground">· {parseTime(updatedAt)} 기준</span>}
           </div>
           {cmaAccountNo && (
-            <span className="font-numeric text-[11px] text-white/60">포켓스톡 CMA {cmaAccountNo}</span>
+            <span className="font-numeric text-[11px] text-muted-foreground">포켓스톡 CMA {cmaAccountNo}</span>
           )}
         </div>
         {isLoading ? (
-          <div className="h-9 w-40 animate-pulse rounded-xl bg-white/20" />
+          <div className="h-9 w-40 animate-pulse rounded-xl bg-muted" />
         ) : (
           <div className="flex items-baseline gap-2">
-            <span className="font-numeric text-[32px] font-bold leading-none tracking-tight tabular-nums text-white">
+            <span className="font-numeric text-[32px] font-bold leading-none tracking-tight tabular-nums text-foreground">
               {fmtRate(buyRate)}
             </span>
-            <span className="text-sm font-medium text-white/80">원</span>
-            <span className="ml-1 font-numeric text-sm font-bold tabular-nums text-white/90">
+            <span className="text-sm font-medium text-muted-foreground">원</span>
+            <span className={`ml-1 font-numeric text-sm font-bold tabular-nums ${changeColor}`}>
               {changeSign}{Math.abs(changeRounded).toFixed(2)}
             </span>
           </div>
         )}
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <div className="rounded-2xl bg-white/15 px-4 py-3">
-            <p className="text-[10px] font-medium text-white/80">보유 원화</p>
-            <p className="mt-1.5 font-numeric text-[15px] font-bold text-white">{fmtKRW(krwBalance)}원</p>
+          <div className="rounded-2xl bg-card px-4 py-3 shadow-sm">
+            <p className="text-[10px] font-medium text-muted-foreground">보유 원화</p>
+            <p className="mt-1.5 font-numeric text-[15px] font-bold text-foreground">{fmtKRW(krwBalance)}원</p>
           </div>
-          <div className="rounded-2xl bg-white/15 px-4 py-3">
-            <p className="text-[10px] font-medium text-white/80">보유 달러</p>
-            <p className="mt-1.5 font-numeric text-[15px] font-bold text-white">{fmtUSD(usdBalance)}</p>
+          <div className="rounded-2xl bg-card px-4 py-3 shadow-sm">
+            <p className="text-[10px] font-medium text-muted-foreground">보유 달러</p>
+            <p className="mt-1.5 font-numeric text-[15px] font-bold text-foreground">{fmtUSD(usdBalance)}</p>
           </div>
         </div>
       </div>
@@ -269,8 +272,7 @@ function MainView({
       <button
         type="button"
         onClick={() => onSelect("krw-to-usd")}
-        className="h-14 w-full rounded-2xl text-base font-bold text-white"
-        style={{ backgroundImage: "var(--grad-1)" }}
+        className="h-14 w-full rounded-2xl bg-brand text-base font-bold text-white transition-colors active:bg-brand/90"
       >
         환전하기
       </button>
