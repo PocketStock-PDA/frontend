@@ -400,7 +400,6 @@ function ExchangeInputView({
 
         <div className="flex items-center gap-2 border-b border-border pb-4">
           <Input
-            autoFocus
             inputMode={isBuy ? "numeric" : "decimal"}
             placeholder={fromPlaceholder}
             value={inputRaw}
