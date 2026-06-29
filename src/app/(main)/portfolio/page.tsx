@@ -30,6 +30,7 @@ import {
   tradingDetailPath,
 } from "@/lib/navigation/routes";
 import type { AutoInvestStock } from "@/types/domain/autoInvest";
+import { cn } from "@/lib/utils";
 import { toPieceParts } from "@/lib/utils/pieces";
 import { toDecimal } from "@/lib/utils/decimal";
 import { queryKeys } from "@/lib/utils/queryKeys";
@@ -327,7 +328,7 @@ export default function PortfolioPage() {
               icon={<StockIcon className="size-8" />}
               label="주식 투자"
               onClick={() =>
-                router.push(topCode ? tradingDetailPath(topCode) : "/trading")
+                router.push(topCode ? tradingDetailPath(topCode) : "/trading?invest=1")
               }
             />
             <ActionTile
