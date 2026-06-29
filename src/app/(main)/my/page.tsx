@@ -18,25 +18,7 @@ import { useUpdateMyPageSettings } from "@/hooks/mutations/useUpdateMyPageSettin
 import { useSaveCollectSettings } from "@/hooks/mutations/useSaveCollectSettings";
 import { useLogout } from "@/hooks/mutations/useAuth";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { enablePush } from "@/lib/push/webPush";
 import { cn } from "@/lib/utils";
-
-// 푸시 알림 켜기 — 권한 요청 → 구독 → 백엔드 토큰 등록
-const handleEnablePush = async () => {
-  try {
-    const result = await enablePush();
-    if (result === "ok") toast.success("푸시 알림을 켰어요");
-    else if (result === "denied")
-      toast.error("알림 권한이 거부됐어요. 기기 설정에서 허용해 주세요.");
-    else
-      toast.info(
-        "이 환경에서는 푸시를 사용할 수 없어요. 앱 설치 후 이용해 주세요.",
-      );
-  } catch {
-    // 구독/토큰 등록 중 네트워크·API 실패
-    toast.error("푸시 알림 설정에 실패했어요. 잠시 후 다시 시도해 주세요.");
-  }
-};
 
 /** 우측 화살표가 있는 설정 카드 (탭 시 이동) */
 function SettingLinkCard({
@@ -257,7 +239,10 @@ export default function MyPage() {
           title="절약금 이체되는 계좌 변경"
           onClick={() => router.push("/my/savings-transfer")}
         />
-        <SettingLinkCard title="알림 설정" onClick={handleEnablePush} />
+        <SettingLinkCard
+          title="알림 설정"
+          onClick={() => router.push("/my/notifications")}
+        />
         <SettingLinkCard
           title="회원정보 수정"
           subtitle="비밀번호 변경"
