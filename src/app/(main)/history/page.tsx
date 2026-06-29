@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Decimal from "decimal.js";
 import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
@@ -761,7 +762,11 @@ function PendingTab({ orders, detailMap, isLoading, isError, market }: PendingTa
 // ── 메인 페이지 ──────────────────────────────────────────────────────────────
 
 export default function HistoryPage() {
-  const [tab, setTab] = useState<MainTab>("trades");
+  // 푸시 딥링크(UNFILLED → ?tab=pending) 등 URL로 초기 탭 지정. 그 외엔 거래내역.
+  const tabParam = useSearchParams().get("tab");
+  const [tab, setTab] = useState<MainTab>(
+    tabParam === "pending" || tabParam === "profit" ? tabParam : "trades",
+  );
   const [market, setMarket] = useState<MarketFilter>("all");
   const [month, setMonth] = useState(() => {
     const now = new Date();

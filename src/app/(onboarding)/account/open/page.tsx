@@ -24,6 +24,7 @@ import {
   useConfirmAccountVerify,
 } from "@/hooks/mutations/useAccountVerify";
 import { formatKRW } from "@/lib/utils/currency";
+import { formatPhone, isValidPhone } from "@/lib/utils/phone";
 import { cn } from "@/lib/utils";
 import type {
   AccountVerifyRequestResult,
@@ -377,7 +378,10 @@ function InfoStep({
   setPhone: (v: string) => void;
   onNext: () => void;
 }) {
-  const ok = name.trim().length > 0 && phone.replace(/\D/g, "").length >= 10;
+  // 회원가입과 동일 규칙: 010 시작 11자리(공용 isValidPhone).
+  const phoneValid = isValidPhone(phone);
+  const phoneError = phone.length > 0 && !phoneValid;
+  const ok = name.trim().length > 0 && phoneValid;
   return (
     <div className="space-y-6 pt-2">
       <p className="text-sm text-muted-foreground">
@@ -397,11 +401,16 @@ function InfoStep({
           <span className="text-sm font-medium text-foreground">휴대폰번호</span>
           <Input
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(formatPhone(e.target.value))}
             inputMode="tel"
             placeholder="010-0000-0000"
             className="h-12"
           />
+          {phoneError && (
+            <span className="text-xs text-destructive">
+              010으로 시작하는 휴대폰 번호 11자리를 입력해 주세요.
+            </span>
+          )}
         </label>
       </div>
       <Button onClick={onNext} disabled={!ok} className="h-12 w-full text-base font-bold">
@@ -441,7 +450,10 @@ function BankStep({
       </div>
     );
   }
-  const accounts = (query.data ?? []).filter((a) => !a.isDormant);
+  // 1원 인증 대상은 입출금(DEMAND) 통장만 — 적금/예금(SAVINGS/DEPOSIT)은 제외.
+  const accounts = (query.data ?? []).filter(
+    (a) => !a.isDormant && a.accountType === "DEMAND",
+  );
   if (accounts.length === 0) {
     return (
       <div className="pt-6">
