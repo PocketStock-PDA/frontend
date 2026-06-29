@@ -19,7 +19,6 @@ import { useSaveCollectSettings } from "@/hooks/mutations/useSaveCollectSettings
 import { useLogout } from "@/hooks/mutations/useAuth";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { enablePush } from "@/lib/push/webPush";
-import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 
 const SOON = () => toast.info("준비 중이에요");
@@ -167,22 +166,6 @@ export default function MyPage() {
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold text-foreground">{profile.name}</p>
           <p className="text-sm text-muted-foreground">{profile.username}</p>
-        </div>
-      </div>
-
-      {/* 요약 카드 (CMA / 퍼즐판 총 평가) */}
-      <div className="mt-2 flex items-center justify-between rounded-xl bg-brand-surface p-5">
-        <div>
-          <p className="text-[12px] text-muted-foreground">포켓스톡 CMA</p>
-          <p className="mt-0.5 text-2xl font-semibold text-foreground">
-            {formatKRW(profile.cmaBalance)}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-[12px] text-muted-foreground">퍼즐판 총 평가</p>
-          <p className="mt-0.5 text-2xl font-semibold text-foreground">
-            {formatKRW(profile.puzzleValuation)}
-          </p>
         </div>
       </div>
 

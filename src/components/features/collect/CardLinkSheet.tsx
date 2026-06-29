@@ -12,12 +12,12 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
+import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { useLinkedCards } from "@/hooks/queries/useLinkedCards";
 import { useCollectSettings } from "@/hooks/queries/useCollectSettings";
 import { useSaveCollectSettings } from "@/hooks/mutations/useSaveCollectSettings";
+import { cardCodeFromName } from "@/lib/utils/institution";
 import { cn } from "@/lib/utils";
-
-const CARD_CHIP_COLORS = ["bg-blue-600", "bg-rose-500", "bg-neutral-800"];
 
 interface CardLinkSheetProps {
   open: boolean;
@@ -101,7 +101,7 @@ export function CardLinkSheet({ open, onOpenChange }: CardLinkSheetProps) {
           {eligible.length === 0 ? (
             <EmptyState title="연동된 카드가 없어요" />
           ) : (
-            eligible.map((c, i) => {
+            eligible.map((c) => {
               const on = selected === c.cardId;
               return (
                 <button
@@ -115,14 +115,11 @@ export function CardLinkSheet({ open, onOpenChange }: CardLinkSheetProps) {
                     on ? "border-primary bg-primary/5" : "border-border",
                   )}
                 >
-                  <span
-                    className={cn(
-                      "flex h-7 w-10 shrink-0 items-center justify-center rounded text-[9px] font-bold text-white",
-                      CARD_CHIP_COLORS[i % CARD_CHIP_COLORS.length],
-                    )}
-                  >
-                    {c.cardType === "CREDIT" ? "신용" : "체크"}
-                  </span>
+                  <InstitutionLogo
+                    code={cardCodeFromName(c.companyName)}
+                    name={c.companyName}
+                    className="size-9 shrink-0"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-foreground">
                       {c.cardName}
