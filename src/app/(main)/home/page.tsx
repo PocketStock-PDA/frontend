@@ -135,7 +135,9 @@ export default function HomePage() {
 
   // 신규 회원 = CMA 계좌 미개설(/home 404). 첫 가입 이벤트 팝업을 먼저 띄운다.
   // (rewards용 localStorage dismiss와 분리 — 계좌 없으면 진입 시 매번 노출)
-  const noCmaAccount = isNoCmaAccount(error);
+  // 이미 200을 받아 data가 있으면, 복귀 시 일시적 404(만료/비인증 토큰 등)로
+  // 계좌개설 화면으로 뒤집히지 않게 한다. (#152)
+  const noCmaAccount = isNoCmaAccount(error) && !data;
   const [eventOpen, setEventOpen] = useState(true);
 
   // 첫 가입 이벤트 팝업: 첫 주식 미수령(rewards 비어있음) 시 홈 진입마다 노출 (issue #84)

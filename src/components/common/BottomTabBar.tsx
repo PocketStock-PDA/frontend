@@ -17,14 +17,15 @@ const tabs = [
 
 export function BottomTabBar() {
   const pathname = usePathname();
-  const { isLoading, error } = useCmaHome();
+  const { data, isLoading, error } = useCmaHome();
 
   // 온보딩 풀스크린 플로우(슈퍼쏠·계좌개설·자산연동)는 (onboarding) 레이아웃이라
   // 애초에 이 컴포넌트가 렌더되지 않음 → 여기선 별도 경로 분기 불필요.
   // 계좌 미개설(404)일 때만 숨김 — 홈의 신규회원(계좌개설 유도) 상태 비노출 목적.
+  // 단, 이미 data가 있으면 복귀 시 일시적 404로 네비바가 사라지지 않게 한다. (#152)
   // 일시적 오류(5xx/네트워크)는 네비바를 유지해 다른 탭 이동을 막지 않는다.
   // 최초 로딩 중에는 확정 전 깜빡임 방지를 위해 숨긴다.
-  if (isNoCmaAccount(error) || isLoading) return null;
+  if ((isNoCmaAccount(error) && !data) || isLoading) return null;
 
   return (
     // 떠 있는(floating) 알약형 네비. 바깥 래퍼는 클릭을 통과시키고(pointer-events-none)
