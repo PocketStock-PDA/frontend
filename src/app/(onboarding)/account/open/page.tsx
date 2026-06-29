@@ -66,13 +66,19 @@ export default function AccountOpenPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [verify, setVerify] = useState<AccountVerifyRequestResult | null>(null);
   const [accountNo, setAccountNo] = useState<string | null>(null);
+  // 이 플로우에서 개설을 시작/완료했는지. true면 개설 직후 useCmaHome이 200으로 바뀌어도
+  // "이미 보유 → /home" 가드가 발동하지 않게 한다. (#155)
+  // step!=="DONE" 만으론 FULL 계좌의 CMA개설~증권개설 사이 구간(step=PASSWORD)을 못 막는다.
+  const [opened, setOpened] = useState(false);
 
   // CMA 계좌를 이미 보유한 회원에게는 계좌개설 페이지를 노출하지 않는다.
   // /api/cma/home 200(isSuccess)=보유 → 홈으로 돌려보냄.
+  // 단, 이 플로우에서 개설을 시작했으면(opened) 제외 — 개설 직후 useCmaHome이 무효화→200이
+  // 되며 이 가드가 발동하면 완료화면→자산연동(/asset-link) 진행을 가로챈다. (#155)
   const cmaQ = useCmaHome();
   useEffect(() => {
-    if (cmaQ.isSuccess) router.replace("/home");
-  }, [cmaQ.isSuccess, router]);
+    if (cmaQ.isSuccess && !opened) router.replace("/home");
+  }, [cmaQ.isSuccess, opened, router]);
 
   const bankQ = useBankAccounts();
   const agreeTerms = useAgreeTerms();
@@ -92,7 +98,9 @@ export default function AccountOpenPage() {
   // CMA 미개설(404)이 확정된 회원에게만 계좌개설 UI를 노출한다.
   // 보유(200)는 위 effect가 /home으로 보내고, 로딩·비-404 에러 상태는
   // 잘못된 노출을 막기 위해 스플래시로 가린다.
-  if (!isNoCmaAccount(cmaQ.error)) {
+  // 단, 개설을 시작했으면(opened) 통과시킨다 — 개설 직후 200으로 바뀌어도 완료 화면을
+  // 유지해 자산연동으로 진행할 수 있게 한다. (#155)
+  if (!opened && !isNoCmaAccount(cmaQ.error)) {
     return (
       <>
         <AppHeader variant="sub" title="계좌 개설" showMenu={false} showBack={false} />
@@ -205,6 +213,8 @@ export default function AccountOpenPage() {
                   // 항상 CMA 개설 → FULL이면 증권(국내·해외)도 개설
                   openCma.mutate(undefined, {
                     onSuccess: (cma) => {
+                      // CMA가 생긴 시점부터 /home 리다이렉트 가드를 끈다 (FULL은 증권개설이 더 남음)
+                      setOpened(true);
                       if (kind === "CMA") {
                         setAccountNo(cma.cmaAccountNo);
                         setStep("DONE");
