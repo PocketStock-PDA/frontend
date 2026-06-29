@@ -63,7 +63,7 @@
   --brand-surface: #f0f6ff;
   --up: #f04452; /* 상승 */
   --down: #3182f6; /* 하락 */
-  --grad-1: linear-gradient(135deg, #0046ff 0%, #6b3ff5 100%); /* 메인 카드 그라데이션 (좌상→우하) */
+  --grad-1: linear-gradient(135deg, #2563eb 0%, #6366f1 100%); /* 메인 CTA 그라데이션 — brand blue → indigo */
 
   /* 플로팅 하단 네비(BottomTabBar) 클리어런스 — safe-area 포함.
      (main) 레이아웃 본문 패딩과 고정 CTA가 이 값을 공유해 nav와 겹치지 않게 한다. */
@@ -148,6 +148,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* PWA: pull-to-refresh · 수평 overscroll(뒤로가기 제스처) 방지 */
+    overscroll-behavior: contain;
   }
   html {
     @apply font-sans;
