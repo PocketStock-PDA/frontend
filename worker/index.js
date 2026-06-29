@@ -120,6 +120,11 @@ function format(p) {
         body: `${name} ${trigger} 실패${reason}`,
       };
     }
+    case "PUZZLE_COMPLETE":
+      return {
+        title: "퍼즐 완성!",
+        body: `${name} 조각이 1주가 됐어요. 온주로 전환해 보세요.`,
+      };
     default:
       return null; // GOAL_NUDGE / ACCOUNT_VERIFY / 미지원 → 폴백
   }
