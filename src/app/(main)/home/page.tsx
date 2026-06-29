@@ -36,7 +36,6 @@ import {
   visibleLinks,
 } from "@/store/homeLayoutStore";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
-import { cn } from "@/lib/utils";
 import type { CollectSourceType } from "@/types/domain/cma";
 
 const SOURCE_ICON: Record<
@@ -491,7 +490,7 @@ export default function HomePage() {
             </p>
           ) : (
             <div className="grid grid-cols-4 gap-y-5">
-              {quickLinks.map(({ id, label, icon: Icon, href, highlight }) => (
+              {quickLinks.map(({ id, label, icon: Icon, href }) => (
                 <Link
                   key={id}
                   href={href}

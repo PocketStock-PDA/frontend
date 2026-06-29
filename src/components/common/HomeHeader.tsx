@@ -3,19 +3,8 @@
 import { Bell, Menu } from "lucide-react";
 import { useUiStore } from "@/store/uiStore";
 
-const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-
-// 2026.06.04 목요일
-function formatDate(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}.${m}.${day} ${DAYS[d.getDay()]}요일`;
-}
-
 export interface HomeHeaderProps {
   userName: string;
-  date?: Date;
   onBellClick?: () => void;
   /** 안읽음 알림 개수 — 0이면 뱃지 미표시 */
   unreadCount?: number;
@@ -24,7 +13,6 @@ export interface HomeHeaderProps {
 /** 홈 전용 헤더: 인사말(좌) + 알림벨·햄버거(우) */
 export function HomeHeader({
   userName,
-  date = new Date(),
   onBellClick,
   unreadCount = 0,
 }: HomeHeaderProps) {
