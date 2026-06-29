@@ -39,7 +39,6 @@ const GATHER_SOFT = "#F1EEFF";
 const GATHER_INK = "#6A45E6";
 // 일정(배당/실적) 정보성 슬레이트
 const EVENT_INK = "#64748B";
-const EVENT_SOFT = "#EEF1F5";
 const BRAND = "#2563EB";
 
 // 달력 셀 배경 퍼즐(시그니처) — 날짜 뒤 중앙에 깔리는 조각. Material 'extension' path(viewBox 24).
@@ -72,30 +71,6 @@ const ITEM_VARIANTS_REDUCED = {
 };
 
 // ── 글리프/아이콘 ──────────────────────────────────────────────
-function TriUp({ size = 9 }: { size?: number }) {
-  return (
-    <span
-      className="inline-block h-0 w-0"
-      style={{
-        borderLeft: `${size / 2}px solid transparent`,
-        borderRight: `${size / 2}px solid transparent`,
-        borderBottom: `${(size * 8) / 9}px solid ${TRADE_BUY}`,
-      }}
-    />
-  );
-}
-function TriDn({ size = 9 }: { size?: number }) {
-  return (
-    <span
-      className="inline-block h-0 w-0"
-      style={{
-        borderLeft: `${size / 2}px solid transparent`,
-        borderRight: `${size / 2}px solid transparent`,
-        borderTop: `${(size * 8) / 9}px solid ${TRADE_SELL}`,
-      }}
-    />
-  );
-}
 function PuzzleIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className={className}>
@@ -103,30 +78,6 @@ function PuzzleIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-function CoinIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      className={className}
-    >
-      <circle cx="8" cy="8" r="6" />
-      <path d="M8 5v6M6 7h4" strokeLinecap="round" />
-    </svg>
-  );
-}
-function BarsIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className={className}>
-      <rect x="2" y="9" width="3" height="5" rx="1" />
-      <rect x="6.5" y="5" width="3" height="9" rx="1" />
-      <rect x="11" y="2" width="3" height="12" rx="1" />
-    </svg>
-  );
-}
-
 // ── 모으기(자동적립) 날짜 전개 — 표시월 평일 스케줄 기준 ───────
 // 백엔드 실행내역 대신 활성 종목의 period/periodDay를 그 달에 펼쳐 표시한다(평일만).
 function buildGatherMap(
