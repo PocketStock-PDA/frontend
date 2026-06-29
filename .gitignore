@@ -53,6 +53,6 @@ docs/
 # impeccable (design tooling — local only)
 .github/hooks/
 .github/skills/
-.impeccable/
+**/.impeccable/
 PRODUCT.md
 DESIGN.md
