@@ -3,12 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  CreditCard,
-  Landmark,
-  Plane,
-  Settings,
-} from "lucide-react";
+import { CreditCard, Landmark, Plane, Settings } from "lucide-react";
 import { PointsQuickIcon } from "@/components/icons/QuickLinkIcons";
 import { HomeHeader } from "@/components/common/HomeHeader";
 import { CmaBalanceCard } from "@/components/features/cma/CmaBalanceCard";
@@ -285,7 +280,9 @@ export default function HomePage() {
               (s) => s.sourceType === "CARD" && s.enabled,
             );
             const linkedCard = activeCardSetting
-              ? linkedCards?.find((c) => c.cardId === activeCardSetting.sourceRefId)
+              ? linkedCards?.find(
+                  (c) => c.cardId === activeCardSetting.sourceRefId,
+                )
               : undefined;
             const collectedCard = data.collectedSources.find(
               (s) => s.sourceType === "CARD",
@@ -298,14 +295,43 @@ export default function HomePage() {
                 {/* 카드 행 — 연결 여부 무관하게 항상 표시 */}
                 {linkedCard ? (
                   <div className="relative flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4">
-                    <svg className="size-6 shrink-0" viewBox="6 8 24 20" fill="none">
-                      <rect x="9.5" y="11" width="21" height="13.5" rx="2.6" fill="#3f7bff" />
-                      <rect x="9.5" y="14" width="21" height="2.6" fill="#2a62e0" />
-                      <rect x="12.5" y="20" width="6" height="2" rx="1" fill="#fff" fillOpacity="0.85" />
+                    <svg
+                      className="size-6 shrink-0"
+                      viewBox="6 8 24 20"
+                      fill="none"
+                    >
+                      <rect
+                        x="9.5"
+                        y="11"
+                        width="21"
+                        height="13.5"
+                        rx="2.6"
+                        fill="#3f7bff"
+                      />
+                      <rect
+                        x="9.5"
+                        y="14"
+                        width="21"
+                        height="2.6"
+                        fill="#2a62e0"
+                      />
+                      <rect
+                        x="12.5"
+                        y="20"
+                        width="6"
+                        height="2"
+                        rx="1"
+                        fill="#fff"
+                        fillOpacity="0.85"
+                      />
                     </svg>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-foreground">카드 사용 잔돈</p>
-                      <p className="truncate text-xs text-muted-foreground">{linkedCard.cardName}</p>
+                      <p className="truncate text-sm font-bold text-foreground">
+                        카드 사용 잔돈
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {linkedCard.cardName}
+                      </p>
                     </div>
                     <AmountDisplay
                       value={collectedCard?.amount ?? 0}
@@ -324,14 +350,43 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4">
-                    <svg className="size-6 shrink-0" viewBox="6 8 24 20" fill="none">
-                      <rect x="9.5" y="11" width="21" height="13.5" rx="2.6" fill="#3f7bff" />
-                      <rect x="9.5" y="14" width="21" height="2.6" fill="#2a62e0" />
-                      <rect x="12.5" y="20" width="6" height="2" rx="1" fill="#fff" fillOpacity="0.85" />
+                    <svg
+                      className="size-6 shrink-0"
+                      viewBox="6 8 24 20"
+                      fill="none"
+                    >
+                      <rect
+                        x="9.5"
+                        y="11"
+                        width="21"
+                        height="13.5"
+                        rx="2.6"
+                        fill="#3f7bff"
+                      />
+                      <rect
+                        x="9.5"
+                        y="14"
+                        width="21"
+                        height="2.6"
+                        fill="#2a62e0"
+                      />
+                      <rect
+                        x="12.5"
+                        y="20"
+                        width="6"
+                        height="2"
+                        rx="1"
+                        fill="#fff"
+                        fillOpacity="0.85"
+                      />
                     </svg>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-foreground">카드 잔돈</p>
-                      <p className="truncate text-xs text-muted-foreground">카드를 연결하면 잔돈을 적립할 수 있어요</p>
+                      <p className="truncate text-sm font-bold text-foreground">
+                        카드 잔돈
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        카드를 연결하면 잔돈을 적립할 수 있어요
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -424,13 +479,17 @@ export default function HomePage() {
               </span>
               <div className="w-full space-y-1.5 px-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] text-muted-foreground">마이신한</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    마이신한
+                  </span>
                   <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
                     {myShinhanTotal.toLocaleString()}P
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between border-t border-border/60 pt-1.5">
-                  <span className="text-[10px] text-muted-foreground">제휴</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    제휴
+                  </span>
                   <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
                     {partnerPointTotal.toLocaleString()}P
                   </span>
@@ -473,13 +532,13 @@ export default function HomePage() {
 
         {/* 바로가기 (홈화면 편집에서 순서/표시 변경) */}
         <section className="mt-2">
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-3 px-3 flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-muted-foreground">
               바로가기
             </p>
             <Link
               href="/home/edit"
-              className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="text-xs font-medium text-muted-foreground transition-colors underline hover:text-foreground"
             >
               편집
             </Link>
@@ -496,9 +555,7 @@ export default function HomePage() {
                   href={href}
                   className="flex flex-col items-center gap-1.5"
                 >
-                  <span
-                    className="flex size-14 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border"
-                  >
+                  <span className="flex size-14 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border">
                     <Icon className="size-7" />
                   </span>
                   <span className="whitespace-nowrap text-xs text-foreground">
