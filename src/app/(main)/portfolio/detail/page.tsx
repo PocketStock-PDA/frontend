@@ -286,6 +286,10 @@ function StockDetailContent({
   const fx = isUSD ? exchangeRateQ.data?.baseRate ?? null : null;
   const showKrw = ovsKrw && fx !== null;
   const viewCurrency: "USD" | "KRW" = isUSD && !showKrw ? "USD" : "KRW";
+  // KRW 표시(국내·해외 원화 토글)는 정수 원화 기준 수익률로 통일 — 목록 페이지 krwRate()와 동일 소스
+  const displayRate = (!isUSD || showKrw) && hv?.profitKrw != null && hv?.investedKrw != null && hv.investedKrw > 0
+    ? new Decimal(hv.profitKrw).div(hv.investedKrw).times(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+    : rate;
   // Decimal 값을 표시 통화로 환산(원화 보기면 ×환율). AmountDisplay/ChangeIndicator 값 주입용.
   const toView = (v: Decimal) => (showKrw ? v.times(fx) : v);
   // 조회용 금액 포맷 — 원화 보기면 USD값을 환율로 환산, 아니면 종목 통화 그대로.
@@ -522,7 +526,7 @@ function StockDetailContent({
             collectedQty={formatShares(collectedQtyD)}
             collectedCount={fills.length}
             profit={toView(profit).toNumber()}
-            rate={rate.toNumber()}
+            rate={displayRate.toNumber()}
             currency={viewCurrency}
             showPieces={pieces > 0}
             onEdit={() => router.push(tradingAutoDetailPath(stockCode))}
@@ -634,7 +638,7 @@ function StockDetailContent({
                 value={toView(profit).toNumber()}
                 suffix={viewCurrency === "KRW" ? "원" : ""}
                 prefix={viewCurrency === "USD" ? "$" : ""}
-                subPercent={rate.toNumber()}
+                subPercent={displayRate.toNumber()}
                 size="md"
                 className="mt-1"
               />
