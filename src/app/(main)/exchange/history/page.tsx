@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
-import { useExchangeHistory } from "@/hooks/queries/useExchangeHistory";
+import { useExchangeHistoryInfinite } from "@/hooks/queries/useExchangeHistory";
 import type { FxHistoryItem } from "@/types/domain/exchange";
 import { parseUTC } from "@/lib/utils/date";
 
@@ -90,14 +90,32 @@ function SkeletonRow() {
 }
 
 export default function ExchangeHistoryPage() {
-  const [page, setPage] = useState(0);
-  const { data, isLoading } = useExchangeHistory(page, PAGE_SIZE);
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useExchangeHistoryInfinite(PAGE_SIZE);
 
-  const items = data?.history ?? [];
-  const totalElements = data?.totalElements ?? 0;
-  const totalPages = Math.ceil(totalElements / PAGE_SIZE);
-  const hasNext = page < totalPages - 1;
-  const hasPrev = page > 0;
+  const items = data?.pages.flatMap((p) => p.history) ?? [];
+
+  // 바닥 근처(rootMargin)에 sentinel이 들어오면 다음 페이지 prefetch.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <>
@@ -117,44 +135,34 @@ export default function ExchangeHistoryPage() {
             <p className="text-[13px] text-muted-foreground">환전 내역이 없어요</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {groupByDate(items).map(({ date, rows }) => (
-              <div key={date}>
-                <p className="mb-1.5 px-1 font-numeric text-[12px] font-semibold tabular-nums text-muted-foreground">{date}</p>
-                <div className="rounded-2xl bg-card shadow-sm">
-                  <div className="divide-y divide-border">
-                    {rows.map((item, i) => (
-                      <HistoryRow key={i} item={item} />
-                    ))}
+          <>
+            <div className="flex flex-col gap-3">
+              {groupByDate(items).map(({ date, rows }) => (
+                <div key={date}>
+                  <p className="mb-1.5 px-1 font-numeric text-[12px] font-semibold tabular-nums text-muted-foreground">{date}</p>
+                  <div className="rounded-2xl bg-card shadow-sm">
+                    <div className="divide-y divide-border">
+                      {rows.map((item, i) => (
+                        <HistoryRow key={i} item={item} />
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-1">
-            <button
-              type="button"
-              onClick={() => setPage((p) => p - 1)}
-              disabled={!hasPrev}
-              className="rounded-xl px-4 py-2 text-[13px] font-semibold text-primary disabled:text-muted-foreground"
-            >
-              이전
-            </button>
-            <span className="font-numeric text-[12px] tabular-nums text-muted-foreground">
-              {page + 1} / {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPage((p) => p + 1)}
-              disabled={!hasNext}
-              className="rounded-xl px-4 py-2 text-[13px] font-semibold text-primary disabled:text-muted-foreground"
-            >
-              다음
-            </button>
-          </div>
+            {isFetchingNextPage && (
+              <div className="rounded-2xl bg-card shadow-sm">
+                <div className="divide-y divide-border">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <SkeletonRow key={i} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div ref={sentinelRef} className="h-px" />
+          </>
         )}
       </div>
     </>
