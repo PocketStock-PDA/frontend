@@ -33,6 +33,7 @@ function CoinSpinner({ size, startFrame }: { size: number; startFrame: number })
   }, []);
 
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       ref={imgRef}
       src={COIN_FRAMES[startFrame % 8]}

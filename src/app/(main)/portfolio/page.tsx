@@ -30,7 +30,6 @@ import {
   tradingDetailPath,
 } from "@/lib/navigation/routes";
 import type { AutoInvestStock } from "@/types/domain/autoInvest";
-import { cn } from "@/lib/utils";
 import { toPieceParts } from "@/lib/utils/pieces";
 import { toDecimal } from "@/lib/utils/decimal";
 import { queryKeys } from "@/lib/utils/queryKeys";

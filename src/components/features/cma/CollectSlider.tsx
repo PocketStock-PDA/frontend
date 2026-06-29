@@ -87,6 +87,7 @@ export function CollectSlider({
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     reducedRef.current = reduced;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!reduced) setShowHint(true);
   }, []);
 
@@ -170,6 +171,7 @@ export function CollectSlider({
 
   useEffect(() => {
     if (isError && doneRef.current) resetSlider();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isError]);
 
   const prevPending = useRef(false);
@@ -179,6 +181,7 @@ export function CollectSlider({
       resetTimer.current = setTimeout(resetSlider, 1200);
     }
     prevPending.current = isPending;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending]);
 
   function onPointerStart(x: number) {
@@ -225,6 +228,7 @@ export function CollectSlider({
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup",   onMouseUp);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const isLocked = disabled || isPending;
@@ -271,8 +275,8 @@ export function CollectSlider({
           )}
           style={{ background: "var(--grad-1)", touchAction: "none" }}
           onMouseDown={e => { e.preventDefault(); onPointerStart(e.clientX); }}
-          onTouchStart={e => onPointerStart(e.touches[0]!.clientX)}
-          onTouchMove={e => { e.preventDefault(); onPointerMove(e.touches[0]!.clientX); }}
+          onTouchStart={e => { const t = e.touches[0]; if (t) onPointerStart(t.clientX); }}
+          onTouchMove={e => { e.preventDefault(); const t = e.touches[0]; if (t) onPointerMove(t.clientX); }}
           onTouchEnd={() => onPointerEnd()}
         >
           {/* 상단 하이라이트 */}

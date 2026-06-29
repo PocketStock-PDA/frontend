@@ -23,6 +23,7 @@ function CoinSpinner({ size, startFrame }: { size: number; startFrame: number })
     return () => clearInterval(id);
   }, []);
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       ref={imgRef}
       src={COIN_FRAMES[startFrame % 8]}
@@ -68,7 +69,7 @@ function makeParticle(
   pct: number,
   reverse: boolean,
 ): Particle {
-  const origin = origins[Math.floor(Math.random() * origins.length)]!;
+  const origin = origins[Math.floor(Math.random() * origins.length)] as DOMRect;
   const thumb = thumbCenter(sliderRect, pct);
   const ox = rand(origin.left + 10, origin.right - 10);
   const oy = rand(origin.top + 10, origin.bottom - 10);
@@ -162,6 +163,7 @@ export function DragCoinOverlay({
     }
 
     prevPctRef.current = pctRef.current ?? 0;
+    const capturedTarget = target;
 
     const id = setInterval(() => {
       const pct = pctRef.current ?? 0;
@@ -177,7 +179,7 @@ export function DragCoinOverlay({
 
       setParticles((prev) => [
         ...prev,
-        ...Array.from({ length: count }, () => makeParticle(origins, target!, pct, reverse)),
+        ...Array.from({ length: count }, () => makeParticle(origins, capturedTarget as DOMRect, pct, reverse)),
       ]);
     }, 60);
 

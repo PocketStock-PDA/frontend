@@ -79,8 +79,9 @@ export function CollectParticleCanvas({
     function spawn() {
       const pct = pctRef.current ?? 0;
       if (pct < 0.03) return;
-      const sx = rand(origin!.left + 8, origin!.right - 8);
-      const sy = rand(origin!.top + 8, origin!.bottom - 8);
+      if (!origin) return;
+      const sx = rand(origin.left + 8, origin.right - 8);
+      const sy = rand(origin.top + 8, origin.bottom - 8);
       const ex = tx + rand(-14, 14);
       const ey = ty + rand(-10, 10);
       state.particles.push({
@@ -176,9 +177,9 @@ export function CollectParticleCanvas({
 
   // Cleanup on unmount
   useEffect(() => {
+    const stateSnapshot = stateRef.current;
     return () => {
-      const state = stateRef.current;
-      if (state.raf !== undefined) cancelAnimationFrame(state.raf);
+      if (stateSnapshot.raf !== undefined) cancelAnimationFrame(stateSnapshot.raf);
     };
   }, []);
 
