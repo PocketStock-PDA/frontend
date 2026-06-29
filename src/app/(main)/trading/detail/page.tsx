@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Decimal from "decimal.js";
 import { toast } from "sonner";

@@ -656,11 +656,11 @@ function VerifyStep({
                     const next = [...digits] as [string, string, string];
                     next[i] = ch;
                     setDigits(next);
-                    if (ch && i < 2) slotRefs[i + 1].current?.focus();
+                    if (ch && i < 2) slotRefs[i + 1]?.current?.focus();
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Backspace" && !digits[i] && i > 0) {
-                      slotRefs[i - 1].current?.focus();
+                      slotRefs[i - 1]?.current?.focus();
                     }
                   }}
                   onFocus={(e) => e.target.select()}
