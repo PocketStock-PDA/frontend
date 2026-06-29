@@ -20,6 +20,7 @@ import {
   useCompleteSignup,
 } from "@/hooks/mutations/useSignup";
 import { cn } from "@/lib/utils";
+import { formatPhone, PHONE_REGEX } from "@/lib/utils/phone";
 import type { TermItem } from "@/types/domain/account";
 import type { AuthMethodType } from "@/types/domain/auth";
 
@@ -304,18 +305,12 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
 const CARRIERS = ["SKT", "KT", "LGU+", "알뜰폰(SKT)", "알뜰폰(KT)", "알뜰폰(LG)"];
 
 // ── 입력 검증 (zod) ────────────────────────────────────────────────────────────
-/** 입력 중 자동 하이픈: 숫자만 추려 010-0000-0000 형태로 (최대 11자리). 포맷 전용 — 검증은 zod 담당. */
-function formatPhone(raw: string): string {
-  const d = raw.replace(/\D/g, "").slice(0, 11);
-  if (d.length < 4) return d;
-  if (d.length < 8) return `${d.slice(0, 3)}-${d.slice(3)}`;
-  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
-}
+// 휴대폰 포맷(formatPhone)·정규식(PHONE_REGEX)은 공용 유틸 사용 — 계좌개설과 동일 규칙 공유.
 
 /** 010으로 시작하는 휴대폰 11자리(숫자만) */
 const phoneSchema = z
   .string()
-  .regex(/^010\d{8}$/, "010으로 시작하는 휴대폰 번호 11자리를 입력해 주세요.");
+  .regex(PHONE_REGEX, "010으로 시작하는 휴대폰 번호 11자리를 입력해 주세요.");
 
 /** 주민번호 뒷 첫자리 — 내국인 1~4만 허용 */
 const residentBackSchema = z
