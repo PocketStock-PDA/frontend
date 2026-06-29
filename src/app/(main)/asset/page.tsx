@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SectionHeader } from "@/components/common/SectionHeader";
@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { useAssetSummary } from "@/hooks/queries/useAssetSummary";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
 import { formatKRW } from "@/lib/utils/currency";
-import { cn } from "@/lib/utils";
 
 export default function AssetPage() {
   const { data, isLoading, isError, refetch } = useAssetSummary();
@@ -48,64 +47,52 @@ export default function AssetPage() {
     );
   }
 
-  const momDiff = data.momDiff ?? 0;
-  const isPositive = momDiff >= 0;
-
   return (
     <>
       <AppHeader variant="sub" title="자산 현황" />
       <div className="space-y-5">
-        {/* 순자산 */}
-        <section className="rounded-2xl bg-primary p-5 text-white">
-          <p className="text-sm text-white/80">순자산</p>
-          <p className="mt-1 text-3xl font-bold tracking-tight">
-            {formatKRW(data.netAssets)}
-          </p>
-          {momDiff !== 0 && (
-            <div className={cn("mt-2 flex items-center gap-1 text-sm")}>
-              {isPositive ? (
-                <TrendingUp className="size-4" />
-              ) : (
-                <TrendingDown className="size-4" />
-              )}
-              <span>
-                전월 대비 {isPositive ? "+" : ""}
-                {formatKRW(momDiff)}
-              </span>
-            </div>
-          )}
-          {data.partial && (
-            <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-white/15 px-2.5 py-1.5 text-xs text-white/90">
-              <AlertTriangle className="size-3.5 shrink-0" />
-              <span className="flex-1">일부 자산을 불러오지 못해 실제보다 적게 표시될 수 있어요.</span>
-              <button
-                type="button"
-                onClick={() => refetch()}
-                className="shrink-0 font-semibold underline underline-offset-2"
-              >
-                다시 시도
-              </button>
-            </div>
-          )}
+        {/* 순자산 + 자산 구성 — 한 카드로 묶음(포트폴리오 탭 톤) */}
+        <section className="overflow-hidden rounded-2xl bg-brand-surface">
+          {/* 순자산 (brand-surface) */}
+          <div className="p-5">
+            <p className="text-sm font-medium text-primary">순자산</p>
+            <p className="mt-1.5 text-3xl font-bold tracking-tight text-foreground">
+              {formatKRW(data.netAssets)}
+            </p>
+            {data.partial && (
+              <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
+                <AlertTriangle className="size-3.5 shrink-0" />
+                <span className="flex-1">일부 자산을 불러오지 못해 실제보다 적게 표시될 수 있어요.</span>
+                <button
+                  type="button"
+                  onClick={() => refetch()}
+                  className="shrink-0 font-semibold underline underline-offset-2"
+                >
+                  다시 시도
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 자산 구성 (흰 배경) */}
+          <div className="border-t border-primary/10 bg-card p-5">
+            <p className="mb-3 text-sm font-bold text-primary">자산 구성</p>
+            {data.portfolio.length === 0 ? (
+              <EmptyState title="등록된 자산이 없어요" />
+            ) : (
+              <AssetPortfolioCard
+                bare
+                portfolio={data.portfolio}
+                pointSources={data.pointSources}
+              />
+            )}
+          </div>
         </section>
 
         {/* 만기 알림 */}
         {maturityData?.triggerAccount && (
           <MaturityAlertCard account={maturityData.triggerAccount} />
         )}
-
-        {/* 자산 구성 */}
-        <section>
-          <SectionHeader title="자산 구성" />
-          {data.portfolio.length === 0 ? (
-            <EmptyState title="등록된 자산이 없어요" />
-          ) : (
-            <AssetPortfolioCard
-              portfolio={data.portfolio}
-              pointSources={data.pointSources}
-            />
-          )}
-        </section>
 
         {/* 자금 굴리기 */}
         <section>
