@@ -235,7 +235,7 @@ export default function MaturityPage() {
 
       {/* ── 하단 고정 요약바 (선택 시) ────────────────────────────────── */}
       {hasSelection && (
-        <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
+        <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
           {belowMin && (
             <p className="mb-2 text-center text-[11.5px] font-semibold text-red-600">
               종목당 최소 {formatKRW(MIN_AMOUNT)}부터 예약할 수 있어요. 종목 수를 줄이거나

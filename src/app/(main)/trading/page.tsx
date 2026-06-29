@@ -21,6 +21,7 @@ import {
   tradingAutoDetailPath,
   tradingDetailPath,
 } from "@/lib/navigation/routes";
+import { CollectIcon } from "@/components/features/portfolio/ActionIcons";
 import type {
   RankingSort,
   StockMarket,
@@ -63,8 +64,9 @@ export default function TradingExplorePage() {
   return (
     <>
       <AppHeader variant="sub" title="종목 탐색" />
-      <div className="space-y-5">
-        <div className="relative">
+      {/* 헤더(h-14+mb-4=4.5rem) + PageContainer pt(safe-top+1.5rem) + pb(1.5rem) + nav offset */}
+      <div className="flex h-[calc(100dvh-env(safe-area-inset-top)-7.5rem-var(--bottom-nav-offset))] flex-col gap-5">
+        <div className="relative shrink-0">
           <SearchInput
             value={query}
             onChange={setQuery}
@@ -96,7 +98,7 @@ function SearchDropdown({
   const stocks = Array.isArray(data) ? data : [];
 
   return (
-    <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-[60vh] overflow-auto rounded-xl border border-border bg-background py-1 shadow-lg">
+    <div className="scrollbar-thin absolute inset-x-0 top-full z-20 mt-1 max-h-[60vh] overflow-auto rounded-xl border border-border bg-background py-1 shadow-lg">
       {isLoading ? (
         <p className="px-4 py-6 text-center text-sm text-muted-foreground">
           검색 중…
@@ -155,9 +157,10 @@ function SearchRow({
         type="button"
         onClick={onCollect}
         aria-label={`${item.stockName} 모으기 설정`}
-        className="shrink-0 rounded-full bg-brand-surface px-3.5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-brand-surface/70"
+        className="group shrink-0 flex flex-col items-center gap-0.5 rounded-2xl bg-card px-3.5 py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95"
       >
-        모으기
+        <CollectIcon className="size-5" />
+        <span className="whitespace-nowrap text-[10px] font-medium text-primary">모으기</span>
       </button>
     </div>
   );
@@ -197,24 +200,25 @@ function Rankings({
         : formatKRW(price);
 
   return (
-    <section className="space-y-4">
+    <section className="flex min-h-0 flex-1 flex-col gap-4">
       <SegmentedControl
         options={MARKET_TABS}
         value={market}
         onChange={onMarketChange}
+        className="shrink-0"
       />
 
-      <div className="rounded-2xl border border-border px-4 pt-4 pb-1">
-        <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border px-4 pt-4 pb-4">
+        {/* 헤더 */}
+        <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
           <h2 className="text-base font-bold text-foreground">실시간 순위</h2>
-          {/* 해외 순위 + 환율 보유 시: 달러 ↔ 원화 토글 (맨 오른쪽) */}
           {market === "overseas" && fx !== null && (
             <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
           )}
         </div>
 
-        {/* 정렬: 거래대금 / 시가총액 */}
-        <div className="mb-3 flex gap-2">
+        {/* 정렬 탭 */}
+        <div className="mb-3 flex shrink-0 gap-2">
           {SORT_TABS.map((t) => (
             <button
               key={t.value}
@@ -232,8 +236,9 @@ function Rankings({
           ))}
         </div>
 
+        {/* 스크롤 영역 */}
         {isLoading ? (
-          <div className="divide-y divide-border">
+          <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-border">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 py-3">
                 <div className="size-9 shrink-0 animate-pulse rounded-full bg-muted" />
@@ -245,20 +250,23 @@ function Rankings({
             ))}
           </div>
         ) : isError ? (
-          <EmptyState
-            title="순위를 불러오지 못했어요"
-            description="잠시 후 다시 시도해 주세요."
-            className="py-8"
-            action={
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
-                다시 시도
-              </Button>
-            }
-          />
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <EmptyState
+              title="순위를 불러오지 못했어요"
+              description="잠시 후 다시 시도해 주세요."
+              action={
+                <Button variant="outline" size="sm" onClick={() => refetch()}>
+                  다시 시도
+                </Button>
+              }
+            />
+          </div>
         ) : items.length === 0 ? (
-          <EmptyState title="순위가 없어요" className="py-8" />
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <EmptyState title="순위가 없어요" />
+          </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto divide-y divide-border pr-3">
             {items.map((it) => (
               <RankingRow
                 key={it.stockCode}
@@ -293,7 +301,7 @@ function RankingRow({
   const priceText = fmtPrice(price, item.currency);
   return (
     // 행 전체 = 매수매도 진입, '모으기'는 별도 형제 버튼(중첩 금지)
-    <div className="flex w-full items-center gap-3 py-3">
+    <div className="flex w-full items-center gap-2 py-3">
       <button
         type="button"
         onClick={onClick}
@@ -324,9 +332,10 @@ function RankingRow({
         type="button"
         onClick={() => router.push(tradingAutoDetailPath(item.stockCode))}
         aria-label={`${item.stockName} 모으기 설정`}
-        className="shrink-0 rounded-full bg-brand-surface px-3.5 py-2 text-xs font-semibold text-primary transition-colors hover:bg-brand-surface/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="group shrink-0 flex flex-col items-center gap-0.5 rounded-2xl bg-card px-3.5 py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        모으기
+        <CollectIcon className="size-5" />
+        <span className="whitespace-nowrap text-[10px] font-medium text-primary">모으기</span>
       </button>
     </div>
   );

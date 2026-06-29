@@ -198,7 +198,7 @@ export default function MaturityReservePage() {
     <>
       <AppHeader variant="sub" title="매수 예약 확인" />
 
-      <div className="space-y-4 pb-24">
+      <div className="space-y-4 pb-40">
         {/* ── 예적금 → 배당주 전환 흐름 ─────────────────────────────────── */}
         <div className="overflow-hidden rounded-2xl border border-border">
           {/* FROM: 예적금 (중립 muted) */}
@@ -379,7 +379,7 @@ export default function MaturityReservePage() {
       </div>
 
       {/* ── 하단 고정 버튼 ────────────────────────────────────────────────── */}
-      <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
+      <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
         <button
           type="button"
           onClick={() => void handleConfirm()}
