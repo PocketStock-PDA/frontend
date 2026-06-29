@@ -34,10 +34,14 @@ export function AccountLinkSheet({ open, onOpenChange }: AccountLinkSheetProps) 
   const { data: settings } = useCollectSettings(open);
   const save = useSaveCollectSettings();
 
-  // 수집 대상 후보: 비휴면 + 원화(외화는 SOL트래블에서 따로 적립).
+  // 수집 대상 후보: 비휴면 + 원화 입출금식(DEMAND)만.
+  // 예금(DEPOSIT)·적금(SAVINGS)은 끝전을 모으는 대상이 아니라 제외, 외화는 SOL트래블에서 따로 적립.
   const eligible = useMemo(
     () =>
-      (accounts ?? []).filter((a) => !a.isDormant && a.currency === "KRW"),
+      (accounts ?? []).filter(
+        (a) =>
+          !a.isDormant && a.currency === "KRW" && a.accountType === "DEMAND",
+      ),
     [accounts],
   );
   const enabledIds = useMemo(
