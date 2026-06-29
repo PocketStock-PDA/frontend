@@ -28,13 +28,64 @@ function qty(n) {
 }
 
 const sideKo = (side) => (side === "BUY" ? "매수" : "매도");
+const autoTriggerKo = (trigger, side) => {
+  switch (trigger) {
+    case "PERIODIC":
+      return "정기매수";
+    case "DIP_BUY":
+      return "물타기";
+    case "TAKE_PROFIT":
+      return "익절";
+    default:
+      return sideKo(side);
+  }
+};
+const autoStatusKo = (status) => {
+  switch (status) {
+    case "ACCEPTED":
+    case "QUEUED":
+      return "접수";
+    case "FILLED":
+      return "완료";
+    case "FAILED":
+      return "실패";
+    default:
+      return "실행";
+  }
+};
+const autoStatusVerb = (status) => {
+  switch (status) {
+    case "ACCEPTED":
+    case "QUEUED":
+      return "접수되었어요";
+    case "FILLED":
+      return "완료됐어요";
+    case "FAILED":
+      return "실패했어요";
+    default:
+      return "실행됐어요";
+  }
+};
+
+function autoValue(d) {
+  if (d.amount != null) return money(d.amount, d.currency);
+  if (d.quantity != null) return qty(d.quantity);
+  return "";
+}
+
+function stockLabel(d) {
+  if (typeof d.stockName === "string" && d.stockName.trim()) {
+    return d.stockName.trim();
+  }
+  return d.stockCode || "종목";
+}
 
 /**
  * 구조화 payload → { title, body }. data 템플릿 없는 type은 null 반환 → title/body 폴백.
  */
 function format(p) {
   const d = p.data || {};
-  const name = d.stockName || d.stockCode; // 종목명 없으면 코드 폴백
+  const name = stockLabel(d); // 종목명 없으면 코드 폴백
   switch (p.type) {
     case "TRADE_FILLED": {
       // 토스형 1줄: 제목=종목+액션, 본문=수량·총액 한 문장(주당가·라벨 생략, 앱에서 확인).
@@ -50,6 +101,25 @@ function format(p) {
         title: `${name} ${sideKo(d.side)} 주문 실패`,
         body: d.reason || "주문이 체결되지 못했어요",
       };
+    case "AUTO_INVEST_EXECUTED": {
+      const trigger = autoTriggerKo(d.trigger, d.side);
+      const status = autoStatusKo(d.status);
+      const value = autoValue(d);
+      return {
+        title: `${trigger} ${status}`,
+        body: [name, value, trigger, autoStatusVerb(d.status)]
+          .filter(Boolean)
+          .join(" "),
+      };
+    }
+    case "AUTO_INVEST_FAILED": {
+      const trigger = autoTriggerKo(d.trigger, d.side);
+      const reason = d.reason ? ` (${d.reason})` : "";
+      return {
+        title: `${trigger} 실패`,
+        body: `${name} ${trigger} 실패${reason}`,
+      };
+    }
     default:
       return null; // GOAL_NUDGE / ACCOUNT_VERIFY / 미지원 → 폴백
   }
@@ -64,6 +134,11 @@ function routeFor(p) {
       return d.stockCode ? `/portfolio/detail?stockCode=${d.stockCode}` : "/portfolio";
     case "UNFILLED":
       return "/history?tab=pending";
+    case "AUTO_INVEST_EXECUTED":
+    case "AUTO_INVEST_FAILED":
+      return d.stockCode
+        ? `/portfolio/detail?stockCode=${d.stockCode}&view=collect`
+        : "/portfolio";
     case "GOAL_NUDGE":
       return "/budget";
     default:
@@ -79,6 +154,11 @@ function tagFor(p) {
     case "TRADE_FILLED":
     case "UNFILLED":
       return d.orderId != null ? `order-${d.orderId}` : undefined;
+    case "AUTO_INVEST_EXECUTED":
+    case "AUTO_INVEST_FAILED":
+      return d.settingId != null && d.roundNo != null
+        ? `autoinvest-${d.settingId}-${d.roundNo}`
+        : undefined;
     case "GOAL_NUDGE":
       return "goal-nudge";
     case "ACCOUNT_VERIFY":
