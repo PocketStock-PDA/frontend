@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { ChevronRight, X, Landmark, ArrowDown, ArrowRight, CheckCircle2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { ChevronRight, X, ArrowDown, ArrowRight, CheckCircle2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,10 +35,9 @@ function formatMD(iso: string): string {
   return `${parseInt(m ?? "0", 10)}월 ${parseInt(d ?? "0", 10)}일`;
 }
 
-function ddayTone(days: number): string {
-  if (days <= 7) return "text-red-600";
-  if (days <= 30) return "text-amber-600";
-  return "text-muted-foreground";
+// D-day는 임박 색 구분 없이 브랜드 톤(파랑)으로 통일 — featured 카드·만기 굴리기 히어로와 일치.
+function ddayTone(_days: number): string {
+  return "text-primary";
 }
 
 function ddayLabel(days: number): string {
@@ -54,9 +53,16 @@ const STATUS_META: Record<MaturityReservationStatus, { label: string; cls: strin
 
 // ── 페이지 ────────────────────────────────────────────────────────────────
 
+const TABS: Tab[] = ["accounts", "history", "drip"];
+
 export default function MaturitySelectPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("accounts");
+  const params = useSearchParams();
+  // 예약 완료 후 reserve가 ?tab=history로 보내면 전환 내역 탭으로 진입(그 외엔 예금·적금).
+  const paramTab = params.get("tab");
+  const [tab, setTab] = useState<Tab>(
+    paramTab && TABS.includes(paramTab as Tab) ? (paramTab as Tab) : "accounts",
+  );
 
   const { data: accounts = [], isLoading: accLoading, isError } = useMaturityAccounts();
   const { data: reservations = [], isLoading: resLoading } = useMaturityReservations();
@@ -176,7 +182,10 @@ function AccountsTab({
     );
   }
 
-  if (accounts.length === 0) {
+  // 이미 자금 굴리기로 예약한 계좌는 선택 탭에서 숨긴다 — 전환 내역 탭에만 노출.
+  const selectable = accounts.filter((a) => !a.reserved);
+
+  if (selectable.length === 0) {
     return (
       <EmptyState
         title="만기 예정 예금·적금이 없어요"
@@ -190,7 +199,7 @@ function AccountsTab({
     );
   }
 
-  const [featured, ...rest] = accounts;
+  const [featured, ...rest] = selectable;
 
   return (
     <div className="space-y-5">
@@ -212,12 +221,7 @@ function AccountsTab({
         >
           <div className="flex items-center justify-between">
             <span className="text-[11.5px] font-bold text-primary">가장 가까운 만기</span>
-            <span
-              className={cn(
-                "font-numeric text-[18px] font-bold tabular-nums",
-                ddayTone(featured.daysUntilMaturity),
-              )}
-            >
+            <span className="font-numeric text-[18px] font-bold tabular-nums text-primary">
               {ddayLabel(featured.daysUntilMaturity)}
             </span>
           </div>
@@ -394,15 +398,12 @@ function AccountGroupCard({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      {/* FROM: 예적금 헤더 — 전환 정보까지 포함 */}
-      <div className="bg-muted px-4 py-3.5">
+      {/* 예적금 헤더 */}
+      <div className="border-b border-border px-4 py-3.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Landmark className="size-3.5 shrink-0 text-muted-foreground" />
-            <p className="truncate text-[14px] font-bold text-foreground">
-              {group.accountName ?? "예금·적금"}
-            </p>
-          </div>
+          <p className="truncate text-[14px] font-bold text-foreground">
+            {group.accountName ?? "예금·적금"}
+          </p>
           {group.daysUntilMaturity !== null && (
             <span
               className={cn(
@@ -419,13 +420,18 @@ function AccountGroupCard({
           {group.principalAmount !== null && ` · 원금 ${formatKRW(group.principalAmount)}`}
           {group.interestRate !== null && ` · 연 ${group.interestRate}%`}
         </p>
-        <div className="mt-2 flex items-center gap-1 text-[11.5px] font-bold text-primary">
-          <ArrowDown className="size-3 shrink-0" />
-          <span>
-            {formatMD(group.maturityDate)} 자동 전환
-            {hasReserved && totalBuyAmount > 0 && ` · ${formatKRW(totalBuyAmount)}`}
-          </span>
-        </div>
+        {hasReserved && (
+          <div className="mt-2.5 flex items-center gap-1.5 rounded-lg bg-brand-surface px-2.5 py-1.5 text-[11.5px] font-bold text-primary">
+            <ArrowDown className="size-3 shrink-0" />
+            <span className="font-numeric tabular-nums">{formatMD(group.maturityDate)}</span>
+            <span>만기일 자동 전환</span>
+            {totalBuyAmount > 0 && (
+              <span className="ml-auto font-numeric tabular-nums">
+                {formatKRW(totalBuyAmount)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* TO: 배당주 목록 */}

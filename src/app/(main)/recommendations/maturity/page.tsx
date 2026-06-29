@@ -9,8 +9,9 @@ import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
-import { useMaturityReservations } from "@/hooks/queries/useMaturityReservations";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
+import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
+import { annualWholeShareDividendKrw } from "@/lib/utils/dividend";
 import { formatKRW } from "@/lib/utils/currency";
 import { parseAccountId } from "@/lib/utils/params";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,7 @@ export default function MaturityPage() {
   // 선택 화면에서 고른 예적금(유효한 양의 정수만). 없으면 서버가 가장 가까운 만기를 자동 선택.
   const accountId = parseAccountId(params.get("accountId"));
   const { data, isLoading, isError } = useMaturityRecommendation(accountId);
-  const { data: reservations = [] } = useMaturityReservations();
+  const { data: fxRate } = useExchangeRate();
   const [depositRatio, setDepositRatio] = useState(75);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
 
@@ -37,6 +38,14 @@ export default function MaturityPage() {
   const logoByCode = useMemo(() => {
     const m = new Map<string, string | null>();
     stockCodes.forEach((code, i) => m.set(code, stockDetailQueries[i]?.data?.logoUrl ?? null));
+    return m;
+  }, [stockCodes, stockDetailQueries]);
+  // 온주 배당 계산용 현재가(native 통화).
+  const priceByCode = useMemo(() => {
+    const m = new Map<string, number | null>();
+    stockCodes.forEach((code, i) =>
+      m.set(code, stockDetailQueries[i]?.data?.price?.currentPrice ?? null),
+    );
     return m;
   }, [stockCodes, stockDetailQueries]);
 
@@ -57,19 +66,9 @@ export default function MaturityPage() {
     return Math.floor(dividendAmount / n);
   }, [selectedCodes.size, dividendAmount]);
 
-  // 이미 RESERVED 상태인 종목코드 (재예약 방지)
-  const reservedCodes = useMemo(
-    () =>
-      new Set(
-        reservations
-          .filter((r) => r.status === "RESERVED")
-          .map((r) => r.stockCode),
-      ),
-    [reservations],
-  );
-
+  // 중복 차단은 '예적금(계좌)' 단위 — 이미 자금 굴리기로 예약한 계좌는 서버가 추천 후보에서 제외한다.
+  // 배당주(종목)는 다른 예적금에서 또 담을 수 있으므로 여기서 막지 않는다.
   const toggleStock = (code: string) => {
-    if (reservedCodes.has(code)) return; // 이미 예약된 종목은 선택 불가
     setSelectedCodes((prev) => {
       const next = new Set(prev);
       if (next.has(code)) next.delete(code);
@@ -117,12 +116,6 @@ export default function MaturityPage() {
 
   const [, mm, dd] = account.maturityDate.split("-");
   const formattedMaturity = `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")}`;
-  const ddTone =
-    account.daysUntilMaturity <= 7
-      ? "text-red-600"
-      : account.daysUntilMaturity <= 30
-        ? "text-amber-600"
-        : "text-muted-foreground";
 
   return (
     <>
@@ -133,12 +126,7 @@ export default function MaturityPage() {
         <section className="rounded-2xl bg-brand-surface p-5">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-primary">만기 자금</p>
-            <span
-              className={cn(
-                "rounded-full bg-white/70 px-2.5 py-0.5 font-numeric text-[11.5px] font-bold tabular-nums",
-                ddTone,
-              )}
-            >
+            <span className="font-numeric text-[18px] font-bold tabular-nums text-primary">
               D-{account.daysUntilMaturity}
             </span>
           </div>
@@ -222,7 +210,17 @@ export default function MaturityPage() {
                       logoUrl={logoByCode.get(stock.stockCode) ?? null}
                       depositRate={account.interestRate}
                       selected={selectedCodes.has(stock.stockCode)}
-                      alreadyReserved={reservedCodes.has(stock.stockCode)}
+                      annualDividend={
+                        selectedCodes.has(stock.stockCode)
+                          ? annualWholeShareDividendKrw({
+                              buyAmountKrw: perStockAmount,
+                              currentPrice: priceByCode.get(stock.stockCode) ?? null,
+                              perShareDividend: stock.perShareDividend,
+                              isUS: stock.market === "US",
+                              usdKrwRate: fxRate?.baseRate ?? null,
+                            })
+                          : null
+                      }
                       onSelect={() => toggleStock(stock.stockCode)}
                     />
                   </li>
@@ -281,7 +279,8 @@ interface DividendStockRowProps {
   logoUrl: string | null;
   depositRate: number;
   selected: boolean;
-  alreadyReserved: boolean;
+  /** 선택 종목의 연 배당액(온주 기준, 원). 1주당 배당금·현재가 없으면 null, 미선택이면 무시. */
+  annualDividend: number | null;
   onSelect: () => void;
 }
 
@@ -290,13 +289,14 @@ function DividendStockRow({
   logoUrl,
   depositRate,
   selected,
-  alreadyReserved,
+  annualDividend,
   onSelect,
 }: DividendStockRowProps) {
   const yieldStr = new Decimal(stock.dividendYield).toFixed(2);
   const deltaPp = new Decimal(stock.dividendYield).minus(depositRate).toDecimalPlaces(1);
   const initial = stock.stockName.trim().charAt(0).toUpperCase();
 
+  // 1주당 배당금은 시장 무관 원화(KRW).
   const metaParts: string[] = [];
   if (stock.perShareDividend !== null) {
     metaParts.push(`1주당 ${formatKRW(stock.perShareDividend)}`);
@@ -308,15 +308,12 @@ function DividendStockRow({
     <button
       type="button"
       onClick={onSelect}
-      disabled={alreadyReserved}
       aria-pressed={selected}
       className={cn(
         "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-150",
-        alreadyReserved
-          ? "cursor-not-allowed opacity-55"
-          : selected
-            ? "bg-brand-surface hover:bg-brand-surface/70"
-            : "bg-card hover:bg-muted/40",
+        selected
+          ? "bg-brand-surface hover:bg-brand-surface/70"
+          : "bg-card hover:bg-muted/40",
       )}
     >
       <Avatar className="size-9 shrink-0 rounded-xl">
@@ -327,19 +324,26 @@ function DividendStockRow({
       </Avatar>
 
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-          <span className="text-[14px] font-semibold text-foreground">{stock.stockName}</span>
-          {alreadyReserved && (
-            <span className="rounded-full bg-brand-surface px-1.5 py-0.5 text-[10px] font-bold text-primary">
-              예약됨
-            </span>
-          )}
-        </div>
+        <p className="truncate text-[14px] font-semibold text-foreground">
+          {stock.stockName}
+        </p>
         <p className="mt-0.5 font-numeric text-[11.5px] tabular-nums text-muted-foreground">
           {metaParts.join(" · ")}
           {metaParts.length > 0 && " · "}
           <span className="font-bold text-up">+{deltaPp.toString()}%p</span>
         </p>
+        {selected && (
+          <p
+            className={cn(
+              "mt-0.5 font-numeric text-[11.5px] font-bold tabular-nums",
+              annualDividend === null ? "text-muted-foreground" : "text-primary",
+            )}
+          >
+            {annualDividend === null
+              ? "배당 정보 없음"
+              : `연 ${formatKRW(annualDividend)} 배당 예상`}
+          </p>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-2.5">
