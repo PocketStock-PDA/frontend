@@ -3,12 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  CreditCard,
-  Landmark,
-  Plane,
-  Settings,
-} from "lucide-react";
+import { CreditCard, Landmark, Plane, Settings } from "lucide-react";
 import { PointsQuickIcon } from "@/components/icons/QuickLinkIcons";
 import { HomeHeader } from "@/components/common/HomeHeader";
 import { CmaBalanceCard } from "@/components/features/cma/CmaBalanceCard";
@@ -16,6 +11,7 @@ import { CollectCoinsOverlay } from "@/components/features/cma/CollectCoinsOverl
 import { PartnerPointSheet } from "@/components/features/points/PartnerPointSheet";
 import { AccountLinkSheet } from "@/components/features/collect/AccountLinkSheet";
 import { CardLinkSheet } from "@/components/features/collect/CardLinkSheet";
+import { FxLinkSheet } from "@/components/features/collect/FxLinkSheet";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
@@ -80,6 +76,9 @@ export default function HomePage() {
   const [pointSheetOpen, setPointSheetOpen] = useState(false);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [cardSheetOpen, setCardSheetOpen] = useState(false);
+  const [fxSheetOpen, setFxSheetOpen] = useState(false);
+  // 수집 소스 "수정 모드" — 기어 1개로 진입, 각 타일에서 시트를 열어 설정한다.
+  const [editCollect, setEditCollect] = useState(false);
   const [collectAnim, setCollectAnim] = useState<{
     id: number;
     origin: DOMRect;
@@ -276,7 +275,23 @@ export default function HomePage() {
 
         {/* 잔돈 수집 통합 블록 — 수집 내역 · 수집 가능 · 모으기 버튼 한 덩어리 */}
         <div ref={sourcesRef} className="rounded-2xl bg-brand-surface p-4">
-          <SectionHeader title="수집한 잔돈" />
+          <SectionHeader
+            title="수집한 잔돈"
+            action={
+              <button
+                type="button"
+                aria-label={editCollect ? "수집 설정 완료" : "수집 설정"}
+                onClick={() => setEditCollect((v) => !v)}
+                className={
+                  editCollect
+                    ? "rounded-lg bg-accent px-2.5 py-1 text-xs font-bold text-primary"
+                    : "rounded-lg px-2 py-1 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
+                }
+              >
+                {editCollect ? "완료" : <Settings className="size-4" />}
+              </button>
+            }
+          />
 
           {/* 이번 달 수집한 잔돈 — 카드 행은 연결 여부 무관하게 항상 표시 */}
           {(() => {
@@ -285,7 +300,9 @@ export default function HomePage() {
               (s) => s.sourceType === "CARD" && s.enabled,
             );
             const linkedCard = activeCardSetting
-              ? linkedCards?.find((c) => c.cardId === activeCardSetting.sourceRefId)
+              ? linkedCards?.find(
+                  (c) => c.cardId === activeCardSetting.sourceRefId,
+                )
               : undefined;
             const collectedCard = data.collectedSources.find(
               (s) => s.sourceType === "CARD",
@@ -298,14 +315,43 @@ export default function HomePage() {
                 {/* 카드 행 — 연결 여부 무관하게 항상 표시 */}
                 {linkedCard ? (
                   <div className="relative flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4">
-                    <svg className="size-6 shrink-0" viewBox="6 8 24 20" fill="none">
-                      <rect x="9.5" y="11" width="21" height="13.5" rx="2.6" fill="#3f7bff" />
-                      <rect x="9.5" y="14" width="21" height="2.6" fill="#2a62e0" />
-                      <rect x="12.5" y="20" width="6" height="2" rx="1" fill="#fff" fillOpacity="0.85" />
+                    <svg
+                      className="size-6 shrink-0"
+                      viewBox="6 8 24 20"
+                      fill="none"
+                    >
+                      <rect
+                        x="9.5"
+                        y="11"
+                        width="21"
+                        height="13.5"
+                        rx="2.6"
+                        fill="#3f7bff"
+                      />
+                      <rect
+                        x="9.5"
+                        y="14"
+                        width="21"
+                        height="2.6"
+                        fill="#2a62e0"
+                      />
+                      <rect
+                        x="12.5"
+                        y="20"
+                        width="6"
+                        height="2"
+                        rx="1"
+                        fill="#fff"
+                        fillOpacity="0.85"
+                      />
                     </svg>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-foreground">카드 사용 잔돈</p>
-                      <p className="truncate text-xs text-muted-foreground">{linkedCard.cardName}</p>
+                      <p className="truncate text-sm font-bold text-foreground">
+                        카드 사용 잔돈
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {linkedCard.cardName}
+                      </p>
                     </div>
                     <AmountDisplay
                       value={collectedCard?.amount ?? 0}
@@ -313,25 +359,56 @@ export default function HomePage() {
                       size="md"
                       className="shrink-0 font-bold"
                     />
-                    <button
-                      type="button"
-                      aria-label="연동 카드 변경"
-                      onClick={() => setCardSheetOpen(true)}
-                      className="absolute right-1.5 top-1.5 text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      <Settings className="size-3.5" />
-                    </button>
+                    {editCollect && (
+                      <button
+                        type="button"
+                        aria-label="잔돈 적립 카드 설정"
+                        onClick={() => setCardSheetOpen(true)}
+                        className="absolute -right-2 -top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md"
+                      >
+                        설정
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4">
-                    <svg className="size-6 shrink-0" viewBox="6 8 24 20" fill="none">
-                      <rect x="9.5" y="11" width="21" height="13.5" rx="2.6" fill="#3f7bff" />
-                      <rect x="9.5" y="14" width="21" height="2.6" fill="#2a62e0" />
-                      <rect x="12.5" y="20" width="6" height="2" rx="1" fill="#fff" fillOpacity="0.85" />
+                    <svg
+                      className="size-6 shrink-0"
+                      viewBox="6 8 24 20"
+                      fill="none"
+                    >
+                      <rect
+                        x="9.5"
+                        y="11"
+                        width="21"
+                        height="13.5"
+                        rx="2.6"
+                        fill="#3f7bff"
+                      />
+                      <rect
+                        x="9.5"
+                        y="14"
+                        width="21"
+                        height="2.6"
+                        fill="#2a62e0"
+                      />
+                      <rect
+                        x="12.5"
+                        y="20"
+                        width="6"
+                        height="2"
+                        rx="1"
+                        fill="#fff"
+                        fillOpacity="0.85"
+                      />
                     </svg>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-foreground">카드 잔돈</p>
-                      <p className="truncate text-xs text-muted-foreground">카드를 연결하면 잔돈을 적립할 수 있어요</p>
+                      <p className="truncate text-sm font-bold text-foreground">
+                        카드 잔돈
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        카드를 연결하면 잔돈을 적립할 수 있어요
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -387,18 +464,20 @@ export default function HomePage() {
                     className="font-bold"
                   />
                 </div>
-                <button
-                  type="button"
-                  aria-label="수집 계좌 설정"
-                  onClick={() => setAccountSheetOpen(true)}
-                  className="absolute right-1.5 top-1.5 text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <Settings className="size-3.5" />
-                </button>
+                {editCollect && (
+                  <button
+                    type="button"
+                    aria-label="은행 잔돈 설정"
+                    onClick={() => setAccountSheetOpen(true)}
+                    className="absolute -right-2 -top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md"
+                  >
+                    설정
+                  </button>
+                )}
               </div>
             )}
             {fxSource && (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
+              <div className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
                 <span className="flex size-10 items-center justify-center text-primary">
                   <Plane className="size-7" />
                 </span>
@@ -411,33 +490,44 @@ export default function HomePage() {
                     className="font-bold"
                   />
                 </div>
+                {editCollect && (
+                  <button
+                    type="button"
+                    aria-label="SOL트래블 모으기 설정"
+                    onClick={() => setFxSheetOpen(true)}
+                    className="absolute -right-2 -top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md"
+                  >
+                    설정
+                  </button>
+                )}
               </div>
             )}
-            {/* 포인트 — 마이신한+제휴사. 탭하면 제휴사 연동 팝업 */}
-            <button
-              type="button"
-              onClick={() => setPointSheetOpen(true)}
-              className="relative flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3"
-            >
+            {/* 포인트 — 마이신한포인트 / 금액 / 제휴 / 금액 세로 스택 */}
+            <div className="relative flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3 text-center">
               <span className="flex size-10 items-center justify-center text-primary">
                 <PointsQuickIcon className="size-7" />
               </span>
-              <div className="w-full space-y-1.5 px-1">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] text-muted-foreground">마이신한</span>
-                  <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
-                    {myShinhanTotal.toLocaleString()}P
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between border-t border-border/60 pt-1.5">
-                  <span className="text-[10px] text-muted-foreground">제휴</span>
-                  <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
-                    {partnerPointTotal.toLocaleString()}P
-                  </span>
-                </div>
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] text-muted-foreground">마이신한포인트</span>
+                <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
+                  {myShinhanTotal.toLocaleString()}P
+                </span>
+                <span className="mt-1 text-[10px] text-muted-foreground">제휴</span>
+                <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
+                  {partnerPointTotal.toLocaleString()}P
+                </span>
               </div>
-              <Settings className="absolute right-1.5 top-1.5 size-3.5 text-muted-foreground" />
-            </button>
+              {editCollect && (
+                <button
+                  type="button"
+                  aria-label="포인트 설정"
+                  onClick={() => setPointSheetOpen(true)}
+                  className="absolute -right-2 -top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md"
+                >
+                  설정
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 모으기 버튼 — 수집 블록 안에서 자연스럽게 연결 */}
@@ -470,16 +560,17 @@ export default function HomePage() {
           onOpenChange={setAccountSheetOpen}
         />
         <CardLinkSheet open={cardSheetOpen} onOpenChange={setCardSheetOpen} />
+        <FxLinkSheet open={fxSheetOpen} onOpenChange={setFxSheetOpen} />
 
         {/* 바로가기 (홈화면 편집에서 순서/표시 변경) */}
         <section className="mt-2">
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-3 px-3 flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-muted-foreground">
               바로가기
             </p>
             <Link
               href="/home/edit"
-              className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="text-xs font-medium text-muted-foreground transition-colors underline hover:text-foreground"
             >
               편집
             </Link>
@@ -496,9 +587,7 @@ export default function HomePage() {
                   href={href}
                   className="flex flex-col items-center gap-1.5"
                 >
-                  <span
-                    className="flex size-14 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border"
-                  >
+                  <span className="flex size-14 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border">
                     <Icon className="size-7" />
                   </span>
                   <span className="whitespace-nowrap text-xs text-foreground">

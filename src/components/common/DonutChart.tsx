@@ -39,6 +39,10 @@ export function DonutChart({
     value: Number.isFinite(d.value) && d.value > 0 ? d.value : 0,
   }));
   const total = segments.reduce((sum, d) => sum + d.value, 0);
+  const visibleCount = segments.filter((d) => d.value > 0).length;
+  // 세그먼트 경계 이음새(butt cap 사이 안티앨리어싱 틈)로 베이스 원이 비쳐 "깨져" 보이는 것 방지.
+  // 각 조각을 살짝(1px) 늘려 다음 조각이 그 위를 덮게 한다. 조각이 1개뿐이면 겹칠 필요 없음.
+  const seam = visibleCount > 1 ? 1 : 0;
 
   const hasSelection = selectedIndex !== undefined;
   let offset = 0;
@@ -93,7 +97,7 @@ export function DonutChart({
                   fill="none"
                   stroke={d.color}
                   strokeWidth={sw}
-                  strokeDasharray={`${len} ${circumference - len}`}
+                  strokeDasharray={`${len + seam} ${Math.max(0, circumference - len - seam)}`}
                   strokeDashoffset={-offset}
                   style={{
                     transition: "stroke-width 0.25s ease, opacity 0.25s ease",

@@ -103,6 +103,8 @@ interface SubItem { name: string; amount: number; group?: SubGroup; company?: st
 interface AssetPortfolioCardProps {
   portfolio: AssetPortfolioItem[];
   pointSources?: PointSource[];
+  /** 부모 카드 안에 박아 쓸 때 자체 카드 크롬(테두리·배경·패딩) 제거 */
+  bare?: boolean;
 }
 // 드릴다운 그룹 헤더 라벨(증권: 자체/타사, 기타: 입출금/포인트)
 const GROUP_LABELS: Record<SubGroup, string> = {
@@ -116,6 +118,7 @@ const GROUP_LABELS: Record<SubGroup, string> = {
 export function AssetPortfolioCard({
   portfolio,
   pointSources = [],
+  bare = false,
 }: AssetPortfolioCardProps) {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -271,7 +274,7 @@ export function AssetPortfolioCard({
   return (
     <div
       ref={cardRef}
-      className="rounded-2xl border border-border bg-card p-5"
+      className={bare ? "" : "rounded-2xl border border-border bg-card p-5"}
       onClick={() => setSelectedIdx(null)}
     >
       {/* ── 차트 영역 ── */}
