@@ -120,8 +120,8 @@ export default function MaturityPage() {
 
   const [, mm, dd] = account.maturityDate.split("-");
   const formattedMaturity = `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")}`;
-  // 기관 로고 — 보유 계좌 목록과 accountId 조인으로 은행 코드 확보. (#171)
-  const bankCode = bankAccounts.find((a) => a.accountId === account.accountId)?.bankCode;
+  // 기관 로고 — 보유 계좌 목록과 accountId 조인으로 은행 정보 확보. (#171)
+  const bank = bankAccounts.find((a) => a.accountId === account.accountId);
   const ddTone =
     account.daysUntilMaturity <= 7
       ? "text-red-600"
@@ -139,8 +139,8 @@ export default function MaturityPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <InstitutionLogo
-                code={bankCode}
-                name={account.accountName}
+                code={bank?.bankCode}
+                name={bank?.bankName ?? account.accountName}
                 className="size-7"
               />
               <p className="text-sm font-semibold text-primary">만기 자금</p>

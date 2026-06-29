@@ -23,7 +23,8 @@ export function InstitutionLogo({
   name,
   className,
 }: InstitutionLogoProps) {
-  const src = logoUrl ?? (code ? `/institution-logo/${code}.png` : undefined);
+  // 빈 문자열 logoUrl은 미지정으로 보고 code 기반 정적 에셋으로 폴백한다.
+  const src = logoUrl || (code ? `/institution-logo/${code}.png` : undefined);
   const initial = name?.trim().charAt(0).toUpperCase() ?? "";
 
   return (
