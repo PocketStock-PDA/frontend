@@ -57,7 +57,7 @@ export function DonutChart({
         height={size}
         style={{
           transform: `rotate(${-90 + rotate}deg)`,
-          transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+          transition: "transform 0.35s cubic-bezier(0.25, 1, 0.5, 1)",
         }}
         overflow="visible"
       >
@@ -87,7 +87,7 @@ export function DonutChart({
                 key={i}
                 style={{
                   transform: `translate(${tx}px, ${ty}px)`,
-                  transition: "transform 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+                  transition: "transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)",
                 }}
               >
                 <circle
