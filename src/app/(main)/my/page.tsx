@@ -21,8 +21,6 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { enablePush } from "@/lib/push/webPush";
 import { cn } from "@/lib/utils";
 
-const SOON = () => toast.info("준비 중이에요");
-
 // 푸시 알림 켜기 — 권한 요청 → 구독 → 백엔드 토큰 등록
 const handleEnablePush = async () => {
   try {
@@ -160,8 +158,16 @@ export default function MyPage() {
 
       {/* 프로필 */}
       <div className="flex items-center gap-3.5 py-2">
-        <span className="flex size-13 shrink-0 items-center justify-center rounded-[26px] bg-primary text-[22px] font-bold text-primary-foreground">
-          {profile.name.charAt(0)}
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-[26px] bg-muted text-muted-foreground">
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="size-7"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="8" r="4" />
+            <path d="M12 13.5c-3.866 0-7 2.797-7 6.25 0 .69.56 1.25 1.25 1.25h11.5c.69 0 1.25-.56 1.25-1.25 0-3.453-3.134-6.25-7-6.25Z" />
+          </svg>
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold text-foreground">{profile.name}</p>
@@ -186,7 +192,7 @@ export default function MyPage() {
         >
           <Plus className="size-5 text-primary" />
           <span className="text-xs font-medium leading-snug text-foreground">
-            자산연동 추가하기
+            자산연동 수정하기
           </span>
         </button>
       </div>
@@ -255,7 +261,7 @@ export default function MyPage() {
         <SettingLinkCard
           title="회원정보 수정"
           subtitle="비밀번호 변경"
-          onClick={SOON}
+          onClick={() => router.push("/my/password")}
         />
       </div>
       <button
