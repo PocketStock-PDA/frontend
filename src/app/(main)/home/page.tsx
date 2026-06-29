@@ -4,13 +4,12 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowUp,
-  Coins,
   CreditCard,
-  Globe,
   Landmark,
-  Settings2,
+  Plane,
+  Settings,
 } from "lucide-react";
+import { PointsQuickIcon } from "@/components/icons/QuickLinkIcons";
 import { HomeHeader } from "@/components/common/HomeHeader";
 import { CmaBalanceCard } from "@/components/features/cma/CmaBalanceCard";
 import { CollectCoinsOverlay } from "@/components/features/cma/CollectCoinsOverlay";
@@ -23,12 +22,13 @@ import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { WelcomeEventDialog } from "@/components/features/onboarding/WelcomeEventDialog";
 import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import { useMyProfile } from "@/hooks/queries/useMyProfile";
 import { useNotifications } from "@/hooks/queries/useNotifications";
 import { useWelcomeRewards } from "@/hooks/queries/useWelcomeRewards";
+import { useCollectSettings } from "@/hooks/queries/useCollectSettings";
+import { useLinkedCards } from "@/hooks/queries/useLinkedCards";
 import { useCollectChange } from "@/hooks/mutations/useCollectChange";
 import {
   useHomeLayoutStore,
@@ -45,8 +45,8 @@ const SOURCE_ICON: Record<
 > = {
   ACCOUNT: Landmark,
   CARD: CreditCard,
-  POINT: Coins,
-  FX: Globe,
+  POINT: PointsQuickIcon,
+  FX: Plane,
 };
 
 const SOURCE_LABEL: Record<CollectSourceType, string> = {
@@ -56,13 +56,13 @@ const SOURCE_LABEL: Record<CollectSourceType, string> = {
   FX: "외화",
 };
 
-// 잔돈 대시보드 표시 타이틀 — ACCOUNT/POINT는 백엔드 name(기관명) 대신 고정 라벨로 노출.
-const sourceTitle = (sourceType: CollectSourceType, name: string) =>
-  sourceType === "ACCOUNT"
-    ? "은행 잔돈"
-    : sourceType === "POINT"
-      ? "포인트"
-      : name;
+// 잔돈 대시보드 표시 타이틀 — ACCOUNT/CARD/POINT는 고정 라벨, FX만 기관명 그대로.
+const sourceTitle = (sourceType: CollectSourceType, _name: string) => {
+  if (sourceType === "ACCOUNT") return "은행 잔돈";
+  if (sourceType === "CARD") return "카드 사용 잔돈";
+  if (sourceType === "POINT") return "포인트";
+  return _name;
+};
 
 export default function HomePage() {
   const router = useRouter();
@@ -70,6 +70,8 @@ export default function HomePage() {
   const { data, isLoading, isError, error, refetch } = useCmaHome();
   const { data: profile } = useMyProfile();
   const { data: notifications } = useNotifications();
+  const { data: collectSettings } = useCollectSettings();
+  const { data: linkedCards } = useLinkedCards();
   const collect = useCollectChange();
 
   // "CMA로 모으기" 코인 모이기 연출 — 출발(수집 잔돈 블록)·도착(모으기 버튼) 영역 측정용 ref.
@@ -215,8 +217,8 @@ export default function HomePage() {
     hasKrw ? krwLabel : null,
     hasUsd ? usdLabel : null,
   ].filter(Boolean);
-  const collectLabel =
-    collectAmounts.length > 0 ? collectAmounts.join(" · ") : formatKRW(0);
+  const collectAmountLabel =
+    collectAmounts.length > 0 ? collectAmounts.join(" + ") : formatKRW(0);
 
   // 수집 가능 잔돈 표시 — 은행 | 쏠트래블(한 줄) + 포인트(마이신한/제휴사 분리, 좌우 full 한 줄).
   const accountSource = displayedCollectSources.find(
@@ -263,7 +265,7 @@ export default function HomePage() {
         onBellClick={() => router.push("/notifications")}
         unreadCount={notifications?.unreadCount ?? 0}
       />
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* TODO: usdToKrwRate는 환율 API 연동 시 전달(펼침 시 'N원 기준' 표기) */}
         <CmaBalanceCard
           accountNo={data.cmaAccountNo}
@@ -273,120 +275,191 @@ export default function HomePage() {
           todayInterest={data.todayInterest}
         />
 
-        {/* 수집 잔돈 통합 블록 */}
+        {/* 잔돈 수집 통합 블록 — 수집 내역 · 수집 가능 · 모으기 버튼 한 덩어리 */}
         <div ref={sourcesRef} className="rounded-2xl bg-brand-surface p-4">
-          <SectionHeader className="mb-2" title="수집한 잔돈" />
-          {/* 이번 달 수집한 잔돈 — 은행(신한은행)·카드·포인트 모두 각 소스 행으로 표시 */}
-          {data.collectedSources.length > 0 && (
-            <div className="space-y-2">
-              {data.collectedSources.map((s) => {
-                const Icon = SOURCE_ICON[s.sourceType];
-                return (
-                  <StatCard
-                    key={`collected-${s.sourceType}-${s.name}`}
-                    orientation="row"
-                    icon={<Icon className="size-4" />}
-                    title={sourceTitle(s.sourceType, s.name)}
-                    subtitle={SOURCE_LABEL[s.sourceType]}
-                    value={
-                      <AmountDisplay
-                        value={s.amount}
-                        currency={s.currency}
-                        size="md"
-                        className="font-bold"
-                      />
-                    }
-                    action={
-                      s.sourceType === "CARD" ? (
-                        <button
-                          type="button"
-                          aria-label="연동 카드 변경"
-                          onClick={() => setCardSheetOpen(true)}
-                          className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        >
-                          <Settings2 className="size-4" />
-                        </button>
-                      ) : undefined
-                    }
-                  />
-                );
-              })}
-            </div>
-          )}
+          <SectionHeader title="수집한 잔돈" />
 
-          <p className="mb-2 mt-4 text-[14px] font-medium text-muted-foreground">
+          {/* 이번 달 수집한 잔돈 — 카드 행은 연결 여부 무관하게 항상 표시 */}
+          {(() => {
+            // 라운드업 카드 등록 여부: collect/settings의 CARD+enabled → cards 목록에서 cardId 매칭
+            const activeCardSetting = collectSettings?.find(
+              (s) => s.sourceType === "CARD" && s.enabled,
+            );
+            const linkedCard = activeCardSetting
+              ? linkedCards?.find((c) => c.cardId === activeCardSetting.sourceRefId)
+              : undefined;
+            const collectedCard = data.collectedSources.find(
+              (s) => s.sourceType === "CARD",
+            );
+            const nonCardSources = data.collectedSources.filter(
+              (s) => s.sourceType !== "CARD",
+            );
+            return (
+              <div className="mb-4 space-y-2">
+                {/* 카드 행 — 연결 여부 무관하게 항상 표시 */}
+                {linkedCard ? (
+                  <div className="relative flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4">
+                    <svg className="size-6 shrink-0" viewBox="6 8 24 20" fill="none">
+                      <rect x="9.5" y="11" width="21" height="13.5" rx="2.6" fill="#3f7bff" />
+                      <rect x="9.5" y="14" width="21" height="2.6" fill="#2a62e0" />
+                      <rect x="12.5" y="20" width="6" height="2" rx="1" fill="#fff" fillOpacity="0.85" />
+                    </svg>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-foreground">카드 사용 잔돈</p>
+                      <p className="truncate text-xs text-muted-foreground">{linkedCard.cardName}</p>
+                    </div>
+                    <AmountDisplay
+                      value={collectedCard?.amount ?? 0}
+                      currency="KRW"
+                      size="md"
+                      className="shrink-0 font-bold"
+                    />
+                    <button
+                      type="button"
+                      aria-label="연동 카드 변경"
+                      onClick={() => setCardSheetOpen(true)}
+                      className="absolute right-1.5 top-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <Settings className="size-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4">
+                    <svg className="size-6 shrink-0" viewBox="6 8 24 20" fill="none">
+                      <rect x="9.5" y="11" width="21" height="13.5" rx="2.6" fill="#3f7bff" />
+                      <rect x="9.5" y="14" width="21" height="2.6" fill="#2a62e0" />
+                      <rect x="12.5" y="20" width="6" height="2" rx="1" fill="#fff" fillOpacity="0.85" />
+                    </svg>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-foreground">카드 잔돈</p>
+                      <p className="truncate text-xs text-muted-foreground">카드를 연결하면 잔돈을 적립할 수 있어요</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCardSheetOpen(true)}
+                      className="shrink-0 text-xs font-semibold text-primary"
+                    >
+                      카드 연결
+                    </button>
+                  </div>
+                )}
+
+                {/* 카드 외 소스 */}
+                {nonCardSources.map((s) => {
+                  const Icon = SOURCE_ICON[s.sourceType];
+                  return (
+                    <StatCard
+                      key={`collected-${s.sourceType}-${s.name}`}
+                      orientation="row"
+                      icon={<Icon className="size-4" />}
+                      title={sourceTitle(s.sourceType, s.name)}
+                      subtitle={SOURCE_LABEL[s.sourceType]}
+                      value={
+                        <AmountDisplay
+                          value={s.amount}
+                          currency={s.currency}
+                          size="md"
+                          className="font-bold"
+                        />
+                      }
+                    />
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+          <p className="mb-2 text-sm font-medium text-muted-foreground">
             수집 가능한 잔돈
           </p>
-          {/* 은행 잔돈 · 쏠트래블 · 포인트 — 한 줄 3단 컴팩트 타일 */}
+          {/* 은행 잔돈 · 쏠트래블 · 포인트 — C안: 카드 안 아이콘↑ 라벨 금액↓ */}
           <div className="grid grid-cols-3 gap-2">
             {accountSource && (
-              <div className="relative flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  <Landmark className="size-3.5" />
+              <div className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
+                <span className="flex size-10 items-center justify-center text-primary">
+                  <Landmark className="size-7" />
                 </span>
-                <p className="truncate text-xs text-muted-foreground">
-                  은행 잔돈
-                </p>
-                <AmountDisplay
-                  value={accountSource.amount}
-                  currency={accountSource.currency}
-                  size="sm"
-                  className="font-semibold"
-                />
+                <div className="flex flex-col items-center gap-0.5">
+                  <p className="text-[11px] text-muted-foreground">은행 잔돈</p>
+                  <AmountDisplay
+                    value={accountSource.amount}
+                    currency={accountSource.currency}
+                    size="sm"
+                    className="font-bold"
+                  />
+                </div>
                 <button
                   type="button"
                   aria-label="수집 계좌 설정"
                   onClick={() => setAccountSheetOpen(true)}
-                  className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="absolute right-1.5 top-1.5 text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  <Settings2 className="size-4" />
+                  <Settings className="size-3.5" />
                 </button>
               </div>
             )}
             {fxSource && (
-              <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  <Globe className="size-3.5" />
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
+                <span className="flex size-10 items-center justify-center text-primary">
+                  <Plane className="size-7" />
                 </span>
-                <p className="truncate text-xs text-muted-foreground">
-                  SOL트래블
-                </p>
-                <AmountDisplay
-                  value={fxSource.amount}
-                  currency={fxSource.currency}
-                  size="sm"
-                  className="font-semibold"
-                />
+                <div className="flex flex-col items-center gap-0.5">
+                  <p className="text-[11px] text-muted-foreground">SOL트래블</p>
+                  <AmountDisplay
+                    value={fxSource.amount}
+                    currency={fxSource.currency}
+                    size="sm"
+                    className="font-bold"
+                  />
+                </div>
               </div>
             )}
-            {/* 포인트 — 마이신한+제휴사 합산. 탭하면 제휴사 연동 팝업 */}
+            {/* 포인트 — 마이신한+제휴사. 탭하면 제휴사 연동 팝업 */}
             <button
               type="button"
               onClick={() => setPointSheetOpen(true)}
-              className="relative flex flex-col gap-2 rounded-xl border border-border bg-card p-3 text-left"
+              className="relative flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3"
             >
-              <span className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <Coins className="size-3.5" />
+              <span className="flex size-10 items-center justify-center text-primary">
+                <PointsQuickIcon className="size-7" />
               </span>
-              <div className="space-y-1.5">
-                <div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    마이신한포인트
-                  </p>
-                  <p className="text-xs font-bold text-foreground">
+              <div className="w-full space-y-1.5 px-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[10px] text-muted-foreground">마이신한</span>
+                  <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
                     {myShinhanTotal.toLocaleString()}P
-                  </p>
+                  </span>
                 </div>
-                <div>
-                  <p className="truncate text-xs text-muted-foreground">제휴</p>
-                  <p className="text-xs font-bold text-foreground">
+                <div className="flex items-baseline justify-between border-t border-border/60 pt-1.5">
+                  <span className="text-[10px] text-muted-foreground">제휴</span>
+                  <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
                     {partnerPointTotal.toLocaleString()}P
-                  </p>
+                  </span>
                 </div>
               </div>
-              <Settings2 className="absolute right-2 top-2.5 size-4 text-muted-foreground" />
+              <Settings className="absolute right-1.5 top-1.5 size-3.5 text-muted-foreground" />
             </button>
           </div>
+
+          {/* 모으기 버튼 — 수집 블록 안에서 자연스럽게 연결 */}
+          <div ref={collectBtnRef} className="mt-4">
+            <Button
+              variant="outline"
+              onClick={handleCollect}
+              disabled={(!hasKrw && !hasUsd) || collect.isPending}
+              className="h-12 w-full justify-between border-primary px-4 text-primary hover:bg-white/60 dark:hover:bg-primary/10"
+            >
+              <span className="text-base font-bold">CMA로 모으기</span>
+              <span className="font-numeric text-sm font-semibold tabular-nums opacity-75">
+                {collectAmountLabel}
+              </span>
+            </Button>
+          </div>
+          {collect.isError && (
+            <p className="mt-2 text-center text-xs text-destructive">
+              모으기에 실패했어요. 잠시 후 다시 시도해 주세요.
+            </p>
+          )}
         </div>
 
         <PartnerPointSheet
@@ -399,36 +472,15 @@ export default function HomePage() {
         />
         <CardLinkSheet open={cardSheetOpen} onOpenChange={setCardSheetOpen} />
 
-        <div>
-          <div ref={collectBtnRef}>
-            <Button
-              variant="outline"
-              onClick={handleCollect}
-              disabled={(!hasKrw && !hasUsd) || collect.isPending}
-              className="h-12 w-full border-primary text-base font-bold text-primary hover:bg-brand-surface"
-            >
-              <ArrowUp />
-              {collectLabel} CMA로 모으기
-            </Button>
-          </div>
-          {collect.isError && (
-            <p className="mt-2 text-center text-xs text-destructive">
-              모으기에 실패했어요. 잠시 후 다시 시도해 주세요.
-            </p>
-          )}
-        </div>
-
-        <Separator />
-
         {/* 바로가기 (홈화면 편집에서 순서/표시 변경) */}
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-[13px] font-medium text-muted-foreground">
+        <section className="mt-2">
+          <div className="mb-3 flex items-center gap-2">
+            <p className="text-xs font-medium text-muted-foreground">
               바로가기
             </p>
             <Link
               href="/home/edit"
-              className="text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               편집
             </Link>
@@ -446,14 +498,9 @@ export default function HomePage() {
                   className="flex flex-col items-center gap-1.5"
                 >
                   <span
-                    className={cn(
-                      "flex size-14 items-center justify-center rounded-2xl",
-                      highlight
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted text-foreground",
-                    )}
+                    className="flex size-14 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border"
                   >
-                    <Icon className="size-6" />
+                    <Icon className="size-7" />
                   </span>
                   <span className="whitespace-nowrap text-xs text-foreground">
                     {label}

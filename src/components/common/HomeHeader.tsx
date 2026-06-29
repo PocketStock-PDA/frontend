@@ -32,10 +32,9 @@ export function HomeHeader({
 
   return (
     <header className="mb-4 bg-background">
-      <div className="flex items-start justify-between gap-2 pt-3">
+      <div className="flex h-14 items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[11px] text-muted-foreground">{formatDate(date)}</p>
-          <h1 className="mt-1 truncate text-xl font-bold tracking-tight text-foreground">
+          <h1 className="truncate text-xl font-bold tracking-tight text-foreground">
             안녕하세요, {userName}님
           </h1>
         </div>

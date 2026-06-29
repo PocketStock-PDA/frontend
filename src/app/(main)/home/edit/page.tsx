@@ -40,7 +40,7 @@ function EditRow({ id }: { id: string }) {
       >
         <GripVertical className="size-5" />
       </span>
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-black/5">
         <Icon className="size-4.5" />
       </span>
       <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">

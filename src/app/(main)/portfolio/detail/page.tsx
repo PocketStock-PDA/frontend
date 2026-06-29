@@ -501,7 +501,7 @@ function StockDetailContent({
       />
 
       <div
-        className={cn("space-y-6", !isCollect && "pb-28")}
+        className={cn("space-y-6", !isCollect && "pb-40")}
       >
         {isCollect ? (
           <CollectStatus
@@ -897,7 +897,7 @@ function StockDetailContent({
 
       {/* 전체(현황) 뷰 — 하단 탭바 위 매수·매도 액션바 */}
       {!isPieces && !isCollect && (
-        <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-[env(safe-area-inset-bottom)] pt-3">
+        <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pt-3">
           <div className="flex gap-2.5 pb-3">
             <Button
               onClick={() =>
@@ -921,7 +921,7 @@ function StockDetailContent({
 
       {/* 조각 뷰 — 하단 탭바 위 구매/판매 액션바. 드래그한 조각 종류가 활성 버튼을 정한다(빈=구매/모은=판매). */}
       {isPieces && (
-        <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-[env(safe-area-inset-bottom)] pt-3">
+        <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pt-3">
           {previewPieces > 0 && (
             <div className="flex items-center justify-between pb-2.5 text-sm">
               <span className="text-muted-foreground">

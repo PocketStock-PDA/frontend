@@ -1,34 +1,34 @@
+import type React from "react";
 import {
-  ArrowLeftRight,
-  BookText,
-  Coins,
-  PieChart,
-  Puzzle,
-  Receipt,
-  TrendingUp,
-  Wallet,
-  type LucideIcon,
-} from "lucide-react";
+  TradingQuickIcon,
+  PiecesQuickIcon,
+  PortfolioQuickIcon,
+  HistoryQuickIcon,
+  AssetQuickIcon,
+  BudgetQuickIcon,
+  ExchangeQuickIcon,
+  PointsQuickIcon,
+} from "@/components/icons/QuickLinkIcons";
 
 /** 홈 "바로가기" 타일 1개. id 는 홈화면 편집(순서/표시) 저장 키로 쓰이므로 변경 금지. */
 export interface QuickLink {
   id: string;
   label: string;
-  icon: LucideIcon;
+  icon: React.ComponentType<{ className?: string }>;
   href: string;
   highlight?: boolean;
 }
 
 // TODO: 라우트 일부 미확정 — 사용자 지정 대기 중 (#)
 export const QUICK_LINKS: QuickLink[] = [
-  { id: "trading", label: "주식 모으기", icon: TrendingUp, href: "/trading", highlight: true },
-  { id: "pieces", label: "퍼즐 조각", icon: Puzzle, href: "/portfolio?lens=pieces" },
-  { id: "portfolio", label: "포트폴리오", icon: PieChart, href: "/portfolio" },
-  { id: "history", label: "거래 내역", icon: Receipt, href: "/history" },
-  { id: "asset", label: "자산", icon: Wallet, href: "/asset" },
-  { id: "budget", label: "가계부", icon: BookText, href: "/budget" },
-  { id: "exchange", label: "환전", icon: ArrowLeftRight, href: "/exchange" },
-  { id: "points", label: "포인트", icon: Coins, href: "/points" },
+  { id: "trading", label: "주식 모으기", icon: TradingQuickIcon, href: "/trading", highlight: true },
+  { id: "pieces", label: "퍼즐 조각", icon: PiecesQuickIcon, href: "/portfolio?lens=pieces" },
+  { id: "portfolio", label: "포트폴리오", icon: PortfolioQuickIcon, href: "/portfolio" },
+  { id: "history", label: "주문 내역", icon: HistoryQuickIcon, href: "/history" },
+  { id: "asset", label: "자산", icon: AssetQuickIcon, href: "/asset" },
+  { id: "budget", label: "가계부", icon: BudgetQuickIcon, href: "/budget" },
+  { id: "exchange", label: "환전", icon: ExchangeQuickIcon, href: "/exchange" },
+  { id: "points", label: "포인트", icon: PointsQuickIcon, href: "/points" },
 ];
 
 export const QUICK_LINK_BY_ID: Record<string, QuickLink> = Object.fromEntries(

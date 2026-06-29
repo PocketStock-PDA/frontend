@@ -44,38 +44,32 @@ export function CardLinkSheet({ open, onOpenChange }: CardLinkSheetProps) {
       ),
     [cards],
   );
-  const enabledIds = useMemo(
+  // 현재 활성 라운드업 카드 ID (단일)
+  const activeCardId = useMemo(
     () =>
-      new Set(
-        (settings ?? [])
-          .filter((s) => s.sourceType === "CARD" && s.enabled)
-          .map((s) => s.sourceRefId),
-      ),
+      (settings ?? []).find((s) => s.sourceType === "CARD" && s.enabled)
+        ?.sourceRefId ?? null,
     [settings],
   );
 
-  // 시트 열릴 때 현재 설정으로 초기화.
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // 시트 열릴 때 현재 설정으로 초기화 — 라운드업 카드는 1장만 선택 가능(라디오).
+  const [selected, setSelected] = useState<number | null>(null);
   useEffect(() => {
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 오픈 시 현재 설정으로 1회 동기화
-    setSelected(new Set(enabledIds));
+    setSelected(activeCardId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const toggle = (id: number) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  // 이미 선택된 카드를 다시 누르면 해제(null), 다른 카드를 누르면 단일 교체.
+  const select = (id: number) =>
+    setSelected((prev) => (prev === id ? null : id));
 
   const apply = async () => {
     const payload = eligible.map((c) => ({
       sourceType: "CARD" as const,
       sourceRefId: c.cardId,
-      enabled: selected.has(c.cardId),
+      enabled: c.cardId === selected,
     }));
     if (payload.length === 0) {
       onOpenChange(false);
@@ -108,14 +102,14 @@ export function CardLinkSheet({ open, onOpenChange }: CardLinkSheetProps) {
             <EmptyState title="연동된 카드가 없어요" />
           ) : (
             eligible.map((c, i) => {
-              const on = selected.has(c.cardId);
+              const on = selected === c.cardId;
               return (
                 <button
                   key={c.cardId}
                   type="button"
-                  role="checkbox"
+                  role="radio"
                   aria-checked={on}
-                  onClick={() => toggle(c.cardId)}
+                  onClick={() => select(c.cardId)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors",
                     on ? "border-primary bg-primary/5" : "border-border",

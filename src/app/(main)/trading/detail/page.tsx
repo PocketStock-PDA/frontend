@@ -654,7 +654,7 @@ function TradeContent({
         }
       />
 
-      <div className="space-y-5 pb-36">
+      <div className="space-y-5 pb-40">
         {/* 구매 | 판매 — 주문 방향 먼저 선택(시맨틱색). 활성 알약이 좌우로 미끄러져
             방향 전환을 손에 잡히게 한다. 가운데 정렬·좁은 알약 */}
         <div className="relative mx-auto flex w-[64%] rounded-full bg-muted p-1">
@@ -938,7 +938,7 @@ function TradeContent({
 
       {/* 실행 — 하단 탭바 위 고정 액션바. 예상 주문금액 + 구매/판매 인라인 확정 */}
       {!noSellable && (
-        <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-[env(safe-area-inset-bottom)] pt-3">
+        <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pt-3">
           {/* 예상 주문금액 — 유효해질 때 한 줄이 펼쳐지고, 값이 바뀌면 살짝 스왑(시세 틱 아님) */}
           <AnimatePresence initial={false}>
             {stickyValid && (
