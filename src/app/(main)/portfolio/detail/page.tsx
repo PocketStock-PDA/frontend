@@ -25,6 +25,7 @@ import { usePortfolioSummary } from "@/hooks/queries/usePortfolioSummary";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useOrders } from "@/hooks/queries/useOrders";
+import { useWelcomeRewards } from "@/hooks/queries/useWelcomeRewards";
 import {
   useAutoInvest,
   useAutoInvestExecutions,
@@ -151,6 +152,7 @@ function StockDetailContent({
   const detailQ = useStockDetail(stockCode);
   const exchangeRateQ = useExchangeRate(); // 해외 종목 원화 환산 토글용(매매기준율)
   const ordersQ = useOrders();
+  const rewardsQ = useWelcomeRewards();
   // 자동모으기 종목인지 + 회차 내역 (모으기 종목일 때만 의미)
   const auto = useAutoInvest(stockCode);
   const execQ = useAutoInvestExecutions(auto.id);
@@ -395,6 +397,9 @@ function StockDetailContent({
   const recentOrders = (ordersQ.data ?? [])
     .filter((o) => o.stockCode === stockCode && o.status !== "REJECTED")
     .slice(0, 5);
+
+  const recentRewards = (rewardsQ.data ?? [])
+    .filter((r) => r.stockCode === stockCode);
 
   const handleCancel = (orderId: number) => {
     if (cancelOrder.isPending) return;
@@ -705,7 +710,7 @@ function StockDetailContent({
                       className="flex items-center justify-between py-3"
                     >
                       <span className="text-xs text-muted-foreground">
-                        {format(parseUTC(c.convertedAt), "yyyy.MM.dd")}
+                        {format(parseUTC(c.convertedAt), "MM.dd")}
                       </span>
                       <span className="font-numeric text-sm font-bold text-foreground">
                         {c.wholeQty}주 전환
@@ -782,10 +787,33 @@ function StockDetailContent({
         {!isCollect && (
         <section>
           <h2 className="mb-3 text-base font-bold text-foreground">최근 내역</h2>
-          {recentOrders.length === 0 ? (
+          {recentOrders.length === 0 && recentRewards.length === 0 ? (
             <EmptyState title="최근 내역이 없어요" className="py-6" />
           ) : (
             <div className="divide-y divide-border">
+              {recentRewards.map((r) => (
+                <div
+                  key={`reward-${r.grantedAt}`}
+                  className="flex items-center justify-between gap-3 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">
+                      첫 주식 보상
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(r.grantedAt), "MM.dd")}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-numeric text-sm font-bold text-foreground">
+                      {formatShares(toDecimal(r.quantity))}주
+                    </p>
+                    <p className="font-numeric text-xs text-muted-foreground">
+                      {formatKRW(r.budgetKrw)}
+                    </p>
+                  </div>
+                </div>
+              ))}
               {recentOrders.map((o) => {
                 const orderQty = toDecimal(o.quantity);
                 const orderPrice = toDecimal(o.price);
@@ -814,7 +842,7 @@ function StockDetailContent({
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {format(parseUTC(o.createdAt), "yyyy.MM.dd")}
+                        {format(parseUTC(o.createdAt), "MM.dd")}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
