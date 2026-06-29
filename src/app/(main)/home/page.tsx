@@ -8,6 +8,7 @@ import { PointsQuickIcon } from "@/components/icons/QuickLinkIcons";
 import { HomeHeader } from "@/components/common/HomeHeader";
 import { CmaBalanceCard } from "@/components/features/cma/CmaBalanceCard";
 import { CollectCoinsOverlay } from "@/components/features/cma/CollectCoinsOverlay";
+import { DragCoinOverlay } from "@/components/features/cma/DragCoinOverlay";
 import { PartnerPointSheet } from "@/components/features/points/PartnerPointSheet";
 import { AccountLinkSheet } from "@/components/features/collect/AccountLinkSheet";
 import { CardLinkSheet } from "@/components/features/collect/CardLinkSheet";
@@ -18,6 +19,7 @@ import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
+import { CollectSlider } from "@/components/features/cma/CollectSlider";
 import { WelcomeEventDialog } from "@/components/features/onboarding/WelcomeEventDialog";
 import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import { useMyProfile } from "@/hooks/queries/useMyProfile";
@@ -33,6 +35,7 @@ import {
 } from "@/store/homeLayoutStore";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import type { CollectSourceType } from "@/types/domain/cma";
+
 
 const SOURCE_ICON: Record<
   CollectSourceType,
@@ -73,6 +76,22 @@ export default function HomePage() {
   const sourcesRef = useRef<HTMLDivElement>(null);
   const collectBtnRef = useRef<HTMLDivElement>(null);
 
+  // 드래그 중 파티클
+  const dragPctRef = useRef(0);
+  const [dragOverlay, setDragOverlay] = useState<{
+    emitting: boolean;
+    origins: DOMRect[];
+    target: DOMRect;
+  } | null>(null);
+  const drainTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // 수집 가능한 잔돈 3개 타일 ref — 코인이 각 타일에서 출발
+  const accountTileRef = useRef<HTMLDivElement>(null);
+  const fxTileRef = useRef<HTMLDivElement>(null);
+  const pointTileRef = useRef<HTMLDivElement>(null);
+  const [drainPct, setDrainPct] = useState(0);
+  const lastDrainRef = useRef(0);
+
   const [pointSheetOpen, setPointSheetOpen] = useState(false);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [cardSheetOpen, setCardSheetOpen] = useState(false);
@@ -85,18 +104,49 @@ export default function HomePage() {
     target: DOMRect;
   } | null>(null);
 
+  const handleDragStart = () => {
+    const origins = [accountTileRef, fxTileRef, pointTileRef]
+      .map((r) => r.current?.getBoundingClientRect())
+      .filter((r): r is DOMRect => !!r);
+    const target = collectBtnRef.current?.getBoundingClientRect();
+    if (!origins.length || !target) return;
+    clearTimeout(drainTimerRef.current);
+    setDragOverlay({ emitting: true, origins, target });
+  };
+
+  const handleDragEnd = () => {
+    const currentPct = dragPctRef.current;
+    if (currentPct >= 0.82) {
+      // 슬라이드 성공: DragCoinOverlay 즉시 제거 → CollectCoinsOverlay가 이어받음
+      clearTimeout(drainTimerRef.current);
+      setDragOverlay(null);
+      drainTimerRef.current = setTimeout(() => setDrainPct(0), 900);
+    } else {
+      // 슬라이드 취소: 파티클 자연 소멸 후 언마운트, 숫자 즉시 원복
+      setDragOverlay((prev) => (prev ? { ...prev, emitting: false } : null));
+      setDrainPct(0);
+      drainTimerRef.current = setTimeout(() => setDragOverlay(null), 900);
+    }
+  };
+
+  const handleProgress = (pct: number) => {
+    dragPctRef.current = pct;
+    const now = Date.now();
+    if (now - lastDrainRef.current > 48) { // ~20fps
+      lastDrainRef.current = now;
+      setDrainPct(pct);
+    }
+  };
+
   const handleCollect = () => {
     if (collect.isPending) return; // 재진입 방지
-    collect.mutate(undefined, {
-      // 성공했을 때만 코인 모이기 연출 — 실패 요청엔 재생하지 않음
-      onSuccess: () => {
-        const origin = sourcesRef.current?.getBoundingClientRect();
-        const target = collectBtnRef.current?.getBoundingClientRect();
-        if (origin && target) {
-          setCollectAnim({ id: Date.now(), origin, target });
-        }
-      },
-    });
+    // 슬라이드 완료 즉시 코인 버스트 연출 — API 응답 기다리지 않음
+    const origin = sourcesRef.current?.getBoundingClientRect();
+    const target = collectBtnRef.current?.getBoundingClientRect();
+    if (origin && target) {
+      setCollectAnim({ id: Date.now(), origin, target });
+    }
+    collect.mutate();
   };
 
   const linkOrder = useHomeLayoutStore((s) => s.order);
@@ -234,8 +284,25 @@ export default function HomePage() {
     .filter((s) => !s.name.includes("신한"))
     .reduce((sum, s) => sum + s.amount, 0);
 
+  // 드래그 진행 시 금액 카운트다운 — drainPct 0(원본)→1(0원)
+  const drainFactor = 1 - drainPct;
+  const drainedAccountAmount = accountSource
+    ? Math.round(accountSource.amount * drainFactor)
+    : 0;
+  const drainedFxAmount = fxSource ? fxSource.amount * drainFactor : 0;
+  const drainedMyShinhan = Math.round(myShinhanTotal * drainFactor);
+  const drainedPartner = Math.round(partnerPointTotal * drainFactor);
+
   return (
     <>
+      {dragOverlay && (
+        <DragCoinOverlay
+          emitting={dragOverlay.emitting}
+          pctRef={dragPctRef}
+          origins={dragOverlay.origins}
+          target={dragOverlay.target}
+        />
+      )}
       {collectAnim && (
         <CollectCoinsOverlay
           key={collectAnim.id}
@@ -451,14 +518,14 @@ export default function HomePage() {
           {/* 은행 잔돈 · 쏠트래블 · 포인트 — C안: 카드 안 아이콘↑ 라벨 금액↓ */}
           <div className="grid grid-cols-3 gap-2">
             {accountSource && (
-              <div className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
+              <div ref={accountTileRef} className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
                 <span className="flex size-10 items-center justify-center text-primary">
                   <Landmark className="size-7" />
                 </span>
                 <div className="flex flex-col items-center gap-0.5">
                   <p className="text-[11px] text-muted-foreground">은행 잔돈</p>
                   <AmountDisplay
-                    value={accountSource.amount}
+                    value={drainedAccountAmount}
                     currency={accountSource.currency}
                     size="sm"
                     className="font-bold"
@@ -477,14 +544,14 @@ export default function HomePage() {
               </div>
             )}
             {fxSource && (
-              <div className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
+              <div ref={fxTileRef} className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
                 <span className="flex size-10 items-center justify-center text-primary">
                   <Plane className="size-7" />
                 </span>
                 <div className="flex flex-col items-center gap-0.5">
                   <p className="text-[11px] text-muted-foreground">SOL트래블</p>
                   <AmountDisplay
-                    value={fxSource.amount}
+                    value={drainedFxAmount}
                     currency={fxSource.currency}
                     size="sm"
                     className="font-bold"
@@ -503,18 +570,18 @@ export default function HomePage() {
               </div>
             )}
             {/* 포인트 — 마이신한포인트 / 금액 / 제휴 / 금액 세로 스택 */}
-            <div className="relative flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3 text-center">
+            <div ref={pointTileRef} className="relative flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3 text-center">
               <span className="flex size-10 items-center justify-center text-primary">
                 <PointsQuickIcon className="size-7" />
               </span>
               <div className="flex flex-col items-center">
                 <span className="text-[10px] text-muted-foreground">마이신한포인트</span>
                 <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
-                  {myShinhanTotal.toLocaleString()}P
+                  {drainedMyShinhan.toLocaleString()}P
                 </span>
                 <span className="mt-1 text-[10px] text-muted-foreground">제휴</span>
                 <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
-                  {partnerPointTotal.toLocaleString()}P
+                  {drainedPartner.toLocaleString()}P
                 </span>
               </div>
               {editCollect && (
@@ -532,17 +599,16 @@ export default function HomePage() {
 
           {/* 모으기 버튼 — 수집 블록 안에서 자연스럽게 연결 */}
           <div ref={collectBtnRef} className="mt-4">
-            <Button
-              variant="outline"
-              onClick={handleCollect}
-              disabled={(!hasKrw && !hasUsd) || collect.isPending}
-              className="h-12 w-full justify-between border-primary px-4 text-primary hover:bg-white/60 dark:hover:bg-primary/10"
-            >
-              <span className="text-base font-bold">CMA로 모으기</span>
-              <span className="font-numeric text-sm font-semibold tabular-nums opacity-75">
-                {collectAmountLabel}
-              </span>
-            </Button>
+            <CollectSlider
+              onCollect={handleCollect}
+              disabled={!hasKrw && !hasUsd}
+              amountLabel={collectAmountLabel}
+              isPending={collect.isPending}
+              isError={collect.isError}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onProgress={handleProgress}
+            />
           </div>
           {collect.isError && (
             <p className="mt-2 text-center text-xs text-destructive">

@@ -6,6 +6,8 @@ import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
 import { Button } from "@/components/ui/button";
+import { InstitutionLogo } from "@/components/common/InstitutionLogo";
+import { cardCodeFromName } from "@/lib/utils/institution";
 import { cn } from "@/lib/utils";
 import { useLinkedCards } from "@/hooks/queries/useLinkedCards";
 import { useCollectSettings } from "@/hooks/queries/useCollectSettings";
@@ -106,9 +108,11 @@ export default function CardCollectSettingPage() {
                     on ? "border-primary bg-primary/5" : "border-border",
                   )}
                 >
-                  <span className="flex h-7 w-10 shrink-0 items-center justify-center rounded bg-blue-600 text-[9px] font-bold text-white">
-                    신한
-                  </span>
+                  <InstitutionLogo
+                    code={cardCodeFromName(card.companyName)}
+                    name={card.companyName}
+                    className="size-9 shrink-0"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-foreground">
                       {card.cardName}

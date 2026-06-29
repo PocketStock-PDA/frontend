@@ -7,6 +7,10 @@ export interface NotificationItem {
   type: string;
   title: string;
   body: string;
+  tag?: string | null;
+  url?: string | null;
+  occurredAt?: string | null;
+  data?: Record<string, unknown> | null;
   isRead: boolean;
   createdAt: string;
 }

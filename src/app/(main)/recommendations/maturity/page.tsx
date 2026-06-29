@@ -7,8 +7,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
+import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
+import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { annualWholeShareDividendKrw } from "@/lib/utils/dividend";
@@ -27,6 +29,7 @@ export default function MaturityPage() {
   const accountId = parseAccountId(params.get("accountId"));
   const { data, isLoading, isError } = useMaturityRecommendation(accountId);
   const { data: fxRate } = useExchangeRate();
+  const { data: bankAccounts = [] } = useBankAccounts();
   const [depositRatio, setDepositRatio] = useState(75);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
 
@@ -116,6 +119,8 @@ export default function MaturityPage() {
 
   const [, mm, dd] = account.maturityDate.split("-");
   const formattedMaturity = `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")}`;
+  // 기관 로고 — 보유 계좌 목록과 accountId 조인으로 은행 정보 확보. (#171)
+  const bank = bankAccounts.find((a) => a.accountId === account.accountId);
 
   return (
     <>
@@ -125,7 +130,14 @@ export default function MaturityPage() {
         {/* ── 히어로: 만기 자금 (brand-surface) ────────────────────────── */}
         <section className="rounded-2xl bg-brand-surface p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-primary">만기 자금</p>
+            <div className="flex items-center gap-2">
+              <InstitutionLogo
+                code={bank?.bankCode}
+                name={bank?.bankName ?? account.accountName}
+                className="size-7"
+              />
+              <p className="text-sm font-semibold text-primary">만기 자금</p>
+            </div>
             <span className="font-numeric text-[18px] font-bold tabular-nums text-primary">
               D-{account.daysUntilMaturity}
             </span>
