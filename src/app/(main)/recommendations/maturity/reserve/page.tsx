@@ -23,6 +23,7 @@ import {
   FxAutoSettingsForm,
   DEFAULT_FX_AUTO_SETTINGS,
 } from "@/components/features/exchange/FxAutoSettingsForm";
+import { MaturityStepper } from "@/components/features/maturity/MaturityStepper";
 import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
@@ -37,6 +38,8 @@ export default function MaturityReservePage() {
   const params = useSearchParams();
   // 선택 화면에서 이어온 예적금(유효한 양의 정수만) — 추천·triggerAccount를 같은 계좌로 맞춘다.
   const accountId = parseAccountId(params.get("accountId"));
+  // 예금 재예치분 — 예약 후 배당 재투자(drip) → 예금 재예치 단계로 그대로 잇는다.
+  const depositAmount = Math.floor(Number(params.get("deposit")) || 0);
   const { data } = useMaturityRecommendation(accountId);
   const createReservation = useCreateMaturityReservation();
   const { data: fxSettings } = useExchangeAutoSettings();
@@ -164,15 +167,17 @@ export default function MaturityReservePage() {
         toast.error("예약 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.");
         return; // 이동하지 않고 재시도 가능하게 둔다
       }
+      // 이미 예약된 종목(409)은 막지 않는다 — 이미 예약 완료 상태이므로 안내만 하고 다음 단계로 진행.
       if (conflicts.length > 0 && succeeded === 0) {
-        toast.error("이미 예약된 종목이에요. 기존 예약을 취소 후 다시 시도해 주세요.");
-        return;
-      }
-      if (conflicts.length > 0) {
+        toast.info("이미 예약한 종목이에요. 다음 단계로 넘어갈게요.");
+      } else if (conflicts.length > 0) {
         toast.info(`${conflicts.length}종목은 이미 예약돼 있어 건너뛰었어요.`);
       }
 
-      router.replace("/recommendations/maturity/select?tab=history");
+      // 예약 후 배당 재투자 화면으로 — 예금 재예치분이 있으면 함께 넘겨 다음 단계로 잇는다.
+      // push로 이동해 뒤로가기가 단계 순서(3→2→1)대로 돌아가게 한다.
+      const dq = depositAmount > 0 ? `&deposit=${depositAmount}` : "";
+      router.push(`/recommendations/maturity/drip?accountId=${account.accountId}${dq}`);
     } finally {
       submittingRef.current = false;
     }
@@ -193,6 +198,7 @@ export default function MaturityReservePage() {
   return (
     <>
       <AppHeader variant="sub" title="매수 예약 확인" />
+      <MaturityStepper current={2} />
 
       <div className="space-y-4 pb-40">
         {/* ── 요약: 배당주로 굴릴 금액 → 연 배당 예상 ───────────────────── */}

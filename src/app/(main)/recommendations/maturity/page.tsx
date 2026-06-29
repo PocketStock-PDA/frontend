@@ -9,6 +9,7 @@ import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
+import { MaturityStepper } from "@/components/features/maturity/MaturityStepper";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
@@ -52,13 +53,14 @@ export default function MaturityPage() {
     return m;
   }, [stockCodes, stockDetailQueries]);
 
+  // 배분 기준은 총 수령액(원금+만기이자) — 만기일에 이자가 입금된 뒤 이 금액으로 집행된다.
   const { depositAmount, dividendAmount } = useMemo(() => {
     if (!account) return { depositAmount: 0, dividendAmount: 0 };
-    const principal = new Decimal(account.principalAmount);
-    const dAmt = principal
+    const total = new Decimal(account.maturityAmount);
+    const dAmt = total
       .times(new Decimal(depositRatio).dividedBy(100))
       .toDecimalPlaces(0);
-    const vAmt = principal.minus(dAmt).toDecimalPlaces(0);
+    const vAmt = total.minus(dAmt).toDecimalPlaces(0);
     return { depositAmount: dAmt.toNumber(), dividendAmount: vAmt.toNumber() };
   }, [account, depositRatio]);
 
@@ -89,7 +91,9 @@ export default function MaturityPage() {
     const items = [...selectedCodes].map((code) => `${code}:${perStockAmount}`).join(",");
     // 선택한 예적금(accountId)을 reserve까지 이어 같은 계좌 기준으로 예약하게 한다.
     const accountQuery = accountId ? `&accountId=${accountId}` : "";
-    router.push(`/recommendations/maturity/reserve?items=${items}${accountQuery}`);
+    // 예금 재예치분(슬라이더의 예금 몫)을 함께 넘겨 예약 후 재예치 단계로 잇는다.
+    const depositQuery = depositAmount > 0 ? `&deposit=${depositAmount}` : "";
+    router.push(`/recommendations/maturity/reserve?items=${items}${accountQuery}${depositQuery}`);
   };
 
   if (isLoading) {
@@ -125,6 +129,7 @@ export default function MaturityPage() {
   return (
     <>
       <AppHeader variant="sub" title="만기 자금 굴리기" />
+      <MaturityStepper current={1} />
 
       <div className={cn("space-y-4", hasSelection && "pb-40")}>
         {/* ── 히어로: 만기 자금 (brand-surface) ────────────────────────── */}
@@ -136,17 +141,20 @@ export default function MaturityPage() {
                 name={bank?.bankName ?? account.accountName}
                 className="size-7"
               />
-              <p className="text-sm font-semibold text-primary">만기 자금</p>
+              <p className="text-sm font-semibold text-primary">만기 수령액</p>
             </div>
             <span className="font-numeric text-[18px] font-bold tabular-nums text-primary">
               D-{account.daysUntilMaturity}
             </span>
           </div>
           <p className="mt-1 font-numeric text-[30px] font-semibold leading-tight tabular-nums text-foreground">
-            {formatKRW(account.principalAmount)}
+            {formatKRW(account.maturityAmount)}
           </p>
           <p className="mt-1.5 font-numeric text-[12.5px] tabular-nums text-[#3c5170]">
-            {account.accountName} · {formattedMaturity} 만기 · 연 {account.interestRate}%
+            원금 {formatKRW(account.principalAmount)} + 만기 이자 포함 · 연 {account.interestRate}%
+          </p>
+          <p className="mt-0.5 font-numeric text-[11.5px] tabular-nums text-[#3c5170]">
+            {account.accountName} · {formattedMaturity} 만기
           </p>
         </section>
 
@@ -243,9 +251,9 @@ export default function MaturityPage() {
         )}
       </div>
 
-      {/* ── 하단 고정 요약바 (선택 시) ────────────────────────────────── */}
+      {/* ── 하단 고정 요약바 (선택 시) — 네비바 바로 위에 붙임(덮지 않고 간격 없이) ── */}
       {hasSelection && (
-        <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)/2+4.5rem)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-3 pt-3">
           {belowMin && (
             <p className="mb-2 text-center text-[11.5px] font-semibold text-red-600">
               종목당 최소 {formatKRW(MIN_AMOUNT)}부터 예약할 수 있어요. 종목 수를 줄이거나

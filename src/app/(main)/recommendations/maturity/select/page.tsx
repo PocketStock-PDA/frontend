@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { ChevronRight, X, ArrowDown, ArrowRight, CheckCircle2 } from "lucide-react";
+import { ChevronRight, X, ArrowDown, ArrowRight, CheckCircle2, PiggyBank } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import { SectionHeader } from "@/components/common/SectionHeader";
 import { useMaturityAccounts } from "@/hooks/queries/useMaturityAccounts";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useMaturityReservations } from "@/hooks/queries/useMaturityReservations";
+import { useDepositRollovers } from "@/hooks/queries/useDepositRollovers";
+import { ApiError } from "@/lib/api/client";
 import { useCancelMaturityReservation } from "@/hooks/mutations/useCancelMaturityReservation";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useDividendReinvest } from "@/hooks/queries/useDividendReinvest";
@@ -25,6 +27,7 @@ import { useSetDividendReinvest } from "@/hooks/mutations/useSetDividendReinvest
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import type { MaturityTriggerAccount } from "@/types/domain/asset";
+import type { DepositRollover } from "@/types/domain/deposit";
 import type { MaturityReservation, MaturityReservationStatus, DividendPayoutStatus, DividendPayout } from "@/types/domain/trading";
 import type { DividendReinvestSetting } from "@/types/domain/trading";
 
@@ -71,6 +74,7 @@ export default function MaturitySelectPage() {
 
   const { data: accounts = [], isLoading: accLoading, isError } = useMaturityAccounts();
   const { data: reservations = [], isLoading: resLoading } = useMaturityReservations();
+  const { data: rollovers = [] } = useDepositRollovers();
   const { data: bankAccounts = [] } = useBankAccounts();
   const cancelMutation = useCancelMaturityReservation();
 
@@ -118,6 +122,16 @@ export default function MaturitySelectPage() {
     return [...reserved, ...rest];
   }, [reservations]);
 
+  // 전환내역에 한 번이라도 뜬 계좌(배당주 예약 or 예금 재예치/CMA 이체) — 예금·적금 선택 탭에서 숨긴다.
+  const convertedAccountIds = useMemo(
+    () =>
+      new Set<number>([
+        ...reservations.map((r) => r.linkedBankAccountId),
+        ...rollovers.map((d) => d.linkedBankAccountId),
+      ]),
+    [reservations, rollovers],
+  );
+
   if (isLoading) {
     return (
       <>
@@ -151,6 +165,7 @@ export default function MaturitySelectPage() {
           <AccountsTab
             accounts={accounts}
             bankById={bankById}
+            convertedAccountIds={convertedAccountIds}
             isError={isError}
             onConvert={goConvert}
             onLinkAsset={() => router.push("/asset")}
@@ -161,6 +176,7 @@ export default function MaturitySelectPage() {
         {tab === "history" && (
           <HistoryTab
             reservations={sortedReservations}
+            rollovers={rollovers}
             accounts={accounts}
             bankById={bankById}
             pendingCancelId={pendingCancelId}
@@ -183,12 +199,14 @@ export default function MaturitySelectPage() {
 function AccountsTab({
   accounts,
   bankById,
+  convertedAccountIds,
   isError,
   onConvert,
   onLinkAsset,
 }: {
   accounts: MaturityTriggerAccount[];
   bankById: Map<number, BankInfo>;
+  convertedAccountIds: Set<number>;
   isError: boolean;
   onConvert: (id: number) => void;
   onLinkAsset: () => void;
@@ -202,8 +220,10 @@ function AccountsTab({
     );
   }
 
-  // 이미 자금 굴리기로 예약한 계좌는 선택 탭에서 숨긴다 — 전환 내역 탭에만 노출.
-  const selectable = accounts.filter((a) => !a.reserved);
+  // 이미 자금 굴리기로 전환한 계좌(배당주 예약·예금 재예치·CMA 이체)는 선택 탭에서 숨긴다 — 전환 내역 탭에만 노출.
+  const selectable = accounts.filter(
+    (a) => !a.reserved && !convertedAccountIds.has(a.accountId),
+  );
 
   if (selectable.length === 0) {
     return (
@@ -256,7 +276,7 @@ function AccountsTab({
                 {featured.accountName}
               </p>
               <p className="mt-1 font-numeric text-[13px] tabular-nums text-[#3c5170]">
-                원금 {formatKRW(featured.principalAmount)} · 연 {featured.interestRate}%
+                만기수령 {formatKRW(featured.maturityAmount)} · 연 {featured.interestRate}%
               </p>
             </div>
           </div>
@@ -299,7 +319,7 @@ function AccountRow({
   bank?: BankInfo | undefined;
   onSelect: () => void;
 }) {
-  const { accountName, principalAmount, interestRate, maturityDate, daysUntilMaturity } = account;
+  const { accountName, maturityAmount, interestRate, maturityDate, daysUntilMaturity } = account;
   return (
     <button
       type="button"
@@ -314,7 +334,7 @@ function AccountRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-bold text-foreground">{accountName}</p>
         <p className="mt-0.5 font-numeric text-xs tabular-nums text-muted-foreground">
-          원금 {formatKRW(principalAmount)} · 연 {interestRate}%
+          만기수령 {formatKRW(maturityAmount)} · 연 {interestRate}%
         </p>
       </div>
       <div className="shrink-0 text-right">
@@ -340,10 +360,12 @@ interface AccountGroup {
   interestRate: number | null;
   daysUntilMaturity: number | null;
   reservations: MaturityReservation[];
+  rollovers: DepositRollover[];
 }
 
 function HistoryTab({
   reservations,
+  rollovers,
   accounts,
   bankById,
   pendingCancelId,
@@ -351,6 +373,7 @@ function HistoryTab({
   onCancel,
 }: {
   reservations: MaturityReservation[];
+  rollovers: DepositRollover[];
   accounts: MaturityTriggerAccount[];
   bankById: Map<number, BankInfo>;
   pendingCancelId: number | null;
@@ -365,34 +388,44 @@ function HistoryTab({
     return m;
   }, [allCodes, detailQueries]);
 
-  // accountId 기준으로 그룹핑
+  // accountId 기준으로 그룹핑 — 배당주 예약 + 예금 재예치를 한 계좌 카드에 합친다.
   const groups = useMemo<AccountGroup[]>(() => {
-    const map = new Map<number, MaturityReservation[]>();
+    const resByAcc = new Map<number, MaturityReservation[]>();
     for (const r of reservations) {
-      const list = map.get(r.linkedBankAccountId) ?? [];
+      const list = resByAcc.get(r.linkedBankAccountId) ?? [];
       list.push(r);
-      map.set(r.linkedBankAccountId, list);
+      resByAcc.set(r.linkedBankAccountId, list);
+    }
+    const rollByAcc = new Map<number, DepositRollover[]>();
+    for (const d of rollovers) {
+      const list = rollByAcc.get(d.linkedBankAccountId) ?? [];
+      list.push(d);
+      rollByAcc.set(d.linkedBankAccountId, list);
     }
     const accountMap = new Map(accounts.map((a) => [a.accountId, a]));
-    return [...map.entries()].map(([accountId, list]) => {
+    const ids = new Set<number>([...resByAcc.keys(), ...rollByAcc.keys()]);
+    return [...ids].map((accountId) => {
       const acc = accountMap.get(accountId) ?? null;
+      const res = resByAcc.get(accountId) ?? [];
+      const roll = rollByAcc.get(accountId) ?? [];
       return {
         accountId,
         accountName: acc?.accountName ?? null,
-        maturityDate: list[0]?.maturityDate ?? "",
+        maturityDate: res[0]?.maturityDate ?? roll[0]?.maturityDate ?? "",
         principalAmount: acc?.principalAmount ?? null,
         interestRate: acc?.interestRate ?? null,
         daysUntilMaturity: acc?.daysUntilMaturity ?? null,
-        reservations: list,
+        reservations: res,
+        rollovers: roll,
       };
     });
-  }, [reservations, accounts]);
+  }, [reservations, rollovers, accounts]);
 
   if (groups.length === 0) {
     return (
       <EmptyState
         title="전환 내역이 없어요"
-        description="예금·적금 만기 자금을 배당주로 전환 예약하면 여기에 표시돼요."
+        description="예금·적금 만기 자금을 배당주·예금으로 전환하면 여기에 표시돼요."
       />
     );
   }
@@ -438,10 +471,13 @@ function AccountGroupCard({
 }) {
   const reserved = group.reservations.filter((r) => r.status === "RESERVED");
   const past = group.reservations.filter((r) => r.status !== "RESERVED");
+  const rollovers = group.rollovers;
   const hasReserved = reserved.length > 0;
-  const totalBuyAmount = group.reservations
-    .filter((r) => r.status === "RESERVED")
-    .reduce((s, r) => s + Number(r.buyAmount), 0);
+  const hasConversion = hasReserved || rollovers.length > 0;
+  // 만기일 자동 전환 총액 = 배당주 예약(RESERVED) + 예금 재예치.
+  const totalConverted =
+    reserved.reduce((s, r) => s + Number(r.buyAmount), 0) +
+    rollovers.reduce((s, d) => s + Number(d.amount), 0);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -474,22 +510,25 @@ function AccountGroupCard({
           {group.principalAmount !== null && ` · 원금 ${formatKRW(group.principalAmount)}`}
           {group.interestRate !== null && ` · 연 ${group.interestRate}%`}
         </p>
-        {hasReserved && (
+        {hasConversion && (
           <div className="mt-2.5 flex items-center gap-1.5 rounded-lg bg-brand-surface px-2.5 py-1.5 text-[11.5px] font-bold text-primary">
             <ArrowDown className="size-3 shrink-0" />
             <span className="font-numeric tabular-nums">{formatMD(group.maturityDate)}</span>
             <span>만기일 자동 전환</span>
-            {totalBuyAmount > 0 && (
+            {totalConverted > 0 && (
               <span className="ml-auto font-numeric tabular-nums">
-                {formatKRW(totalBuyAmount)}
+                {formatKRW(totalConverted)}
               </span>
             )}
           </div>
         )}
       </div>
 
-      {/* TO: 배당주 목록 */}
+      {/* TO: 전환 결과 — 예금 재예치 + 배당주 */}
       <ul className="divide-y divide-border">
+        {rollovers.map((d) => (
+          <DepositRolloverRow key={`deposit-${d.id}`} rollover={d} />
+        ))}
         {reserved.map((r) => (
           <ReservationRow
             key={r.id}
@@ -534,12 +573,12 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
   const setReinvest = useSetDividendReinvest();
   const [pendingCodes, setPendingCodes] = useState<Set<string>>(new Set());
 
-  // 예약 중인 국내 종목 (RESERVED + DOMESTIC) — drip 설정 가능
-  const reservedDomesticCodes = useMemo(
+  // 예약 중인 종목 (RESERVED, 국내·해외) — drip 설정 가능
+  const reservedCodes = useMemo(
     () =>
       new Set(
         reservations
-          .filter((r) => r.status === "RESERVED" && r.market === "DOMESTIC")
+          .filter((r) => r.status === "RESERVED")
           .map((r) => r.stockCode),
       ),
     [reservations],
@@ -557,7 +596,6 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
       .filter(
         (r) =>
           r.status === "RESERVED" &&
-          r.market === "DOMESTIC" &&
           !settingCodes.has(r.stockCode) &&
           !seen.has(r.stockCode) &&
           seen.add(r.stockCode),
@@ -611,7 +649,13 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
     setReinvest.mutate(
       { stockCode, enabled },
       {
-        onError: () => toast.error("설정을 변경하지 못했어요. 잠시 후 다시 시도해 주세요."),
+        // 해외 재투자는 자동환전 필요 등 백엔드 사유를 그대로 노출(있으면).
+        onError: (e) =>
+          toast.error(
+            e instanceof ApiError
+              ? e.message
+              : "설정을 변경하지 못했어요. 잠시 후 다시 시도해 주세요.",
+          ),
         onSettled: () =>
           setPendingCodes((prev) => {
             const next = new Set(prev);
@@ -693,7 +737,7 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
         {allSettings.length === 0 ? (
           <EmptyState
             title="배당 재투자할 종목이 없어요"
-            description="국내 배당주를 예약하거나 보유하면 여기서 재투자를 켤 수 있어요."
+            description="배당주를 예약하거나 보유하면 여기서 재투자를 켤 수 있어요."
           />
         ) : (
           <>
@@ -701,7 +745,7 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
               <ul className="divide-y divide-border">
                 {allSettings.map((s) => {
                   const qty = qtyByCode.get(s.stockCode);
-                  const isReserved = reservedDomesticCodes.has(s.stockCode) && qty === undefined;
+                  const isReserved = reservedCodes.has(s.stockCode) && qty === undefined;
                   const logoUrl = logoByCode.get(s.stockCode) ?? null;
                   const initial = s.stockName.trim().charAt(0).toUpperCase();
                   return (
@@ -814,6 +858,32 @@ function DripHistoryRow({ payout, logoUrl }: { payout: DividendPayout; logoUrl: 
           {chip.label}
         </span>
       </div>
+    </li>
+  );
+}
+
+// ── 예금 재예치 행 ────────────────────────────────────────────────────────
+
+function DepositRolloverRow({ rollover }: { rollover: DepositRollover }) {
+  const { productName, productType, amount, baseRate, maxRate, periodMonths } = rollover;
+  const isCma = productType === "CMA";
+  const rateLabel = baseRate === maxRate ? `${maxRate}%` : `${baseRate}~${maxRate}%`;
+  return (
+    <li className="flex items-center gap-3 px-4 py-3.5">
+      <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-surface text-primary">
+        <PiggyBank className="size-[18px]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[14px] font-semibold text-foreground">{productName}</p>
+        <p className="mt-0.5 font-numeric text-[12px] tabular-nums text-muted-foreground">
+          {isCma
+            ? `${formatKRW(Number(amount))} · 포켓스톡 CMA 입금`
+            : `${formatKRW(Number(amount))} · ${periodMonths}개월 · 연 ${rateLabel}`}
+        </p>
+      </div>
+      <span className="shrink-0 rounded-full bg-brand-surface px-2.5 py-1 text-[11px] font-bold text-primary">
+        {isCma ? "CMA 이체" : "예금 재예치"}
+      </span>
     </li>
   );
 }

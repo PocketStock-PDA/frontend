@@ -63,6 +63,11 @@ export const queryKeys = {
     transactions: (page: number, size: number) =>
       ["cma", "transactions", page, size] as const,
   },
+  deposit: {
+    all: ["deposit"] as const,
+    products: ["deposit", "products"] as const,
+    rollovers: ["deposit", "rollovers"] as const,
+  },
   exchange: {
     all: ["exchange"] as const,
     rate: ["exchange", "rate"] as const,

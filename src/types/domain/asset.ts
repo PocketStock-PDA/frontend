@@ -66,6 +66,8 @@ export interface MaturityTriggerAccount {
   accountName: string;
   maturityDate: string;
   principalAmount: number;
+  /** 총 수령액 = 원금 + 만기 이자. 만기일에 이자 입금 후 이 금액으로 배당주·예금 재배치 */
+  maturityAmount: number;
   daysUntilMaturity: number;
   interestRate: number;
   /** 이미 자금 굴리기로 예약(활성)한 계좌 — 선택 탭에선 숨기고 전환내역에만 노출 */
