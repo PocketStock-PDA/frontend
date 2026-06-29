@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Coins } from "lucide-react";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -11,6 +11,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { useInstitutions } from "@/hooks/queries/useInstitutions";
 import { useLinkAssets } from "@/hooks/mutations/useLinkAssets";
 import { useUnlinkPoint } from "@/hooks/mutations/useUnlinkPoint";
@@ -118,21 +119,12 @@ export function PartnerPointSheet({ open, onOpenChange }: PartnerPointSheetProps
                     <Check className="size-3 text-white" />
                   </span>
                 )}
-                <span className="flex size-11 items-center justify-center overflow-hidden rounded-full bg-muted">
-                  {p.logoUrl ? (
-                    // 제휴사 로고는 불특정 외부 호스트 → next/image 대신 일반 img
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={p.logoUrl}
-                      alt=""
-                      width={44}
-                      height={44}
-                      className="size-full object-cover"
-                    />
-                  ) : (
-                    <Coins className="size-5 text-muted-foreground" />
-                  )}
-                </span>
+                <InstitutionLogo
+                  code={p.companyCode}
+                  logoUrl={p.logoUrl}
+                  name={p.companyName}
+                  className="size-11"
+                />
                 <span className="line-clamp-2 text-center text-[11px] leading-tight text-foreground">
                   {p.companyName}
                 </span>
