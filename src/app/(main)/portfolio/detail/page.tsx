@@ -580,7 +580,7 @@ function StockDetailContent({
                 <div className="flex items-baseline justify-between text-sm">
                   <span className="text-muted-foreground">내 보유</span>
                   <span className="font-numeric font-bold text-foreground">
-                    {bojuText}
+                    {formatShares(qty)}주
                     <span className="ml-1.5 text-xs font-medium text-muted-foreground">
                       {fmtView(evalAmount.toString())}
                     </span>
