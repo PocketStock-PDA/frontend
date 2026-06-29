@@ -63,12 +63,14 @@ export function AutoChargeSettingsForm({ onSaved, inline = false }: Props) {
   const [maxChargePerTx, setMaxChargePerTx] = useState<number>(100000);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!settingsQ.data) return;
     setEnabled(settingsQ.data.enabled);
     setSourceAccountId(settingsQ.data.sourceAccountId ?? null);
     setMaxChargePerTx(settingsQ.data.maxChargePerTx ?? 100000);
   }, [settingsQ.data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const banks = Array.isArray(bankQ.data) ? bankQ.data : [];
   const selectedBank = banks.find((b) => b.accountId === sourceAccountId) ?? null;
