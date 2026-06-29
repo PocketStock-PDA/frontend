@@ -198,7 +198,7 @@ export default function PortfolioPage() {
     const d = summary?.domestic;
     displayEval = d?.evalKrw ?? 0;
     displayProfit = d?.profitKrw ?? 0;
-    displayRate = d?.profitRate ?? 0;
+    displayRate = krwRate(d?.profitKrw, d?.investedKrw);
     scopeLabel = "국내 평가금액";
   } else if (scope === "overseas") {
     const o = summary?.overseas;
@@ -225,9 +225,10 @@ export default function PortfolioPage() {
         ? rows.filter((r) => r.currency === "USD")
         : rows;
 
-  // 전체 탭은 항상 KRW 통일. 해외 탭은 원화 토글 ON이면 KRW, OFF면 native USD.
+  // KRW 표시 스코프(전체·국내·해외 원화)는 카드도 profitKrw + krwRate() 기준으로 통일.
+  // 해외 USD 표시만 native 통화 사용.
   const cardKrw =
-    scope === "all" || (scope === "overseas" && ovsKrw && fx !== null);
+    scope === "all" || scope === "domestic" || (scope === "overseas" && ovsKrw && fx !== null);
   const cardView = (r: (typeof rows)[number]) =>
     cardKrw
       ? {
