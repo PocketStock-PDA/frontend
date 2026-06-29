@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Landmark } from "lucide-react";
+import { Check } from "lucide-react";
+import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
@@ -43,6 +44,8 @@ const STEP_TITLE: Record<Step, string> = {
   DONE: "계좌 개설 완료",
 };
 
+const STEP_ORDER: Step[] = ["TERMS", "INFO", "BANK", "VERIFY", "PASSWORD", "DONE"];
+
 // CMA는 POST /api/cma/account, 증권은 POST /api/trading/accounts(DOMESTIC·OVERSEAS).
 // FULL=CMA+종합(둘 다), CMA=CMA만.
 const SECURITIES_TYPES = ["DOMESTIC", "OVERSEAS"];
@@ -69,13 +72,9 @@ export default function AccountOpenPage() {
   const [accountNo, setAccountNo] = useState<string | null>(null);
   // 이 플로우에서 개설을 시작/완료했는지. true면 개설 직후 useCmaHome이 200으로 바뀌어도
   // "이미 보유 → /home" 가드가 발동하지 않게 한다. (#155)
-  // step!=="DONE" 만으론 FULL 계좌의 CMA개설~증권개설 사이 구간(step=PASSWORD)을 못 막는다.
   const [opened, setOpened] = useState(false);
 
   // CMA 계좌를 이미 보유한 회원에게는 계좌개설 페이지를 노출하지 않는다.
-  // /api/cma/home 200(isSuccess)=보유 → 홈으로 돌려보냄.
-  // 단, 이 플로우에서 개설을 시작했으면(opened) 제외 — 개설 직후 useCmaHome이 무효화→200이
-  // 되며 이 가드가 발동하면 완료화면→자산연동(/asset-link) 진행을 가로챈다. (#155)
   const cmaQ = useCmaHome();
   useEffect(() => {
     if (cmaQ.isSuccess && !opened) router.replace("/home");
@@ -96,11 +95,7 @@ export default function AccountOpenPage() {
     else router.back();
   };
 
-  // CMA 미개설(404)이 확정된 회원에게만 계좌개설 UI를 노출한다.
-  // 보유(200)는 위 effect가 /home으로 보내고, 로딩·비-404 에러 상태는
-  // 잘못된 노출을 막기 위해 스플래시로 가린다.
-  // 단, 개설을 시작했으면(opened) 통과시킨다 — 개설 직후 200으로 바뀌어도 완료 화면을
-  // 유지해 자산연동으로 진행할 수 있게 한다. (#155)
+  // CMA 미개설(404)이 확정된 회원에게만 계좌개설 UI를 노출한다. (#155)
   if (!opened && !isNoCmaAccount(cmaQ.error)) {
     return (
       <>
@@ -112,15 +107,33 @@ export default function AccountOpenPage() {
     );
   }
 
+  const stepIdx = STEP_ORDER.indexOf(step);
+  const progress = (stepIdx + 1) / STEP_ORDER.length;
+
   return (
     <>
       <AppHeader
         variant="sub"
         title={STEP_TITLE[step]}
         showMenu={false}
-        {...(step === "DONE" ? { showBack: false } : { onBack: back })}
+        {...(step === "DONE" ? {} : { onBack: back })}
       />
-      <div className="pb-6">
+
+      {step !== "DONE" && (
+        <div className="h-[2px] overflow-hidden bg-muted">
+          <div
+            className="h-full w-full origin-left bg-primary transition-transform duration-500"
+            style={{ transform: `scaleX(${progress})` }}
+          />
+        </div>
+      )}
+
+      <div
+        className={cn(
+          step !== "DONE" && "pb-32",
+          step !== "PASSWORD" && step !== "DONE" && "px-4",
+        )}
+      >
         {step === "TERMS" && (
           <TermsStep
             kind={kind}
@@ -249,6 +262,15 @@ export default function AccountOpenPage() {
   );
 }
 
+// ── 공통: 고정 하단 CTA ──────────────────────────────────────────────────────────
+function BottomCta({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[430px] border-t border-border bg-background px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3">
+      {children}
+    </div>
+  );
+}
+
 // ── 1. 약관 + 계좌 종류 ────────────────────────────────────────────────────────
 function TermsStep({
   kind,
@@ -279,9 +301,9 @@ function TermsStep({
     setAgreed(allOn ? new Set() : new Set(TERMS.map((t) => t.id)));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 pt-6">
       <section className="space-y-2">
-        <p className="text-sm text-muted-foreground">계좌 종류</p>
+        <p className="text-xs font-medium text-muted-foreground">계좌 종류</p>
         {(
           [
             { value: "FULL", label: "CMA + 종합계좌", desc: "국내·해외 주식 + CMA" },
@@ -294,40 +316,49 @@ function TermsStep({
             aria-pressed={kind === o.value}
             onClick={() => setKind(o.value)}
             className={cn(
-              "flex w-full items-center justify-between rounded-xl border px-4 py-3.5 text-left",
+              "flex w-full items-center justify-between rounded-xl border px-4 py-3.5 text-left transition-colors",
               kind === o.value
                 ? "border-primary bg-primary/5"
-                : "border-border",
+                : "border-border hover:border-primary/30",
             )}
           >
             <span>
-              <span className="block text-sm font-bold text-foreground">
+              <span className="block text-sm font-semibold text-foreground">
                 {o.label}
               </span>
               <span className="block text-xs text-muted-foreground">
                 {o.desc}
               </span>
             </span>
-            {kind === o.value && <Check className="size-5 text-primary" />}
+            <span
+              className={cn(
+                "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors",
+                kind === o.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted",
+              )}
+            >
+              {kind === o.value && <Check className="size-3" />}
+            </span>
           </button>
         ))}
       </section>
 
-      <section className="space-y-1">
+      <section className="space-y-0.5">
         <button
           type="button"
           onClick={toggleAll}
-          className="flex w-full items-center gap-2 rounded-xl bg-muted/60 px-4 py-3 text-left"
+          className="flex w-full items-center gap-2.5 rounded-xl bg-muted/60 px-4 py-3 text-left"
         >
           <CheckCircle on={allOn} />
-          <span className="text-sm font-bold text-foreground">전체 동의</span>
+          <span className="text-sm font-semibold text-foreground">전체 동의</span>
         </button>
         {TERMS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => toggle(t.id)}
-            className="flex w-full items-center gap-2 px-4 py-2.5 text-left"
+            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left"
           >
             <CheckCircle on={agreed.has(t.id)} />
             <span className="flex-1 text-sm text-foreground">
@@ -340,13 +371,15 @@ function TermsStep({
         ))}
       </section>
 
-      <Button
-        onClick={onNext}
-        disabled={!requiredOk || pending}
-        className="h-12 w-full text-base font-bold"
-      >
-        다음
-      </Button>
+      <BottomCta>
+        <Button
+          onClick={onNext}
+          disabled={!requiredOk || pending}
+          className="h-12 w-full text-[15px] font-semibold"
+        >
+          다음
+        </Button>
+      </BottomCta>
     </div>
   );
 }
@@ -355,16 +388,16 @@ function CheckCircle({ on }: { on: boolean }) {
   return (
     <span
       className={cn(
-        "flex size-5 shrink-0 items-center justify-center rounded-full",
-        on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+        "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors",
+        on ? "bg-primary text-primary-foreground" : "bg-muted",
       )}
     >
-      <Check className="size-3.5" />
+      {on && <Check className="size-3" />}
     </span>
   );
 }
 
-// ── 2. 회원 정보 확인 (단순 입력) ──────────────────────────────────────────────
+// ── 2. 회원 정보 확인 ──────────────────────────────────────────────────────────
 function InfoStep({
   name,
   setName,
@@ -383,8 +416,8 @@ function InfoStep({
   const phoneError = phone.length > 0 && !phoneValid;
   const ok = name.trim().length > 0 && phoneValid;
   return (
-    <div className="space-y-6 pt-2">
-      <p className="text-sm text-muted-foreground">
+    <div className="pt-6">
+      <p className="mb-6 text-sm text-muted-foreground">
         계좌 개설에 사용할 회원 정보를 확인해 주세요.
       </p>
       <div className="space-y-4">
@@ -413,9 +446,15 @@ function InfoStep({
           )}
         </label>
       </div>
-      <Button onClick={onNext} disabled={!ok} className="h-12 w-full text-base font-bold">
-        다음
-      </Button>
+      <BottomCta>
+        <Button
+          onClick={onNext}
+          disabled={!ok}
+          className="h-12 w-full text-[15px] font-semibold"
+        >
+          다음
+        </Button>
+      </BottomCta>
     </div>
   );
 }
@@ -434,7 +473,7 @@ function BankStep({
   pending: boolean;
   onNext: () => void;
 }) {
-  if (query.isLoading) return <SkeletonCard lines={4} className="mt-2 h-44" />;
+  if (query.isLoading) return <SkeletonCard lines={4} className="mt-6 h-44" />;
   if (query.isError) {
     return (
       <div className="pt-6">
@@ -465,8 +504,8 @@ function BankStep({
     );
   }
   return (
-    <div className="space-y-4 pt-2">
-      <p className="text-sm text-muted-foreground">
+    <div className="pt-6">
+      <p className="mb-5 text-sm text-muted-foreground">
         본인 명의 계좌로 1원을 보내 인증해요.
       </p>
       <div className="space-y-2">
@@ -476,17 +515,19 @@ function BankStep({
             type="button"
             onClick={() => setSelectedId(a.accountId)}
             className={cn(
-              "flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left",
+              "flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors",
               selectedId === a.accountId
                 ? "border-primary bg-primary/5"
-                : "border-border",
+                : "border-border hover:border-primary/30",
             )}
           >
-            <span className="flex size-9 items-center justify-center rounded-full bg-muted">
-              <Landmark className="size-4 text-muted-foreground" />
-            </span>
+            <InstitutionLogo
+              code={a.bankCode}
+              name={a.bankName}
+              className="size-10 shrink-0"
+            />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-bold text-foreground">
+              <span className="block truncate text-sm font-semibold text-foreground">
                 {a.bankName} · {a.accountName}
               </span>
               <span className="block text-xs text-muted-foreground">
@@ -494,23 +535,25 @@ function BankStep({
               </span>
             </span>
             {selectedId === a.accountId && (
-              <Check className="size-5 text-primary" />
+              <Check className="size-4 text-primary" />
             )}
           </button>
         ))}
       </div>
-      <Button
-        onClick={onNext}
-        disabled={selectedId === null || pending}
-        className="h-12 w-full text-base font-bold"
-      >
-        {pending ? "1원 보내는 중..." : "이 계좌로 인증하기"}
-      </Button>
+      <BottomCta>
+        <Button
+          onClick={onNext}
+          disabled={selectedId === null || pending}
+          className="h-12 w-full text-[15px] font-semibold"
+        >
+          {pending ? "1원 보내는 중..." : "이 계좌로 인증하기"}
+        </Button>
+      </BottomCta>
     </div>
   );
 }
 
-// ── 4. 1원 송금 인증 (토스/뱅샐 스타일) ────────────────────────────────────────
+// ── 4. 1원 송금 인증 ────────────────────────────────────────────────────────────
 function VerifyStep({
   verify,
   bank,
@@ -526,7 +569,13 @@ function VerifyStep({
   onResend: () => void;
   onConfirm: (code: string) => void;
 }) {
-  const [code, setCode] = useState("");
+  const [digits, setDigits] = useState(["", "", ""]);
+  const code = digits.join("");
+  const slotRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
   const [remain, setRemain] = useState(verify.expiresIn);
 
   // verify 갱신(다시 받기) 시 부모가 key로 remount → 타이머만 돌림
@@ -540,57 +589,127 @@ function VerifyStep({
   const expired = remain <= 0;
 
   return (
-    <div className="space-y-6 pt-2">
-      <div>
-        <h2 className="text-xl font-bold text-foreground">1원을 보냈어요</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {bank ? `${bank.bankName} ${bank.accountName}에 ` : ""}1원을 입금했어요.
-          <br />
-          입금자명에 표시된 <span className="font-bold text-foreground">3자리 숫자</span>를 입력해 주세요.
-        </p>
-      </div>
+    <>
+      {/* eslint-disable-next-line react/no-danger -- notif-drop 애니메이션은 이 컴포넌트 전용 */}
+      <style>{`
+        @keyframes notif-drop {
+          from { opacity: 0; transform: translateY(-14px) scale(0.97); }
+          to   { opacity: 1; transform: none; }
+        }
+        .notif-drop {
+          animation: notif-drop 0.46s cubic-bezier(0.22,1,0.36,1) 0.1s both;
+        }
+      `}</style>
 
-      <div className="rounded-xl bg-muted/60 p-4 text-center">
-        <p className="text-xs text-muted-foreground">입금자명 예시</p>
-        <p className="mt-0.5 font-bold text-foreground">{verify.depositorName}</p>
-      </div>
-
-      <div className="space-y-2">
-        <Input
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 3))}
-          inputMode="numeric"
-          placeholder="3자리 숫자"
-          className="h-12 text-center text-2xl font-bold tracking-[0.5em]"
-        />
-        <div className="flex justify-between text-xs">
-          <span className={cn(expired ? "text-destructive" : "text-muted-foreground")}>
-            남은 시간 {mm}:{ss}
-          </span>
-          <button
-            type="button"
-            onClick={onResend}
-            disabled={resending}
-            className="font-medium text-primary disabled:opacity-50"
-          >
-            {resending ? "보내는 중..." : "다시 받기"}
-          </button>
-        </div>
-        {process.env.NODE_ENV === "development" && (
-          <p className="text-right text-[11px] text-muted-foreground">
-            (개발용 코드: {verify.code})
+      {/* iOS 스타일 알림 배너 */}
+      <div className="notif-drop mt-3 overflow-hidden rounded-2xl border border-black/[0.07] bg-[rgba(242,242,247,0.97)] shadow-[0_4px_20px_rgba(0,0,0,0.12),0_1px_4px_rgba(0,0,0,0.06)] backdrop-blur-xl">
+        <div className="px-3.5 pb-3 pt-3">
+          <div className="mb-1.5 flex items-center gap-2">
+            <InstitutionLogo
+              code="SHINHAN_BANK"
+              name="신한"
+              className="size-[18px] shrink-0 rounded-[5px]"
+            />
+            <span className="text-[11px] font-semibold text-[#1c1c1e]">
+              superSol
+            </span>
+            <span className="ml-auto text-[10px] text-[#8e8e93]">지금</span>
+          </div>
+          <p className="text-[12px] leading-[1.5] text-[#1c1c1e]">
+            포켓스톡에서 요청하신 입금 1원이{" "}
+            {bank ? `${bank.bankName} ` : ""}계좌로 입금되었어요.
           </p>
-        )}
+          <p className="mt-0.5 text-[12px] text-[#48484a]">
+            입금자명:{" "}
+            <span className="font-semibold text-[#1c1c1e]">
+              {verify.depositorName}
+            </span>
+          </p>
+        </div>
       </div>
 
-      <Button
-        onClick={() => onConfirm(code)}
-        disabled={code.length !== 3 || expired || pending}
-        className="h-12 w-full text-base font-bold"
-      >
-        {pending ? "확인 중..." : "확인"}
-      </Button>
-    </div>
+      <div className="space-y-6 pt-6">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">1원을 보냈어요</h2>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {bank ? `${bank.bankName} ${bank.accountName}에 ` : ""}입금했어요.
+            <br />
+            입금자명의{" "}
+            <span className="font-semibold text-foreground">3자리 숫자</span>를
+            입력해 주세요.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-center gap-6 py-2">
+            {([0, 1, 2] as const).map((i) => (
+              <div key={i} className="flex w-14 flex-col items-center gap-2">
+                <input
+                  ref={slotRefs[i]}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digits[i]}
+                  autoFocus={i === 0}
+                  onChange={(e) => {
+                    const ch = e.target.value.replace(/\D/g, "").slice(-1);
+                    const next = [...digits] as [string, string, string];
+                    next[i] = ch;
+                    setDigits(next);
+                    if (ch && i < 2) slotRefs[i + 1].current?.focus();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Backspace" && !digits[i] && i > 0) {
+                      slotRefs[i - 1].current?.focus();
+                    }
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  className="font-numeric h-10 w-full bg-transparent text-center text-3xl font-bold text-foreground caret-transparent outline-none"
+                />
+                <div
+                  className={cn(
+                    "h-[2px] w-full rounded-full transition-colors duration-150",
+                    digits[i] ? "bg-primary" : "bg-border",
+                  )}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span
+              className={cn(
+                expired ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              남은 시간 {mm}:{ss}
+            </span>
+            <button
+              type="button"
+              onClick={onResend}
+              disabled={resending}
+              className="font-medium text-primary disabled:opacity-50"
+            >
+              {resending ? "보내는 중..." : "다시 받기"}
+            </button>
+          </div>
+          {process.env.NODE_ENV === "development" && (
+            <p className="text-right text-[11px] text-muted-foreground">
+              (개발용 코드: {verify.code})
+            </p>
+          )}
+        </div>
+
+        <BottomCta>
+          <Button
+            onClick={() => onConfirm(code)}
+            disabled={code.length !== 3 || expired || pending}
+            className="h-12 w-full text-[15px] font-semibold"
+          >
+            {pending ? "확인 중..." : "확인"}
+          </Button>
+        </BottomCta>
+      </div>
+    </>
   );
 }
 
@@ -639,6 +758,18 @@ function PasswordStep({
 }
 
 // ── 6. 개설 완료 ───────────────────────────────────────────────────────────────
+function PocketStockLogo() {
+  return (
+    <img
+      src="/icons/icon-512x512.png"
+      alt="포켓스톡"
+      width={112}
+      height={112}
+      className="rounded-2xl"
+    />
+  );
+}
+
 function DoneStep({
   accountNo,
   kind,
@@ -649,35 +780,47 @@ function DoneStep({
   onStart: () => void;
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center text-center">
-        <span className="flex size-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-          <Check className="size-10" />
-        </span>
-        <h2 className="mt-5 text-2xl font-bold text-foreground">계좌 개설 완료!</h2>
-        <p className="mt-2 text-base font-medium leading-relaxed text-muted-foreground">
-          {kind === "FULL" ? (
-            <>
-              신한 CMA + 국내/해외주식 계좌가
-              <br />
-              개설되었습니다
-            </>
-          ) : (
-            "신한 CMA 계좌가 개설되었습니다"
-          )}
-        </p>
-        {accountNo && (
-          <div className="mt-6 w-full rounded-xl bg-brand-surface py-6 text-center">
-            <p className="text-sm font-medium text-muted-foreground">계좌번호</p>
-            <p className="mt-1.5 font-numeric text-lg font-bold text-primary">
-              {accountNo}
+    <div className="flex min-h-[calc(100svh-5rem)] flex-col px-4">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-8 pt-10 text-center">
+        <div
+          className="ps-rise-in"
+          style={{ "--i": 0 } as React.CSSProperties}
+        >
+          <PocketStockLogo />
+        </div>
+        <div
+          className="ps-rise-in space-y-2"
+          style={{ "--i": 1 } as React.CSSProperties}
+        >
+          <h2 className="text-xl font-bold text-foreground">계좌 개설 완료!</h2>
+          {accountNo && (
+            <p className="font-numeric text-sm text-muted-foreground">
+              <span className="mr-1.5">계좌번호</span>
+              <span className="font-semibold text-foreground">{accountNo}</span>
             </p>
-          </div>
-        )}
+          )}
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {kind === "FULL" ? (
+              <>
+                포켓스톡 CMA + 국내/해외주식 계좌가
+                <br />
+                개설되었어요
+              </>
+            ) : (
+              "포켓스톡 CMA 계좌가 개설되었어요"
+            )}
+          </p>
+        </div>
       </div>
-      <Button onClick={onStart} className="h-12 w-full text-base font-bold">
-        시작하기
-      </Button>
+
+      <div className="pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+        <Button
+          onClick={onStart}
+          className="h-12 w-full text-[15px] font-semibold"
+        >
+          시작하기
+        </Button>
+      </div>
     </div>
   );
 }

@@ -60,6 +60,7 @@ export const queryKeys = {
     home: ["cma", "home"] as const,
     balance: ["cma", "balance"] as const,
     collectSettings: ["cma", "collect-settings"] as const,
+    autoChargeSettings: ["cma", "auto-charge-settings"] as const,
     transactions: (page: number, size: number) =>
       ["cma", "transactions", page, size] as const,
   },

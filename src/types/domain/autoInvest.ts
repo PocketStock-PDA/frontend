@@ -189,15 +189,15 @@ export const DEFAULT_SELL_CONDITION: SellCondition = {
   quantity: 1,
 };
 
-export function defaultSetting(stockCode: string): AutoInvestSetting {
+export function defaultSetting(stockCode: string, currency = "KRW"): AutoInvestSetting {
   return {
     stockCode,
     enabled: true,
-    frequency: "DAILY",
+    frequency: "WEEKLY",
     weekdays: ["MON"],
     dayOfMonth: 1,
     amountMode: "AMOUNT",
-    amount: 10000,
+    amount: currency === "USD" ? 10 : 10000,
     quantity: 1,
     buyCondition: { ...DEFAULT_BUY_CONDITION },
     sellCondition: { ...DEFAULT_SELL_CONDITION },

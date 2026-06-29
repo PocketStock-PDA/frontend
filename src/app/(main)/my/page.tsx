@@ -240,6 +240,10 @@ export default function MyPage() {
           onClick={() => router.push("/my/savings-transfer")}
         />
         <SettingLinkCard
+          title="부족금액 자동충전 설정"
+          onClick={() => router.push("/my/auto-charge")}
+        />
+        <SettingLinkCard
           title="알림 설정"
           onClick={() => router.push("/my/notifications")}
         />

@@ -10,6 +10,8 @@ export interface AmountInputProps {
   /** 입력란 뒤 단위, 기본 "원" */
   suffix?: string;
   placeholder?: string;
+  /** true면 value가 0일 때 빈 문자열 대신 "0" 표시 */
+  showZero?: boolean;
   disabled?: boolean;
   className?: string;
 }
@@ -26,6 +28,7 @@ export function AmountInput({
   max,
   suffix = "원",
   placeholder = "0",
+  showZero = false,
   disabled = false,
   className,
 }: AmountInputProps) {
@@ -51,7 +54,7 @@ export function AmountInput({
       <input
         type="text"
         inputMode="numeric"
-        value={value > 0 ? withCommas(value) : ""}
+        value={value > 0 ? withCommas(value) : showZero ? "0" : ""}
         onChange={handleChange}
         placeholder={placeholder}
         disabled={disabled}

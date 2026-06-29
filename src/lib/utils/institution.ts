@@ -24,3 +24,27 @@ export function cardCodeFromName(companyName?: string | null): string | undefine
   if (!companyName) return undefined;
   return CARD_NAME_CODE.find(([kw]) => companyName.includes(kw))?.[1];
 }
+
+const BANK_NAME_CODE: ReadonlyArray<readonly [string, string]> = [
+  ["신한", "SHINHAN_BANK"],
+  ["국민", "KB_BANK"],
+  ["KB", "KB_BANK"],
+  ["하나", "HANA_BANK"],
+  ["농협", "NH_BANK"],
+  ["NH", "NH_BANK"],
+  ["우리", "WOORI_BANK"],
+  ["기업", "IBK_BANK"],
+  ["IBK", "IBK_BANK"],
+  ["카카오", "KAKAO_BANK"],
+  ["케이뱅크", "KBANK"],
+  ["토스", "TOSS_BANK"],
+  ["SC", "SC_BANK"],
+  ["제일", "SC_BANK"],
+  ["새마을", "MG_BANK"],
+  ["MG", "MG_BANK"],
+];
+
+export function bankCodeFromName(bankName?: string | null): string | undefined {
+  if (!bankName) return undefined;
+  return BANK_NAME_CODE.find(([kw]) => bankName.includes(kw))?.[1];
+}
