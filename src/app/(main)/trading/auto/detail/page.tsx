@@ -31,6 +31,8 @@ import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useAutoInvest } from "@/hooks/queries/useAutoInvest";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
+import { AutoChargeSettingsForm } from "@/components/features/cma/AutoChargeSettingsForm";
+import { useAutoChargeSettings } from "@/hooks/queries/useAutoChargeSettings";
 import {
   useRemoveAutoInvest,
   useSaveAutoInvest,
@@ -143,7 +145,7 @@ function AutoInvestContent({ stockCode }: { stockCode: string }) {
       stockName={detailQ.data.stockName}
       currency={detailQ.data.currency}
       currentPrice={detailQ.data.price?.currentPrice ?? 0}
-      initial={autoQ.setting ?? defaultSetting(stockCode)}
+      initial={autoQ.setting ?? defaultSetting(stockCode, detailQ.data.currency)}
       settingId={autoQ.id}
       buyTriggerId={autoQ.buyTriggerId}
       sellTriggerId={autoQ.sellTriggerId}
@@ -178,7 +180,19 @@ function AutoInvestForm({
   const remove = useRemoveAutoInvest();
 
   const [showRemove, setShowRemove] = useState(false);
+  const [showAutoCharge, setShowAutoCharge] = useState(false);
+  const autoChargeQ = useAutoChargeSettings();
   const [ovsKrw, setOvsKrw] = useState(false);
+  const handleOvsKrwChange = (next: boolean) => {
+    setOvsKrw(next);
+    if (amountMode !== "AMOUNT") return;
+    // 토글 전환 시 각 모드의 기본값으로 리셋 (fx 없으면 그냥 토글만)
+    if (next && fx !== null) {
+      setAmount(toDecimal(10000).div(fx).toDecimalPlaces(2).toNumber());
+    } else if (!next) {
+      setAmount(10);
+    }
+  };
   const [enabled, setEnabled] = useState(initial.enabled);
   const [frequency, setFrequency] = useState(initial.frequency);
   const [weekdays, setWeekdays] = useState(initial.weekdays);
@@ -279,19 +293,26 @@ function AutoInvestForm({
     <>
       <AppHeader variant="sub" title={stockName} />
 
-      <div className="space-y-6 pb-4">
+      <div className="space-y-6 pb-32">
         {/* 헤딩 — 시작(모을까요?) vs 관리(모으는 중) */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="space-y-1">
-            {hasAmount && (
-              <p className="text-base font-bold text-primary">{summary}</p>
+        <div className="space-y-1.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1">
+              {hasAmount && (
+                <p className="text-base font-bold text-primary">{summary}</p>
+              )}
+              <p className="text-xl font-bold text-foreground">
+                {isNew ? "모을까요?" : "모으는 중이에요"}
+              </p>
+            </div>
+            {isUSD && fx !== null && (
+              <CurrencyToggle checked={ovsKrw} onChange={handleOvsKrwChange} />
             )}
-            <p className="text-xl font-bold text-foreground">
-              {isNew ? "모을까요?" : "모으는 중이에요"}
-            </p>
           </div>
-          {isUSD && fx !== null && (
-            <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
+          {amountMode === "AMOUNT" && (
+            <p className="px-1 text-xs text-muted-foreground">
+              최소 {minOrderText}부터 모을 수 있어요
+            </p>
           )}
         </div>
 
@@ -367,12 +388,6 @@ function AutoInvestForm({
             onQtyChange={setQuantity}
             infoLabel="모으기 가능"
           />
-          {amountMode === "AMOUNT" && (
-            <p className="px-1 text-xs text-muted-foreground">
-              최소 {minOrderText}부터 모을 수 있어요
-            </p>
-          )}
-
           {/* 조건 카드 (물타기/익절 → 트리거) */}
           <div className="space-y-2">
             <ConditionCard
@@ -400,26 +415,19 @@ function AutoInvestForm({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Button
-            onClick={handleSave}
-            disabled={save.isPending}
-            className="h-12 w-full text-base font-bold"
-          >
-            {save.isPending
-              ? isNew
-                ? "시작하는 중…"
-                : "저장 중…"
-              : isNew
-                ? "모으기"
-                : "변경 저장"}
-          </Button>
-          {isNew && (
-            <p className="text-center text-xs text-muted-foreground">
-              부족한 금액은 충전계좌에서 자동으로 충전돼요
+        {/* 부족금액 자동충전 토글 — ON 시 설정 시트 오픈 */}
+        <label className="flex items-center justify-between rounded-xl border border-border px-4 py-3.5">
+          <div>
+            <p className="text-sm font-bold text-foreground">부족금액 자동충전</p>
+            <p className="text-xs text-muted-foreground">
+              잔액이 부족할 때 연동 은행계좌에서 자동으로 충전해요
             </p>
-          )}
-        </div>
+          </div>
+          <Switch
+            checked={autoChargeQ.data?.enabled ?? false}
+            onCheckedChange={() => setShowAutoCharge(true)}
+          />
+        </label>
 
         {/* 완전 해제 — 등록된 종목만. 일시중지(토글)와 분리한 파괴적 동작 */}
         {settingId !== null && (
@@ -431,6 +439,23 @@ function AutoInvestForm({
             자동모으기 해제
           </button>
         )}
+      </div>
+
+      {/* 모으기 버튼 — Nav 바 바로 위 고정 */}
+      <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 px-5 pb-4">
+        <Button
+          onClick={handleSave}
+          disabled={save.isPending}
+          className="h-12 w-full text-base font-bold"
+        >
+          {save.isPending
+            ? isNew
+              ? "시작하는 중…"
+              : "저장 중…"
+            : isNew
+              ? "모으기"
+              : "변경 저장"}
+        </Button>
       </div>
 
       <ConditionBuySheet
@@ -469,6 +494,21 @@ function AutoInvestForm({
         value={dayOfMonth}
         onConfirm={setDayOfMonth}
       />
+
+      {/* 부족금액 자동충전 설정 시트 */}
+      <Sheet open={showAutoCharge} onOpenChange={setShowAutoCharge}>
+        <SheetContent side="bottom" className="max-h-[85vh] rounded-t-2xl px-0 pb-safe">
+          <SheetHeader className="shrink-0 px-5 pb-2 pt-4">
+            <SheetTitle className="text-left text-base font-bold">부족금액 자동충전 설정</SheetTitle>
+          </SheetHeader>
+          <div className="scrollbar-thin overflow-y-auto px-5 pb-6 pt-2">
+            <AutoChargeSettingsForm
+              inline
+              onSaved={() => setShowAutoCharge(false)}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* 해제 확인 — pause(토글)와 명확히 구분하는 마이크로카피 */}
       <Sheet open={showRemove} onOpenChange={setShowRemove}>

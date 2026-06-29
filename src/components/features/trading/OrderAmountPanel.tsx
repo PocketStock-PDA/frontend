@@ -138,6 +138,14 @@ export function OrderAmountPanel({
                 +{n}주
               </button>
             ))}
+            <button
+              type="button"
+              disabled={maxBuyQty <= 0}
+              onClick={() => onQtyChange(maxBuyQty)}
+              className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+            >
+              최대
+            </button>
           </div>
         </>
       ) : (

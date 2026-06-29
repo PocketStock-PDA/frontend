@@ -67,7 +67,7 @@
 
   /* 플로팅 하단 네비(BottomTabBar) 클리어런스 — safe-area 포함.
      (main) 레이아웃 본문 패딩과 고정 CTA가 이 값을 공유해 nav와 겹치지 않게 한다. */
-  --bottom-nav-offset: calc(env(safe-area-inset-bottom) + 5.5rem);
+  --bottom-nav-offset: calc(env(safe-area-inset-bottom) / 2 + 4.5rem);
 
   --background: oklch(1 0 0);
   --foreground: #1a1d23; /* text-primary */

@@ -8,8 +8,6 @@ import {
   CreditCard,
   Coins,
   LineChart,
-  Lock,
-  Plus,
   Star,
   X,
 } from "lucide-react";
@@ -27,7 +25,7 @@ import {
 import { EmptyState } from "@/components/common/EmptyState";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { InstitutionLogo } from "@/components/common/InstitutionLogo";
-import { cardCodeFromName } from "@/lib/utils/institution";
+import { bankCodeFromName, cardCodeFromName } from "@/lib/utils/institution";
 import { useInstitutions } from "@/hooks/queries/useInstitutions";
 import { useAssetScan } from "@/hooks/queries/useAssetScan";
 import { useDormantAccounts } from "@/hooks/queries/useDormantAccounts";
@@ -66,6 +64,24 @@ type Step =
 
 const errMsg = (e: unknown) =>
   e instanceof ApiError ? e.message : "잠시 후 다시 시도해 주세요.";
+
+const STEP_TITLE: Record<Step, string> = {
+  LINK: "자산 연동",
+  SCAN: "자산 스캔",
+  RESULT: "발견 결과",
+  DORMANT_FOUND: "휴면계좌 발견",
+  DORMANT_SELECT: "계좌 선택",
+  CLEANUP: "정리 중",
+  CLEANUP_DONE: "정리 완료",
+  BANK_SELECT: "은행 계좌 연동",
+  BANK_LOADING: "연동 중",
+  BANK_DONE: "연동 완료",
+  AUTO_AGREE: "자동 적립",
+  CARD: "카드 선택",
+};
+
+// 로딩 스텝은 뒤로가기 불가(중단 불가 작업 진행 중)
+const NO_BACK_STEPS = new Set<Step>(["SCAN", "CLEANUP", "BANK_LOADING"]);
 
 const SOURCE_ICON: Record<
   ScanSource["sourceType"],
@@ -141,6 +157,23 @@ export default function AssetLinkPage() {
   );
 
   const busy = saveSettings.isPending;
+
+  const back = () => {
+    const prevStep: Partial<Record<Step, Step | "router">> = {
+      LINK: "router",
+      RESULT: "LINK",
+      DORMANT_FOUND: "RESULT",
+      DORMANT_SELECT: "DORMANT_FOUND",
+      CLEANUP_DONE: "RESULT",
+      BANK_SELECT: "RESULT",
+      BANK_DONE: "RESULT",
+      AUTO_AGREE: "RESULT",
+      CARD: "AUTO_AGREE",
+    };
+    const target = prevStep[step];
+    if (target === "router") router.back();
+    else if (target) setStep(target);
+  };
 
   // 계좌 선택(17, 휴면) 진입: 휴면 목록 전체 선택 기본값
   const enterDormantSelect = () => {
@@ -238,15 +271,12 @@ export default function AssetLinkPage() {
 
   return (
     <>
-      {/* 연동 선택 단계만 헤더(전진형 온보딩 — 뒤로가기 버튼 없음). 나머지는 본문이 타이틀을 가짐 */}
-      {step === "LINK" && (
-        <AppHeader
-          variant="sub"
-          title="자산 연동"
-          showMenu={false}
-          showBack={false}
-        />
-      )}
+      <AppHeader
+        variant="sub"
+        title={STEP_TITLE[step]}
+        showMenu={false}
+        {...(NO_BACK_STEPS.has(step) ? { showBack: false } : { onBack: back })}
+      />
 
       {step === "LINK" && <LinkStep onLinked={() => setStep("SCAN")} />}
 
@@ -267,6 +297,8 @@ export default function AssetLinkPage() {
           sources={scan.data?.sources ?? []}
           total={sleepingTotal.toNumber()}
           dormantCount={dormantList.length}
+          cleanupDone={closeResult !== null}
+          bankDone={transferred.length > 0}
           // 은행 계좌 잔돈 → 소액 이체(17, 505), 휴면계좌 → 휴면 발견(14)
           onCheckAccount={() => setStep("BANK_SELECT")}
           onCheckDormant={() => setStep("DORMANT_FOUND")}
@@ -278,7 +310,6 @@ export default function AssetLinkPage() {
         <DormantFoundView
           accounts={dormantList}
           onNext={enterDormantSelect}
-          onSearchMore={() => dormant.refetch()}
         />
       )}
 
@@ -356,6 +387,15 @@ export default function AssetLinkPage() {
         />
       )}
     </>
+  );
+}
+
+// ── 공통: 하단 고정 CTA 컨테이너 ───────────────────────────────────────────────
+function BottomCta({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[430px] border-t border-border bg-background px-5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3">
+      {children}
+    </div>
   );
 }
 
@@ -523,7 +563,7 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
   }
 
   return (
-    <div className="pb-24 pt-2">
+    <div className="pb-32 pt-2">
       <div className="space-y-1">
         <h2 className="text-xl font-bold text-foreground">
           흩어진 자산을 한 번에 모아요
@@ -549,8 +589,8 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
       <div className="mt-2 space-y-6">
         {shinhan.length > 0 && (
           <section>
-            <p className="flex items-center gap-1.5 px-1 pb-2 text-[13px] font-bold text-primary">
-              <Star className="size-4 fill-primary" />
+            <p className="flex items-center gap-1.5 px-1 pb-2 text-xs font-semibold text-primary">
+              <Star className="size-3.5 fill-primary" />
               신한 계열사
             </p>
             <div className="grid grid-cols-3 gap-2">
@@ -570,8 +610,8 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
           const CatIcon = CATEGORY_ICON[category];
           return (
             <section key={category}>
-              <p className="flex items-center gap-1.5 px-1 pb-2 text-[13px] font-bold text-muted-foreground">
-                <CatIcon className="size-4" />
+              <p className="flex items-center gap-1.5 px-1 pb-2 text-xs font-semibold text-muted-foreground">
+                <CatIcon className="size-3.5" />
                 {CATEGORY_LABEL[category]}
               </p>
               <div className="grid grid-cols-3 gap-2">
@@ -589,8 +629,7 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
         })}
       </div>
 
-      {/* 하단 고정 CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[430px] border-t border-border bg-background px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3">
+      <BottomCta>
         <Button
           onClick={proceed}
           disabled={pending}
@@ -598,7 +637,7 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
         >
           자산 연동하기
         </Button>
-      </div>
+      </BottomCta>
 
       {/* 연동/해제 확정 모달 */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -782,29 +821,28 @@ function ScanningView({
 
   return (
     <div className="pt-2">
-      <h2 className="text-2xl font-bold leading-snug text-foreground">
+      <h2 className="text-xl font-bold leading-snug text-foreground">
         잠자는 돈을
         <br />
         찾고 있어요
       </h2>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <p className="mt-1.5 text-sm text-muted-foreground">
         계열사 자산을 스캔 중입니다
       </p>
 
       <div className="mt-5">
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-[width] duration-100"
-            style={{ width: `${progress}%` }}
+            className="h-full w-full origin-left rounded-full bg-primary transition-transform duration-100"
+            style={{ transform: `scaleX(${progress / 100})` }}
           />
         </div>
-        <div className="mt-1.5 flex justify-between text-xs">
-          <span className="text-muted-foreground">스캔 중...</span>
-          <span className="font-medium text-primary">{progress}%</span>
+        <div className="mt-1.5 flex justify-end">
+          <span className="font-numeric text-xs font-medium text-primary">{progress}%</span>
         </div>
       </div>
 
-      <div className="mt-5 space-y-2">
+      <div className="mt-4 space-y-2">
         {list.map((s, i) => {
           const start = (i / n) * 100;
           const end = ((i + 1) / n) * 100;
@@ -833,25 +871,19 @@ function ScanningView({
               key={`${s.sourceType}-${s.name}`}
               className={cn(
                 "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors",
-                foundAmount
-                  ? "border-green-200 bg-green-50"
-                  : accountReady
-                    ? "border-amber-300 bg-amber-50"
-                    : scanning
-                      ? "border-primary bg-primary/5"
-                      : "border-border",
+                foundAmount || accountReady
+                  ? "border-primary bg-primary/5"
+                  : scanning
+                    ? "border-primary bg-primary/5"
+                    : "border-border",
               )}
             >
               <span
                 className={cn(
                   "flex size-9 shrink-0 items-center justify-center rounded-full",
-                  foundAmount
-                    ? "bg-green-500 text-white"
-                    : accountReady
-                      ? "bg-amber-500 text-white"
-                      : scanning
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground",
+                  foundAmount || accountReady || scanning
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground",
                 )}
               >
                 {foundAmount ? (
@@ -867,11 +899,7 @@ function ScanningView({
                 <p
                   className={cn(
                     "text-xs",
-                    foundAmount
-                      ? "text-green-600"
-                      : accountReady
-                        ? "text-amber-600"
-                        : "text-muted-foreground",
+                    foundAmount || accountReady ? "text-primary" : "text-muted-foreground",
                   )}
                 >
                   {statusText}
@@ -906,6 +934,8 @@ function ResultView({
   sources,
   total,
   dormantCount,
+  cleanupDone,
+  bankDone,
   onStart,
   onCheckAccount,
   onCheckDormant,
@@ -913,6 +943,8 @@ function ResultView({
   sources: ScanSource[];
   total: number;
   dormantCount: number;
+  cleanupDone: boolean;
+  bankDone: boolean;
   onStart: () => void;
   onCheckAccount: () => void;
   onCheckDormant: () => void;
@@ -925,32 +957,33 @@ function ResultView({
   const sourceCount = amountSources.length + (accountSource ? 1 : 0);
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] flex-col pb-2 pt-2">
-      {/* 총 잠자는 돈 */}
-      <div className="pt-2 text-center">
-        <p className="text-sm text-muted-foreground">총 잠자는 돈</p>
+    <div className="pb-32 pt-2">
+      {/* 총 잠자는 돈 — 히어로 */}
+      <div className="py-8 text-center">
+        <p className="text-xs text-muted-foreground">총 잠자는 돈</p>
         <AmountDisplay
           value={total}
           size="xl"
-          className="mt-1 block text-primary"
+          className="mt-1.5 block text-primary"
         />
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1.5 text-sm text-muted-foreground">
           {sourceCount}개 계열사에서 발견했어요
         </p>
       </div>
 
       {/* 출처별 내역 */}
-      <p className="mb-2 mt-6 text-[13px] font-medium text-muted-foreground">
+      <p className="mb-2 text-xs font-semibold text-muted-foreground">
         출처별 내역
       </p>
       {sourceCount === 0 ? (
         <EmptyState title="발견된 잔돈이 없어요" />
       ) : (
         <div className="space-y-2">
-          {amountSources.map((s) => (
+          {amountSources.map((s, i) => (
             <div
               key={`${s.sourceType}-${s.name}`}
-              className="flex items-center gap-3 rounded-xl bg-muted/40 px-4 py-3.5"
+              className="ps-rise-in flex items-center gap-3 rounded-xl bg-muted/40 px-4 py-3.5"
+              style={{ "--i": i } as React.CSSProperties}
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-foreground">
@@ -964,151 +997,150 @@ function ResultView({
             </div>
           ))}
 
-          {/* 은행 계좌 잔돈 — 끝전 확인 필요(확인하기) */}
+          {/* 은행 계좌 잔돈 — 완료 또는 확인하기 */}
           {accountSource && (
-            <button
-              type="button"
-              onClick={onCheckAccount}
-              className="flex w-full items-center gap-3 rounded-xl bg-muted/40 px-4 py-3.5 text-left"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-foreground">
-                  {SOURCE_TITLE.ACCOUNT}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {SOURCE_SUBTITLE.ACCOUNT}
-                </p>
+            bankDone ? (
+              <div
+                className="ps-rise-in flex items-center gap-3 rounded-xl bg-muted/40 px-4 py-3.5"
+                style={{ "--i": amountSources.length } as React.CSSProperties}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-foreground">
+                    {SOURCE_TITLE.ACCOUNT}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {SOURCE_SUBTITLE.ACCOUNT}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                  연동 완료
+                </span>
               </div>
-              <span className="shrink-0 text-sm font-bold text-primary">
-                확인하기 →
-              </span>
-            </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onCheckAccount}
+                className="ps-rise-in flex w-full items-center gap-3 rounded-xl bg-muted/40 px-4 py-3.5 text-left"
+                style={{ "--i": amountSources.length } as React.CSSProperties}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-foreground">
+                    {SOURCE_TITLE.ACCOUNT}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {SOURCE_SUBTITLE.ACCOUNT}
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm font-bold text-primary">
+                  확인하기 →
+                </span>
+              </button>
+            )
           )}
         </div>
       )}
 
       {/* 휴면계좌 발견 */}
-      {dormantCount > 0 && (
-        <button
-          type="button"
-          onClick={onCheckDormant}
-          className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3.5 text-left"
-        >
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-amber-700">휴면계좌 발견</p>
-            <p className="text-xs text-amber-600">
-              쓰지 않는 계좌 {dormantCount}개가 있어요
-            </p>
+      {(dormantCount > 0 || cleanupDone) && (
+        cleanupDone ? (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3.5">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-primary">휴면계좌 발견</p>
+              <p className="text-xs text-primary/70">계좌 정리가 완료됐어요</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+              완료
+            </span>
           </div>
-          <span className="shrink-0 text-xs font-bold text-amber-700">
-            확인하기 →
-          </span>
-        </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onCheckDormant}
+            className="mt-3 flex w-full items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3.5 text-left"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-primary">휴면계좌 발견</p>
+              <p className="text-xs text-primary/70">
+                쓰지 않는 계좌 {dormantCount}개가 있어요
+              </p>
+            </div>
+            <span className="shrink-0 text-sm font-bold text-primary">
+              확인하기 →
+            </span>
+          </button>
+        )
       )}
 
-      <div className="flex-1" />
-
-      <Button
-        onClick={onStart}
-        className="mt-6 h-12 w-full text-base font-bold"
-      >
-        투자 시작하기
-      </Button>
+      <BottomCta>
+        <Button
+          onClick={onStart}
+          className="h-12 w-full text-base font-bold"
+        >
+          투자 시작하기
+        </Button>
+      </BottomCta>
     </div>
   );
 }
 
 // ── 4. 휴면계좌 발견 및 확인 (14) ──────────────────────────────────────────────
-const SQUARE_COLORS = [
-  "bg-blue-500",
-  "bg-amber-400",
-  "bg-purple-500",
-  "bg-rose-500",
-  "bg-emerald-500",
-];
-
-function DormantSquare({ label, index }: { label: string; index: number }) {
-  return (
-    <span
-      className={cn(
-        "flex size-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white",
-        SQUARE_COLORS[index % SQUARE_COLORS.length],
-      )}
-    >
-      {label.charAt(0)}
-    </span>
-  );
-}
-
 function DormantFoundView({
   accounts,
   onNext,
-  onSearchMore,
 }: {
   accounts: DormantAccount[];
   onNext: () => void;
-  onSearchMore: () => void;
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
-      <div className="flex flex-col items-center pt-6 text-center">
-        <span className="flex size-16 items-center justify-center rounded-full border-2 border-primary/30 bg-primary/5 text-primary">
-          <Lock className="size-7" />
-        </span>
-        <h2 className="mt-4 text-xl font-bold leading-snug text-foreground">
-          휴면계좌 정리하고
-          <br />
-          남은 돈 옮겨드릴게요
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          쓰지 않던 계좌에 있던
-          <br />
-          금액을 포켓스톡 CMA로 모을 수 있어요
-        </p>
-      </div>
+    <div className="pb-32 pt-2">
+      <h2 className="text-xl font-bold leading-snug text-foreground">
+        휴면계좌 정리하고
+        <br />
+        남은 돈 옮겨드릴게요
+      </h2>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+        쓰지 않던 계좌에 있던 금액을 포켓스톡 CMA로 모을 수 있어요
+      </p>
 
-      <div className="mt-6 rounded-2xl bg-muted/40 p-4">
+      <div className="mt-6 space-y-2">
         {accounts.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
             휴면계좌가 없어요
           </p>
         ) : (
-          <div className="space-y-3">
-            {accounts.map((a, i) => (
-              <div key={a.accountId} className="flex items-center gap-3">
-                <DormantSquare label={a.bankName} index={i} />
-                <div className="min-w-0">
-                  <AmountDisplay
-                    value={a.balance}
-                    size="sm"
-                    className="block font-bold"
-                  />
-                  <p className="truncate text-xs text-muted-foreground">
-                    {a.bankName} · 휴면
-                  </p>
-                </div>
+          accounts.map((a) => (
+            <div
+              key={a.accountId}
+              className="flex items-center gap-3 rounded-xl border border-border px-4 py-3.5"
+            >
+              <InstitutionLogo
+                code={bankCodeFromName(a.bankName)}
+                name={a.bankName}
+                className="size-9 shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-foreground">
+                  {a.accountName}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {a.bankName} · 휴면
+                </p>
               </div>
-            ))}
-          </div>
+              <AmountDisplay value={a.balance} size="sm" className="font-bold" />
+            </div>
+          ))
         )}
-        <button
-          type="button"
-          onClick={onSearchMore}
-          className="mt-3 flex w-full items-center justify-center gap-1 py-1 text-sm font-medium text-primary"
-        >
-          <Plus className="size-4" />더 있는지 찾아보기
-        </button>
       </div>
 
-      <div className="flex-1" />
-
-      <Button
-        onClick={onNext}
-        disabled={accounts.length === 0}
-        className="h-12 w-full text-base font-bold"
-      >
-        휴면계좌 해지하기
-      </Button>
+      <BottomCta>
+        <Button
+          onClick={onNext}
+          disabled={accounts.length === 0}
+          className="h-12 w-full text-base font-bold"
+        >
+          휴면계좌 해지하기
+        </Button>
+      </BottomCta>
     </div>
   );
 }
@@ -1126,7 +1158,7 @@ function DormantSelectView({
   onConfirm: () => void;
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
+    <div className="pb-32 pt-2">
       <h2 className="text-xl font-bold leading-snug text-foreground">
         선택한 휴면계좌의
         <br />
@@ -1137,7 +1169,7 @@ function DormantSelectView({
       </p>
 
       <div className="mt-5 space-y-2">
-        {accounts.map((a, i) => {
+        {accounts.map((a) => {
           const on = selected.has(a.accountId);
           return (
             <button
@@ -1151,7 +1183,11 @@ function DormantSelectView({
                 on ? "border-primary bg-primary/5" : "border-border",
               )}
             >
-              <DormantSquare label={a.bankName} index={i} />
+              <InstitutionLogo
+                code={bankCodeFromName(a.bankName)}
+                name={a.bankName}
+                className="size-9 shrink-0"
+              />
               <div className="min-w-0 flex-1">
                 <AmountDisplay
                   value={a.balance}
@@ -1177,15 +1213,15 @@ function DormantSelectView({
         })}
       </div>
 
-      <div className="flex-1" />
-
-      <Button
-        onClick={onConfirm}
-        disabled={selected.size === 0}
-        className="h-12 w-full text-base font-bold"
-      >
-        확인
-      </Button>
+      <BottomCta>
+        <Button
+          onClick={onConfirm}
+          disabled={selected.size === 0}
+          className="h-12 w-full text-base font-bold"
+        >
+          확인
+        </Button>
+      </BottomCta>
     </div>
   );
 }
@@ -1279,20 +1315,22 @@ function CleanupDoneView({
   const items = result?.results ?? [];
 
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
-      <h2 className="text-2xl font-bold leading-snug text-foreground">
+    <div className="pb-32 pt-2">
+      <h2 className="text-xl font-bold leading-snug text-foreground">
         계좌 해지 성공!
-        <br />
-        돈을 옮기고 있어요
       </h2>
+      <p className="mt-1.5 text-sm text-muted-foreground">
+        돈을 CMA로 옮기고 있어요
+      </p>
 
       <div className="mt-6 space-y-2">
-        {items.map((it) => (
+        {items.map((it, i) => (
           <div
             key={it.accountId}
-            className="flex items-center gap-3 rounded-xl border border-border px-4 py-3.5"
+            className="ps-rise-in flex items-center gap-3 rounded-xl border border-border px-4 py-3.5"
+            style={{ "--i": i } as React.CSSProperties}
           >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Landmark className="size-4" />
             </span>
             <div className="min-w-0 flex-1">
@@ -1305,18 +1343,27 @@ function CleanupDoneView({
                 {nameById.get(it.accountId) ?? "계좌"}
               </p>
             </div>
-            <span className="shrink-0 text-sm font-bold text-primary">
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-2 py-0.5 text-xs font-bold",
+                it.status === "COMPLETED"
+                  ? "bg-primary/10 text-primary"
+                  : it.status === "ALREADY_CLOSED"
+                    ? "bg-muted text-muted-foreground"
+                    : "bg-destructive/10 text-destructive",
+              )}
+            >
               {cleanupStatusText(it.status)}
             </span>
           </div>
         ))}
       </div>
 
-      <div className="flex-1" />
-
-      <Button onClick={onNext} className="h-12 w-full text-base font-bold">
-        다음
-      </Button>
+      <BottomCta>
+        <Button onClick={onNext} className="h-12 w-full text-base font-bold">
+          다음
+        </Button>
+      </BottomCta>
     </div>
   );
 }
@@ -1352,16 +1399,14 @@ function CardSelectView({
   }, [initialSelectedIds.size]);
 
   const toggle = (cardId: number) => {
-    const next = new Set(selectedIds);
-    if (next.has(cardId)) next.delete(cardId);
-    else next.add(cardId);
-    onChangeSelected(next);
+    // 카드 선택은 단일 선택 — 같은 카드를 다시 누르면 해제
+    onChangeSelected(selectedIds.has(cardId) ? new Set() : new Set([cardId]));
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
+    <div className="pb-32 pt-2">
       <h2 className="text-xl font-bold text-foreground">결제 잔돈 자동 모으기</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-1.5 text-sm text-muted-foreground">
         잔돈을 모을 카드를 선택해 주세요.
       </p>
 
@@ -1392,7 +1437,7 @@ function CardSelectView({
               <button
                 key={c.cardId}
                 type="button"
-                role="checkbox"
+                role="radio"
                 aria-checked={on}
                 onClick={() => toggle(c.cardId)}
                 className={cn(
@@ -1427,15 +1472,15 @@ function CardSelectView({
         )}
       </div>
 
-      <div className="flex-1" />
-
-      <Button
-        onClick={onNext}
-        disabled={isError || isLoading}
-        className="h-12 w-full text-base font-bold"
-      >
-        선택 완료
-      </Button>
+      <BottomCta>
+        <Button
+          onClick={onNext}
+          disabled={isError || isLoading}
+          className="h-12 w-full text-base font-bold"
+        >
+          선택 완료
+        </Button>
+      </BottomCta>
     </div>
   );
 }
@@ -1488,9 +1533,9 @@ function AutoAgreeView({
     });
 
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
+    <div className="pb-32 pt-2">
       <h2 className="text-xl font-bold text-foreground">자동 적립 설정</h2>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
         신한카드 결제 잔돈이 자동으로
         <br />
         포켓스톡 CMA에 모여요
@@ -1530,8 +1575,8 @@ function AutoAgreeView({
         })}
       </div>
 
-      <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-        <p className="font-bold">유의사항</p>
+      <div className="mt-4 rounded-xl bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+        <p className="font-bold text-foreground">유의사항</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4">
           <li>결제 잔돈 기준: 100원 이상</li>
           <li>적립 단위: 1,000원</li>
@@ -1539,23 +1584,23 @@ function AutoAgreeView({
         </ul>
       </div>
 
-      <div className="flex-1" />
-
-      <Button
-        onClick={() => onAgree(checked.has("collect"))}
-        disabled={!requiredOk || pending}
-        className="mt-6 h-12 w-full text-base font-bold"
-      >
-        {pending ? "처리 중..." : "동의하고 시작"}
-      </Button>
-      <button
-        type="button"
-        onClick={onLater}
-        disabled={pending}
-        className="mt-2 py-1 text-center text-sm text-muted-foreground disabled:opacity-50"
-      >
-        나중에 하기
-      </button>
+      <BottomCta>
+        <Button
+          onClick={() => onAgree(checked.has("collect"))}
+          disabled={!requiredOk || pending}
+          className="h-12 w-full text-base font-bold"
+        >
+          {pending ? "처리 중..." : "동의하고 시작"}
+        </Button>
+        <button
+          type="button"
+          onClick={onLater}
+          disabled={pending}
+          className="mt-2 w-full py-1 text-center text-sm text-muted-foreground disabled:opacity-50"
+        >
+          나중에 하기
+        </button>
+      </BottomCta>
     </div>
   );
 }
@@ -1592,7 +1637,7 @@ function BankSelectView({
   const chosen = filtered.filter((a) => selected.has(a.accountId));
 
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
+    <div className="pb-32 pt-2">
       <h2 className="text-xl font-bold leading-snug text-foreground">
         선택한 계좌의 잔돈을
         <br />
@@ -1604,10 +1649,10 @@ function BankSelectView({
 
       {/* 수집 기준 금액 */}
       <div className="mt-5 flex items-center justify-between">
-        <span className="text-[13px] font-medium text-muted-foreground">
+        <span className="text-xs font-semibold text-muted-foreground">
           수집 기준 금액
         </span>
-        <span className="text-[11px] text-muted-foreground">미만 잔액만 수집</span>
+        <span className="text-xs text-muted-foreground">미만 잔액만 수집</span>
       </div>
       <div className="mt-2 grid grid-cols-3 gap-2">
         {TRANSFER_THRESHOLDS.map((t) => {
@@ -1619,7 +1664,7 @@ function BankSelectView({
               aria-pressed={on}
               onClick={() => pickThreshold(t)}
               className={cn(
-                "rounded-lg border py-2.5 text-sm font-bold transition-colors",
+                "rounded-xl border py-2.5 text-sm font-bold transition-colors",
                 on
                   ? "border-primary bg-primary/5 text-primary"
                   : "border-border text-foreground",
@@ -1689,14 +1734,14 @@ function BankSelectView({
         </ul>
       </div>
 
-      <div className="flex-1" />
-
-      <Button
-        onClick={() => onConfirm(chosen, threshold)}
-        className="mt-6 h-12 w-full text-base font-bold"
-      >
-        확인
-      </Button>
+      <BottomCta>
+        <Button
+          onClick={() => onConfirm(chosen, threshold)}
+          className="h-12 w-full text-base font-bold"
+        >
+          확인
+        </Button>
+      </BottomCta>
     </div>
   );
 }
@@ -1710,21 +1755,26 @@ function BankDoneView({
   onNext: () => void;
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col pb-2 pt-2">
-      <h2 className="text-2xl font-bold leading-snug text-foreground">
-        모으기 설정을
-        <br />
-        완료했어요
+    <div className="pb-32 pt-2">
+      <h2
+        className="ps-rise-in text-xl font-bold leading-snug text-foreground"
+        style={{ "--i": 0 } as React.CSSProperties}
+      >
+        모으기 설정 완료!
       </h2>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <p
+        className="ps-rise-in mt-1.5 text-sm text-muted-foreground"
+        style={{ "--i": 1 } as React.CSSProperties}
+      >
         홈에서 CMA로 모으기 버튼을 누르면 한 번에 모여요
       </p>
 
       <div className="mt-6 space-y-2">
-        {accounts.map((a) => (
+        {accounts.map((a, i) => (
           <div
             key={a.accountId}
-            className="flex items-center gap-3 rounded-xl border border-border px-4 py-3.5"
+            className="ps-rise-in flex items-center gap-3 rounded-xl border border-border px-4 py-3.5"
+            style={{ "--i": i + 2 } as React.CSSProperties}
           >
             <InstitutionLogo
               code={a.bankCode}
@@ -1741,18 +1791,18 @@ function BankDoneView({
                 {a.accountName}
               </p>
             </div>
-            <span className="shrink-0 text-sm font-bold text-primary">
+            <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
               설정 완료
             </span>
           </div>
         ))}
       </div>
 
-      <div className="flex-1" />
-
-      <Button onClick={onNext} className="h-12 w-full text-base font-bold">
-        확인
-      </Button>
+      <BottomCta>
+        <Button onClick={onNext} className="h-12 w-full text-base font-bold">
+          확인
+        </Button>
+      </BottomCta>
     </div>
   );
 }

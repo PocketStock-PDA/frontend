@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
@@ -341,13 +341,25 @@ function TradeContent({
     if (!stickyValid) return false;
     if (side === "BUY") {
       if (tab === "PIECES") return piecesAmount.times(1 + fracBuyBuffer).gt(buyingPower);
-      // AMOUNT 모드: hold = 금액 그대로(버퍼 없음). QUANTITY/WHOLE: bestAsk × (1+buffer) or bestAsk.
-      const need =
+      // FRACTION 매수: 입력값이 minOrder 미만이면 제출 시 자동보정되므로 보정 후 금액 기준으로 비교.
+      // 이렇게 해야 "2원 입력 → 버튼 활성 → 제출 시 1,000원으로 보정 → 잔액 초과 에러" 흐름 차단.
+      const effectiveAmount =
         inputMode === "AMOUNT"
-          ? new Decimal(amount)
+          ? tab === "FRACTION" && amount > 0 && amount < minOrder
+            ? minOrder
+            : amount
+          : null;
+      const effectiveQty =
+        inputMode === "QTY" && tab === "FRACTION" && calcPrice.gt(0) &&
+        new Decimal(qty).times(calcPrice).lt(minOrder)
+          ? new Decimal(minOrder).div(calcPrice).toDecimalPlaces(4, Decimal.ROUND_UP).toNumber()
+          : qty;
+      const need =
+        effectiveAmount !== null
+          ? new Decimal(effectiveAmount)
           : tab === "WHOLE"
-            ? new Decimal(qty).times(calcPrice)
-            : new Decimal(qty).times(calcPrice).times(1 + fracBuyBuffer);
+            ? new Decimal(effectiveQty).times(calcPrice)
+            : new Decimal(effectiveQty).times(calcPrice).times(1 + fracBuyBuffer);
       return need.gt(buyingPower);
     }
     // SELL — PIECES는 퍼즐 UI가 heldPieces 초과 선택 불가하므로 체크 불필요
@@ -732,7 +744,18 @@ function TradeContent({
           /* 조각(퍼즐) — 빈/채운 조각을 탭해 담고, 하단 고정바에서 확정 */
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-foreground">조각 모으기</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-foreground">조각 모으기</h2>
+                {pieceSel && (
+                  <button
+                    type="button"
+                    onClick={() => setPieceSel(null)}
+                    className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/70"
+                  >
+                    선택 해제
+                  </button>
+                )}
+              </div>
               <span className="font-numeric text-sm font-bold text-primary">
                 {heldPieces}/{PIECES_PER_SHARE} 조각
               </span>

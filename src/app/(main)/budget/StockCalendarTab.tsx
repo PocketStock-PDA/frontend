@@ -215,13 +215,14 @@ export function StockCalendarTab() {
   const hasSummaryTotal = totalProfit !== null && totalRate !== null;
   const hasHoldings = holdings.length > 0;
 
-  // 날짜별 매수/매도 유무 (달력 마커용)
-  const tradeMap = new Map<string, { buy: boolean; sell: boolean }>();
+  // 날짜별 매수/매도 유무 + 실제 주문 수 (달력 마커용)
+  const tradeMap = new Map<string, { buy: boolean; sell: boolean; count: number }>();
   monthTrades.forEach((o) => {
     const key = format(parseUTC(o.createdAt), "yyyy-MM-dd");
-    const cur = tradeMap.get(key) ?? { buy: false, sell: false };
+    const cur = tradeMap.get(key) ?? { buy: false, sell: false, count: 0 };
     if (o.side === "SELL") cur.sell = true;
     else cur.buy = true;
+    cur.count++;
     tradeMap.set(key, cur);
   });
 
@@ -245,12 +246,12 @@ export function StockCalendarTab() {
 
   // ── 선택한 날 항목(거래 + 모으기 + 일정) — 히어로 카드용 ──
   const selKey = format(selectedDate, "yyyy-MM-dd");
-  const selTrades = monthTrades.filter((o) =>
+  const selTrades = lens === "gather" || lens === "event" ? [] : monthTrades.filter((o) =>
     isSameDay(parseUTC(o.createdAt), selectedDate),
   );
-  const selGather = gatherMap.get(selKey) ?? [];
-  const selEvents = eventMap.get(selKey) ?? [];
-  const selCount = selTrades.length + (selGather.length ? 1 : 0) + selEvents.length;
+  const selGather = lens === "trade" || lens === "event" ? [] : (gatherMap.get(selKey) ?? []);
+  const selEvents = lens === "trade" || lens === "gather" ? [] : (eventMap.get(selKey) ?? []);
+  const selCount = selTrades.length + selGather.length + selEvents.length;
 
   return (
     <div>
@@ -357,13 +358,13 @@ export function StockCalendarTab() {
                   : hasEvent;
           const faded = lens !== "all" && !matches;
 
-          // 렌즈별 개수 (전체=거래수+모으기1+일정수 / 거래=거래수 / 모으기=종목수 / 일정=일정수)
-          const tradeCount = (hasBuy ? 1 : 0) + (hasSell ? 1 : 0);
+          // 렌즈별 개수 (전체=거래수+모으기종목수+일정수 / 거래=주문수 / 모으기=종목수 / 일정=일정수)
+          const tradeCount = trade?.count ?? 0;
           const catCount =
             (hasBuy || hasSell ? 1 : 0) + (hasGather ? 1 : 0) + (hasEvent ? 1 : 0);
           const count =
             lens === "all"
-              ? tradeCount + (hasGather ? 1 : 0) + (dayEvents?.length ?? 0)
+              ? tradeCount + (gather?.length ?? 0) + (dayEvents?.length ?? 0)
               : lens === "trade"
                 ? tradeCount
                 : lens === "gather"
@@ -526,13 +527,13 @@ export function StockCalendarTab() {
                     <TimelineTradeRow order={o} detail={detailMap.get(o.stockCode)} />
                   </motion.div>
                 ))}
-                {selGather.length > 0 && (
-                  <motion.div variants={reduceMotion ? ITEM_VARIANTS_REDUCED : ITEM_VARIANTS}>
-                    <TimelineGatherRow stocks={selGather} detailMap={detailMap} />
+                {selGather.map((stock) => (
+                  <motion.div key={stock.stockCode} variants={reduceMotion ? ITEM_VARIANTS_REDUCED : ITEM_VARIANTS}>
+                    <TimelineGatherRow stocks={[stock]} detailMap={detailMap} />
                   </motion.div>
-                )}
+                ))}
                 {selEvents.map((e) => (
-                  <motion.div key={`${e.eventDate}-${e.stockCode}`} variants={reduceMotion ? ITEM_VARIANTS_REDUCED : ITEM_VARIANTS}>
+                  <motion.div key={`${e.eventDate}-${e.stockCode}-${e.eventType}`} variants={reduceMotion ? ITEM_VARIANTS_REDUCED : ITEM_VARIANTS}>
                     <TimelineEventRow
                       event={e}
                       isFuture={isAfter(startOfDay(selectedDate), today)}
@@ -639,7 +640,7 @@ function TimelineGatherRow({ stocks, detailMap }: { stocks: AutoInvestStock[]; d
       >
         {amounts.length > 0
           ? amounts.map((a) => formatGatherAmount(a.currency, a.amount)).join(" ")
-          : `${stocks.length}종목`}
+          : null}
       </span>
     </div>
   );
