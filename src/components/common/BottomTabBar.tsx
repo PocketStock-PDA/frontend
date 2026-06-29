@@ -43,7 +43,7 @@ export function BottomTabBar() {
   return (
     // 떠 있는(floating) 알약형 네비. 바깥 래퍼는 클릭을 통과시키고(pointer-events-none)
     // 알약만 클릭을 받는다(pointer-events-auto) → 알약 위/옆 영역의 콘텐츠 탭을 막지 않음.
-    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[430px] px-5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-2">
+    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[430px] px-5 pb-[calc(env(safe-area-inset-bottom)/2+0.25rem)] pt-2">
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
