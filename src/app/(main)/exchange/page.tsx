@@ -23,6 +23,7 @@ import { useUpdateAutoSettings } from "@/hooks/mutations/useUpdateAutoSettings";
 import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import type { FxHistoryItem } from "@/types/domain/exchange";
 import { parseUTC } from "@/lib/utils/date";
+import { toDecimal } from "@/lib/utils/decimal";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -322,17 +323,25 @@ function ExchangeInputView({
   const isBuy = direction === "krw-to-usd";
   const rate = isBuy ? buyRate : sellRate;
   const fromBalance = isBuy ? krwBalance : usdBalance;
-  const inputAmount = isBuy
-    ? Number(inputRaw.replace(/,/g, "")) || 0
-    : Number(inputRaw.replace(/[^0-9.]/g, "")) || 0;
-  const isOver = inputAmount > fromBalance;
 
-  const estimated =
-    inputAmount > 0 ? (isBuy ? inputAmount / buyRate : inputAmount * sellRate) : null;
+  // 입력값은 Decimal로 다뤄 부동소수점 오차를 차단 — 비교·예상금액·제출이 모두 이 값에서 파생.
+  const cleaned = isBuy
+    ? inputRaw.replace(/,/g, "")
+    : inputRaw.replace(/[^0-9.]/g, "");
+  const inputDecimal = toDecimal(cleaned);
+  const inputAmount = inputDecimal.toNumber();
+  const isOver = inputDecimal.greaterThan(fromBalance);
+
+  // KRW→USD: 입력 KRW / 매수환율, USD→KRW: 입력 USD × 매도환율
+  const estimated = inputDecimal.greaterThan(0)
+    ? isBuy
+      ? inputDecimal.div(buyRate)
+      : inputDecimal.times(sellRate)
+    : null;
 
   function handleFullAmount() {
     if (isBuy) setInputRaw(fmtKRW(krwBalance));
-    else setInputRaw(usdBalance.toFixed(2));
+    else setInputRaw(toDecimal(usdBalance).toFixed(2));
   }
 
   function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -369,8 +378,8 @@ function ExchangeInputView({
   const estimatedStr =
     estimated !== null
       ? isBuy
-        ? fmtUSD(estimated)
-        : fmtKRW(Math.round(estimated))
+        ? fmtUSD(estimated.toNumber())
+        : fmtKRW(estimated.toDecimalPlaces(0).toNumber())
       : null;
 
   return (
