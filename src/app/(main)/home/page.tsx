@@ -16,6 +16,7 @@ import { CollectCoinsOverlay } from "@/components/features/cma/CollectCoinsOverl
 import { PartnerPointSheet } from "@/components/features/points/PartnerPointSheet";
 import { AccountLinkSheet } from "@/components/features/collect/AccountLinkSheet";
 import { CardLinkSheet } from "@/components/features/collect/CardLinkSheet";
+import { FxLinkSheet } from "@/components/features/collect/FxLinkSheet";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
@@ -80,6 +81,7 @@ export default function HomePage() {
   const [pointSheetOpen, setPointSheetOpen] = useState(false);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [cardSheetOpen, setCardSheetOpen] = useState(false);
+  const [fxSheetOpen, setFxSheetOpen] = useState(false);
   const [collectAnim, setCollectAnim] = useState<{
     id: number;
     origin: DOMRect;
@@ -398,7 +400,7 @@ export default function HomePage() {
               </div>
             )}
             {fxSource && (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
+              <div className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
                 <span className="flex size-10 items-center justify-center text-primary">
                   <Plane className="size-7" />
                 </span>
@@ -411,6 +413,14 @@ export default function HomePage() {
                     className="font-bold"
                   />
                 </div>
+                <button
+                  type="button"
+                  aria-label="SOL트래블 모으기 설정"
+                  onClick={() => setFxSheetOpen(true)}
+                  className="absolute right-1.5 top-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Settings className="size-3.5" />
+                </button>
               </div>
             )}
             {/* 포인트 — 마이신한+제휴사. 탭하면 제휴사 연동 팝업 */}
@@ -470,6 +480,7 @@ export default function HomePage() {
           onOpenChange={setAccountSheetOpen}
         />
         <CardLinkSheet open={cardSheetOpen} onOpenChange={setCardSheetOpen} />
+        <FxLinkSheet open={fxSheetOpen} onOpenChange={setFxSheetOpen} />
 
         {/* 바로가기 (홈화면 편집에서 순서/표시 변경) */}
         <section className="mt-2">
