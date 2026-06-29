@@ -11,7 +11,7 @@ import { MaturityAlertCard } from "@/components/features/asset/MaturityAlertCard
 import { Button } from "@/components/ui/button";
 import { useAssetSummary } from "@/hooks/queries/useAssetSummary";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
-import { formatKRW } from "@/lib/utils/currency";
+import { AmountDisplay } from "@/components/common/AmountDisplay";
 
 export default function AssetPage() {
   const { data, isLoading, isError, refetch } = useAssetSummary();
@@ -54,11 +54,14 @@ export default function AssetPage() {
         {/* 순자산 + 자산 구성 — 한 카드로 묶음(포트폴리오 탭 톤) */}
         <section className="overflow-hidden rounded-2xl bg-brand-surface">
           {/* 순자산 (brand-surface) */}
-          <div className="p-5">
+          <div className="px-5 pb-3 pt-5">
             <p className="text-sm font-medium text-primary">순자산</p>
-            <p className="mt-1.5 text-3xl font-bold tracking-tight text-foreground">
-              {formatKRW(data.netAssets)}
-            </p>
+            <AmountDisplay
+              value={data.netAssets}
+              currency="KRW"
+              size="xl"
+              className="mt-1.5 block tracking-tight"
+            />
             {data.partial && (
               <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
                 <AlertTriangle className="size-3.5 shrink-0" />
@@ -75,8 +78,7 @@ export default function AssetPage() {
           </div>
 
           {/* 자산 구성 (흰 배경) */}
-          <div className="border-t border-primary/10 bg-card p-5">
-            <p className="mb-3 text-sm font-bold text-primary">자산 구성</p>
+          <div className="mx-4 mb-4 rounded-2xl border border-primary/30 bg-card p-5">
             {data.portfolio.length === 0 ? (
               <EmptyState title="등록된 자산이 없어요" />
             ) : (

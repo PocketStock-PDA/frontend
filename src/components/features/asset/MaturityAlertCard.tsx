@@ -14,12 +14,12 @@ export function MaturityAlertCard({ account }: MaturityAlertCardProps) {
   const formattedDate = `${parseInt(parts[1] ?? "0")}/${parseInt(parts[2] ?? "0")}`;
 
   return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-      {/* 헤더 */}
+    <div className="rounded-2xl border border-border bg-card p-4">
+      {/* 헤더 — 주변 카드와 어울리게 중립 톤, D-day만 은은히 강조 */}
       <div className="mb-2 flex items-center gap-1.5">
-        <Bell className="size-3.5 text-amber-500" />
-        <span className="text-xs font-semibold text-amber-600">
-          곧 만기예요 · D-{daysUntilMaturity}
+        <Bell className="size-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold text-muted-foreground">
+          곧 만기예요 · <span className="text-foreground">D-{daysUntilMaturity}</span>
         </span>
       </div>
 

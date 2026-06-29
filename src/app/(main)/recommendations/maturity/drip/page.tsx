@@ -1,21 +1,27 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRight, Calendar, ChevronRight, CheckCircle2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { ArrowRight, Calendar, ChevronRight, CheckCircle2, PiggyBank } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useDividendReinvest } from "@/hooks/queries/useDividendReinvest";
 import { useDividendHistory } from "@/hooks/queries/useDividendHistory";
 import { useHoldings } from "@/hooks/queries/useHoldings";
+import { useStockDetails } from "@/hooks/queries/useStockDetails";
+import { useMaturityReservations } from "@/hooks/queries/useMaturityReservations";
 import { useSetDividendReinvest } from "@/hooks/mutations/useSetDividendReinvest";
+import { ApiError } from "@/lib/api/client";
+import { MaturityStepper } from "@/components/features/maturity/MaturityStepper";
 import { formatKRW } from "@/lib/utils/currency";
+import { parseAccountId } from "@/lib/utils/params";
 import { cn } from "@/lib/utils";
-import type { DividendPayout, DividendPayoutStatus } from "@/types/domain/trading";
+import type { DividendPayout, DividendPayoutStatus, DividendReinvestSetting } from "@/types/domain/trading";
 
 /**
  * 배당 재투자(DRIP) — 만기 매수 예약 직후 도착하는 화면.
@@ -40,24 +46,17 @@ const STATUS_CHIP: Record<DividendPayoutStatus, { label: string; cls: string }> 
   REINVEST_FAILED: { label: "재투자 실패", cls: "bg-destructive/10 text-destructive" },
 };
 
-function Logo({ children, sm }: { children: React.ReactNode; sm?: boolean }) {
-  return (
-    <div
-      className={cn(
-        "flex shrink-0 items-center justify-center rounded-full border border-[#e2ecfb] bg-brand-surface font-numeric font-bold text-primary",
-        sm ? "size-8 text-xs" : "size-9 text-sm",
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
 export default function MaturityDripPage() {
   const router = useRouter();
+  const params = useSearchParams();
+  // 예약 후 진입 시 남은 예금 재예치분 — 있으면 다음 단계(예금 재예치)로, 없으면 전환 내역으로.
+  const accountId = parseAccountId(params.get("accountId"));
+  const depositAmount = Math.floor(Number(params.get("deposit")) || 0);
+  const hasDeposit = accountId !== null && depositAmount > 0;
   const { data: settings, isLoading, isError } = useDividendReinvest();
   const { data: history = [], isLoading: historyLoading } = useDividendHistory();
   const { data: holdings = [] } = useHoldings();
+  const { data: reservations = [] } = useMaturityReservations();
   const setReinvest = useSetDividendReinvest();
   // 토글이 처리 중인 종목 — 같은 종목 연속 토글로 응답 순서가 엇갈리는 것을 막는다.
   const [pendingCode, setPendingCode] = useState<string | null>(null);
@@ -77,17 +76,70 @@ export default function MaturityDripPage() {
     };
   }, [history]);
 
-  const list = settings ?? [];
+  // 방금 예약한 배당주(국내·해외) — 아직 보유/설정 전이라도 재투자 설정을 켤 수 있게 노출.
+  const reservedCodes = useMemo(
+    () =>
+      new Set(
+        reservations
+          .filter((r) => r.status === "RESERVED")
+          .map((r) => r.stockCode),
+      ),
+    [reservations],
+  );
+  const settingCodes = useMemo(
+    () => new Set((settings ?? []).map((s) => s.stockCode)),
+    [settings],
+  );
+  const reservedNotInSettings = useMemo<DividendReinvestSetting[]>(() => {
+    const seen = new Set<string>();
+    return reservations
+      .filter(
+        (r) =>
+          r.status === "RESERVED" &&
+          !settingCodes.has(r.stockCode) &&
+          !seen.has(r.stockCode) &&
+          seen.add(r.stockCode),
+      )
+      .map((r) => ({ stockCode: r.stockCode, stockName: r.stockName, enabled: false }));
+  }, [reservations, settingCodes]);
+
+  const list = useMemo(
+    () => [...(settings ?? []), ...reservedNotInSettings],
+    [settings, reservedNotInSettings],
+  );
   const onCount = list.filter((s) => s.enabled).length;
   const hasHistory = received > 0;
+
+  // 종목 로고 — 내 배당주 목록.
+  const allCodes = useMemo(() => list.map((s) => s.stockCode), [list]);
+  const detailQueries = useStockDetails(allCodes);
+  const logoByCode = useMemo(() => {
+    const m = new Map<string, string | null>();
+    allCodes.forEach((code, i) => m.set(code, detailQueries[i]?.data?.logoUrl ?? null));
+    return m;
+  }, [allCodes, detailQueries]);
+
+  // 종목 로고 — 배당 내역.
+  const historyCodes = useMemo(() => [...new Set(history.map((h) => h.stockCode))], [history]);
+  const historyDetailQueries = useStockDetails(historyCodes);
+  const historyLogoByCode = useMemo(() => {
+    const m = new Map<string, string | null>();
+    historyCodes.forEach((code, i) => m.set(code, historyDetailQueries[i]?.data?.logoUrl ?? null));
+    return m;
+  }, [historyCodes, historyDetailQueries]);
 
   const handleToggle = (stockCode: string, enabled: boolean) => {
     setPendingCode(stockCode);
     setReinvest.mutate(
       { stockCode, enabled },
       {
-        onError: () =>
-          toast.error("설정을 변경하지 못했어요. 잠시 후 다시 시도해 주세요."),
+        // 해외 재투자는 자동환전 필요 등 백엔드 사유를 그대로 노출(있으면).
+        onError: (e) =>
+          toast.error(
+            e instanceof ApiError
+              ? e.message
+              : "설정을 변경하지 못했어요. 잠시 후 다시 시도해 주세요.",
+          ),
         onSettled: () => setPendingCode(null),
       },
     );
@@ -122,8 +174,9 @@ export default function MaturityDripPage() {
   return (
     <>
       <AppHeader variant="sub" title="배당 재투자" />
+      <MaturityStepper current={3} />
 
-      <div className="space-y-6 pb-6">
+      <div className="space-y-6 pb-28">
         {/* ── 복리 요약 (지급 내역 파생) ──────────────────────────────────── */}
         {hasHistory ? (
           <section className="rounded-2xl border border-border bg-card p-4">
@@ -176,7 +229,7 @@ export default function MaturityDripPage() {
           {list.length === 0 ? (
             <EmptyState
               title="배당 재투자할 종목이 없어요"
-              description="국내 배당주를 보유하면 여기서 재투자를 켤 수 있어요."
+              description="배당주를 예약하거나 보유하면 여기서 재투자를 켤 수 있어요."
             />
           ) : (
             <>
@@ -184,16 +237,31 @@ export default function MaturityDripPage() {
                 <ul className="divide-y divide-border">
                   {list.map((s) => {
                     const qty = qtyByCode.get(s.stockCode);
+                    const isReserved =
+                      reservedCodes.has(s.stockCode) && qty === undefined;
+                    const logoUrl = logoByCode.get(s.stockCode) ?? null;
                     return (
                       <li
                         key={s.stockCode}
                         className="flex items-center gap-3 px-4 py-3.5"
                       >
-                        <Logo>{s.stockName.slice(0, 1)}</Logo>
+                        <Avatar className="size-9 shrink-0 rounded-xl">
+                          {logoUrl && <AvatarImage src={logoUrl} alt="" />}
+                          <AvatarFallback className="rounded-xl bg-brand-surface text-[11px] font-semibold text-primary">
+                            {s.stockName.trim().charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-foreground">
-                            {s.stockName}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="text-sm font-bold text-foreground">
+                              {s.stockName}
+                            </p>
+                            {isReserved && (
+                              <span className="rounded-full bg-brand-surface px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                예약중
+                              </span>
+                            )}
+                          </div>
                           <p className="mt-0.5 text-[11.5px] text-muted-foreground">
                             {s.enabled ? (
                               qty !== undefined ? (
@@ -237,7 +305,11 @@ export default function MaturityDripPage() {
             <div className="overflow-hidden rounded-2xl border border-border bg-card">
               <ul className="divide-y divide-border">
                 {history.map((h) => (
-                  <HistoryRow key={h.id} payout={h} />
+                  <HistoryRow
+                    key={h.id}
+                    payout={h}
+                    logoUrl={historyLogoByCode.get(h.stockCode) ?? null}
+                  />
                 ))}
               </ul>
             </div>
@@ -247,7 +319,7 @@ export default function MaturityDripPage() {
         {/* ── 캘린더 위임 ───────────────────────────────────────────────── */}
         <button
           type="button"
-          onClick={() => router.push("/budget")}
+          onClick={() => router.push("/budget?tab=stock")}
           className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left transition-colors hover:bg-muted/40"
         >
           <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
@@ -264,6 +336,32 @@ export default function MaturityDripPage() {
           <ChevronRight className="ml-auto size-5 shrink-0 text-muted-foreground/50" />
         </button>
       </div>
+
+      {/* ── 하단 고정 CTA — 남은 예금 재예치 / 전환 내역 ──────────────────── */}
+      <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
+        {hasDeposit ? (
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                `/recommendations/maturity/deposit?accountId=${accountId}&amount=${depositAmount}`,
+              )
+            }
+            className="flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-primary text-sm font-bold text-white transition-opacity active:opacity-80"
+          >
+            <PiggyBank className="size-4" />
+            남은 예금 {formatKRW(depositAmount)} 재예치하기
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => router.replace("/recommendations/maturity/select?tab=history")}
+            className="flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-opacity active:opacity-80"
+          >
+            전환 내역 보기
+          </button>
+        )}
+      </div>
     </>
   );
 }
@@ -279,11 +377,16 @@ function FlowStep({ label, value }: { label: string; value: string }) {
   );
 }
 
-function HistoryRow({ payout }: { payout: DividendPayout }) {
+function HistoryRow({ payout, logoUrl }: { payout: DividendPayout; logoUrl: string | null }) {
   const chip = STATUS_CHIP[payout.status];
   return (
     <li className="flex items-center gap-3 px-4 py-3.5">
-      <Logo sm>{payout.stockName.slice(0, 1)}</Logo>
+      <Avatar className="size-8 shrink-0 rounded-xl">
+        {logoUrl && <AvatarImage src={logoUrl} alt="" />}
+        <AvatarFallback className="rounded-xl bg-brand-surface text-[11px] font-semibold text-primary">
+          {payout.stockName.trim().charAt(0).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
       <div className="min-w-0">
         <p className="text-[13.5px] font-bold text-foreground">
           {payout.stockName}

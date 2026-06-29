@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef } from "react";
 import Decimal from "decimal.js";
-import { Info, Minus, Plus, Landmark, TrendingUp, ArrowDown, ArrowRightLeft } from "lucide-react";
+import { Info, Minus, Plus, ArrowDown, ArrowRightLeft } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,9 +13,21 @@ import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommenda
 import { parseAccountId } from "@/lib/utils/params";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useCreateMaturityReservation } from "@/hooks/mutations/useCreateMaturityReservation";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  FxAutoSettingsForm,
+  DEFAULT_FX_AUTO_SETTINGS,
+} from "@/components/features/exchange/FxAutoSettingsForm";
+import { MaturityStepper } from "@/components/features/maturity/MaturityStepper";
 import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
-import { useUpdateAutoSettings } from "@/hooks/mutations/useUpdateAutoSettings";
-import { formatKRW } from "@/lib/utils/currency";
+import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
+import { formatKRW, formatUSD } from "@/lib/utils/currency";
+import { annualWholeShareDividendKrw } from "@/lib/utils/dividend";
 import { cn } from "@/lib/utils";
 
 const STEP = 10_000;
@@ -26,10 +38,14 @@ export default function MaturityReservePage() {
   const params = useSearchParams();
   // 선택 화면에서 이어온 예적금(유효한 양의 정수만) — 추천·triggerAccount를 같은 계좌로 맞춘다.
   const accountId = parseAccountId(params.get("accountId"));
+  // 예금 재예치분 — 예약 후 배당 재투자(drip) → 예금 재예치 단계로 그대로 잇는다.
+  const depositAmount = Math.floor(Number(params.get("deposit")) || 0);
   const { data } = useMaturityRecommendation(accountId);
   const createReservation = useCreateMaturityReservation();
   const { data: fxSettings } = useExchangeAutoSettings();
-  const updateAutoSettings = useUpdateAutoSettings();
+  const { data: fxRate } = useExchangeRate();
+  // 자동환전 설정 시트 — 원클릭 대신 /exchange 설정 폼을 그대로 띄워 직접 구성하게 한다.
+  const [fxSheetOpen, setFxSheetOpen] = useState(false);
   const submittingRef = useRef(false);
 
   // URL 파라미터 파싱: items=017800:250000,030000:150000
@@ -85,38 +101,28 @@ export default function MaturityReservePage() {
 
   const totalAmount = codes.reduce((sum, c) => sum + (amounts[c] ?? 0), 0);
 
-  const totalDividend = useMemo(() =>
-    codes.reduce((sum, c) => {
-      const stock = stockMap[c];
-      if (!stock) return sum;
-      return sum + new Decimal(amounts[c] ?? 0)
-        .times(new Decimal(stock.dividendYield).dividedBy(100))
-        .toDecimalPlaces(0)
-        .toNumber();
-    }, 0),
-    [codes, amounts, stockMap],
+  // 온주(정수 주식) 기준 연 배당 합계 — 매수금액으로 살 수 있는 온주 × 1주당 배당금.
+  const totalDividend = useMemo(
+    () =>
+      codes.reduce((sum, c) => {
+        const stock = stockMap[c];
+        if (!stock) return sum;
+        const d = annualWholeShareDividendKrw({
+          buyAmountKrw: amounts[c] ?? 0,
+          currentPrice: priceMap[c] ?? null,
+          perShareDividend: stock.perShareDividend,
+          isUS: stock.market === "US",
+          usdKrwRate: fxRate?.baseRate ?? null,
+        });
+        return sum + (d ?? 0);
+      }, 0),
+    [codes, amounts, stockMap, priceMap, fxRate],
   );
 
   // 해외(US) 배당주가 담겨 있으면 집행 시 자동환전(KRW→USD)이 필요하다.
   const hasOverseas = codes.some((c) => stockMap[c]?.market === "US");
   // 설정 조회가 끝난 뒤에만 판단한다 — 로딩/실패 중엔 막지도, 기본값으로 덮어쓰지도 않는다.
   const needAutoFx = hasOverseas && fxSettings !== undefined && !fxSettings.autoEnabled;
-
-  const enableAutoFx = () => {
-    if (!fxSettings) return; // 설정 미조회 시 기존 값 덮어쓰기 방지
-    updateAutoSettings.mutate(
-      {
-        autoEnabled: true,
-        useDollarFirst: fxSettings.useDollarFirst,
-        maxAmountPerTx: fxSettings.maxAmountPerTx,
-        residualHandling: fxSettings.residualHandling,
-      },
-      {
-        onError: () =>
-          toast.error("자동환전을 켜지 못했어요. 잠시 후 다시 시도해 주세요."),
-      },
-    );
-  };
 
   const adjust = (code: string, delta: number) => {
     setAmounts((prev) => ({
@@ -161,15 +167,17 @@ export default function MaturityReservePage() {
         toast.error("예약 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.");
         return; // 이동하지 않고 재시도 가능하게 둔다
       }
+      // 이미 예약된 종목(409)은 막지 않는다 — 이미 예약 완료 상태이므로 안내만 하고 다음 단계로 진행.
       if (conflicts.length > 0 && succeeded === 0) {
-        toast.error("이미 예약된 종목이에요. 기존 예약을 취소 후 다시 시도해 주세요.");
-        return;
-      }
-      if (conflicts.length > 0) {
+        toast.info("이미 예약한 종목이에요. 다음 단계로 넘어갈게요.");
+      } else if (conflicts.length > 0) {
         toast.info(`${conflicts.length}종목은 이미 예약돼 있어 건너뛰었어요.`);
       }
 
-      router.replace("/recommendations/maturity/drip");
+      // 예약 후 배당 재투자 화면으로 — 예금 재예치분이 있으면 함께 넘겨 다음 단계로 잇는다.
+      // push로 이동해 뒤로가기가 단계 순서(3→2→1)대로 돌아가게 한다.
+      const dq = depositAmount > 0 ? `&deposit=${depositAmount}` : "";
+      router.push(`/recommendations/maturity/drip?accountId=${account.accountId}${dq}`);
     } finally {
       submittingRef.current = false;
     }
@@ -186,57 +194,30 @@ export default function MaturityReservePage() {
 
   const [, mm, dd] = account.maturityDate.split("-");
   const maturityShort = `${parseInt(mm ?? "0")}/${parseInt(dd ?? "0")}`;
-  const toName =
-    codes.length > 1
-      ? `${codes.length}종목 · ${codes
-          .map((c) => stockMap[c]?.stockName ?? c)
-          .slice(0, 2)
-          .join(", ")}${codes.length > 2 ? " 외" : ""}`
-      : (stockMap[codes[0] ?? ""]?.stockName ?? codes[0]);
 
   return (
     <>
       <AppHeader variant="sub" title="매수 예약 확인" />
+      <MaturityStepper current={2} />
 
       <div className="space-y-4 pb-40">
-        {/* ── 예적금 → 배당주 전환 흐름 ─────────────────────────────────── */}
-        <div className="overflow-hidden rounded-2xl border border-border">
-          {/* FROM: 예적금 (중립 muted) */}
-          <div className="bg-muted px-4 py-4">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
-              <Landmark className="size-3.5" />
-              예금·적금
-            </div>
-            <p className="mt-1.5 text-sm font-bold text-foreground">{account.accountName}</p>
-            <p className="mt-0.5 font-numeric text-[22px] font-bold tabular-nums text-foreground">
-              {formatKRW(totalAmount)}{" "}
-              <span className="text-xs font-medium text-muted-foreground">배당주로</span>
-            </p>
-          </div>
-
-          {/* 커넥터: 만기일 자동 전환 */}
-          <div className="relative flex items-center justify-center bg-card py-3.5">
-            <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border" />
-            <div className="relative flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 shadow-sm">
-              <ArrowDown className="size-3 text-primary" />
-              <span className="font-numeric text-[11px] font-bold tabular-nums text-primary">
-                {maturityShort} 만기일 자동 전환
-              </span>
-            </div>
-          </div>
-
-          {/* TO: 배당주 (brand-surface) */}
-          <div className="bg-brand-surface px-4 py-4">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
-              <TrendingUp className="size-3.5" />
-              배당주
-            </div>
-            <p className="mt-1.5 text-sm font-bold text-foreground">{toName}</p>
-            <p className="mt-0.5 font-numeric text-[22px] font-bold tabular-nums text-primary">
+        {/* ── 요약: 배당주로 굴릴 금액 → 연 배당 예상 ───────────────────── */}
+        <section className="rounded-2xl bg-brand-surface p-5">
+          <p className="text-sm font-semibold text-primary">배당주로 굴릴 금액</p>
+          <p className="mt-1 font-numeric text-[30px] font-semibold leading-tight tabular-nums text-foreground">
+            {formatKRW(totalAmount)}
+          </p>
+          <div className="mt-1.5 flex items-center justify-between gap-2 font-numeric text-[12.5px] tabular-nums">
+            <span className="truncate text-[#3c5170]">{account.accountName}</span>
+            <span className="shrink-0 font-bold text-primary">
               연 {formatKRW(totalDividend)} 배당 예상
-            </p>
+            </span>
           </div>
-        </div>
+          <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-white/60 px-2.5 py-1.5 text-[11.5px] font-semibold text-primary">
+            <ArrowDown className="size-3 shrink-0" />
+            <span className="font-numeric tabular-nums">{maturityShort}</span> 만기일에 자동으로 전환돼요
+          </div>
+        </section>
 
         {/* ── 담는 종목 (divide-y 행 + 스테퍼) ─────────────────────────── */}
         <section>
@@ -249,18 +230,34 @@ export default function MaturityReservePage() {
               const amount = amounts[code] ?? 0;
               const logo = logoByCode.get(code) ?? null;
               const currentPrice = priceMap[code] ?? null;
-              const estimatedShares = currentPrice && currentPrice > 0
-                ? new Decimal(amount).dividedBy(currentPrice).toDecimalPlaces(4).toNumber()
-                : null;
-              const estimatedDividend = stock
-                ? new Decimal(amount)
-                    .times(new Decimal(stock.dividendYield).dividedBy(100))
-                    .toDecimalPlaces(0)
-                    .toNumber()
-                : 0;
+              // 해외(US)는 현재가가 달러 원본 — 원으로 찍지 않도록 시장별 분기.
+              const isUS = stock?.market === "US";
+              // 해외는 현재가가 달러 — 매수금액(원)을 매매기준율로 달러 환산한 뒤 나눠야 주수가 맞다.
+              const fxRateValue = fxRate?.baseRate ?? null;
+              const estimatedShares =
+                !currentPrice || currentPrice <= 0
+                  ? null
+                  : isUS
+                    ? fxRateValue && fxRateValue > 0
+                      ? new Decimal(amount)
+                          .dividedBy(fxRateValue)
+                          .dividedBy(currentPrice)
+                          .toDecimalPlaces(4)
+                          .toNumber()
+                      : null
+                    : new Decimal(amount)
+                        .dividedBy(currentPrice)
+                        .toDecimalPlaces(4)
+                        .toNumber();
+              const sharesLabel =
+                estimatedShares === null
+                  ? null
+                  : estimatedShares < 1
+                    ? `약 ${estimatedShares.toFixed(4)}주`
+                    : `약 ${new Decimal(estimatedShares).toDecimalPlaces(2).toNumber()}주`;
 
               return (
-                <li key={code} className="px-4 py-4">
+                <li key={code} className="space-y-2.5 px-4 py-3.5">
                   <div className="flex items-center gap-3">
                     <Avatar className="size-9 shrink-0 rounded-xl">
                       {logo && <AvatarImage src={logo} alt="" />}
@@ -269,42 +266,31 @@ export default function MaturityReservePage() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-foreground">
+                      <p className="truncate text-sm font-bold text-foreground">
                         {stock?.stockName ?? code}
-                        <span className="ml-1.5 font-numeric text-xs font-normal text-muted-foreground">
-                          {code}
-                        </span>
                       </p>
                       {stock && (
-                        <p className="font-numeric text-xs tabular-nums text-muted-foreground">
+                        <p className="font-numeric text-[11.5px] tabular-nums text-muted-foreground">
                           연 {new Decimal(stock.dividendYield).toFixed(2)}%
                           {currentPrice !== null && (
-                            <span className="ml-2">· 현재가 {formatKRW(currentPrice)}</span>
+                            <span> · 현재가 {isUS ? formatUSD(currentPrice) : formatKRW(currentPrice)}</span>
                           )}
                         </p>
                       )}
                     </div>
-                    <div className="text-right">
-                      <p className="font-numeric text-sm font-bold tabular-nums text-primary">
-                        {formatKRW(estimatedDividend)}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">예상 배당</p>
-                    </div>
                   </div>
 
-                  {/* 금액 스테퍼 + 예상 주수 */}
-                  <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-                    <div>
+                  {/* 매수금액 스테퍼 */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
                       <span className="text-xs text-muted-foreground">매수금액</span>
-                      {estimatedShares !== null && (
-                        <p className="font-numeric mt-0.5 text-[11px] tabular-nums text-muted-foreground">
-                          약 {estimatedShares < 1
-                            ? `${estimatedShares.toFixed(4)}주`
-                            : `${new Decimal(estimatedShares).toDecimalPlaces(2).toNumber()}주`} 예상
+                      {sharesLabel && (
+                        <p className="font-numeric text-[11px] tabular-nums text-muted-foreground">
+                          {sharesLabel} 예상
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       <button
                         type="button"
                         onClick={() => adjust(code, -STEP)}
@@ -314,7 +300,7 @@ export default function MaturityReservePage() {
                       >
                         <Minus className="size-3.5" />
                       </button>
-                      <span className="min-w-[96px] text-center font-numeric text-sm font-bold tabular-nums">
+                      <span className="min-w-[88px] text-center font-numeric text-sm font-bold tabular-nums">
                         {formatKRW(amount)}
                       </span>
                       <button
@@ -350,21 +336,29 @@ export default function MaturityReservePage() {
             </div>
             <button
               type="button"
-              onClick={enableAutoFx}
-              disabled={updateAutoSettings.isPending}
-              className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-[13px] font-bold text-white transition-opacity active:opacity-80 disabled:opacity-50"
+              onClick={() => setFxSheetOpen(true)}
+              className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-[13px] font-bold text-white transition-opacity active:opacity-80"
             >
               <ArrowRightLeft className="size-3.5" />
-              {updateAutoSettings.isPending ? "켜는 중…" : "자동환전 켜기"}
+              자동환전 설정하기
             </button>
           </div>
         )}
 
-        {/* 자동환전이 이미 켜져 있으면 결제 방식만 안내 */}
+        {/* 자동환전이 이미 켜져 있으면 결제 방식 안내 + 설정 변경 진입 */}
         {hasOverseas && fxSettings?.autoEnabled && (
           <div className="flex items-start gap-2 rounded-xl bg-brand-surface px-3 py-2.5 text-xs text-[#3c5170]">
             <ArrowRightLeft className="mt-px size-3 shrink-0 text-primary" />
-            <span>해외 배당주는 만기일에 원화를 달러로 자동환전해 결제돼요.</span>
+            <span className="flex-1">
+              해외 배당주는 만기일에 원화를 달러로 자동환전해 결제돼요.
+            </span>
+            <button
+              type="button"
+              onClick={() => setFxSheetOpen(true)}
+              className="shrink-0 font-bold text-primary underline-offset-2 hover:underline"
+            >
+              설정 변경
+            </button>
           </div>
         )}
 
@@ -398,6 +392,26 @@ export default function MaturityReservePage() {
                 : "예약하기"}
         </button>
       </div>
+
+      {/* ── 자동환전 설정 시트 (/exchange/auto-settings 폼 재사용) ──────────── */}
+      <Sheet open={fxSheetOpen} onOpenChange={setFxSheetOpen}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[90vh] overflow-y-auto rounded-t-3xl px-5 pb-8 pt-6"
+        >
+          <SheetHeader className="mb-4 text-left">
+            <SheetTitle>자동환전 설정</SheetTitle>
+          </SheetHeader>
+          <FxAutoSettingsForm
+            initialSettings={{
+              ...(fxSettings ?? DEFAULT_FX_AUTO_SETTINGS),
+              autoEnabled: true,
+            }}
+            submitLabel="자동환전 켜고 저장"
+            onSaved={() => setFxSheetOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
