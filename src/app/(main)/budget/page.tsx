@@ -275,17 +275,31 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             type="button"
             onClick={() => setTab(t.value)}
             className={cn(
-              "flex-1 py-3 text-sm font-semibold",
+              "relative flex-1 py-3 text-sm font-semibold transition-colors duration-150",
               tab === t.value ? "text-primary" : "text-muted-foreground",
             )}
           >
             {t.label}
+            {tab === t.value && (
+              <motion.span
+                layoutId="budget-tab-indicator"
+                className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-primary"
+                transition={{ type: "tween", ease: [0.25, 1, 0.5, 1], duration: 0.22 }}
+              />
+            )}
           </button>
         ))}
       </div>
 
+      <AnimatePresence mode="wait" initial={false}>
       {tab === "budget" ? (
-        <div>
+        <motion.div
+          key="budget"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.12 }}
+        >
           {/* ── 월 네비(위) + 우측 미니 요약(아래) — 증권 캘린더 탭과 동일 배치 ── */}
           <div className="mb-3 mt-4">
             {/* h-[42px] 고정: 증권 캘린더 탭 월 네비 행(수익률 두 줄 포함)과 동일 높이 → 달력 시작 y 정렬 */}
@@ -517,10 +531,19 @@ function Dashboard({ goals }: { goals: BudgetGoalSummary }) {
             )}
           </AnimatePresence>
 
-        </div>
+        </motion.div>
       ) : (
-        <StockCalendarTab />
+        <motion.div
+          key="stock"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.12 }}
+        >
+          <StockCalendarTab />
+        </motion.div>
       )}
+      </AnimatePresence>
 
     </div>
   );

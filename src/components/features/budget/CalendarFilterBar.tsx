@@ -1,8 +1,8 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-// 증권 캘린더 렌즈(필터): 전체 / 거래 / 모으기 / 일정
 export type CalendarLens = "all" | "trade" | "gather" | "event";
 
 const LENS_TABS: { value: CalendarLens; label: string }[] = [
@@ -18,18 +18,9 @@ interface CalendarFilterBarProps {
   className?: string;
 }
 
-export function CalendarFilterBar({
-  value,
-  onChange,
-  className,
-}: CalendarFilterBarProps) {
+export function CalendarFilterBar({ value, onChange, className }: CalendarFilterBarProps) {
   return (
-    <div
-      className={cn(
-        "flex w-full gap-0.5 rounded-[11px] bg-muted p-1",
-        className,
-      )}
-    >
+    <div className={cn("flex w-full gap-0.5 rounded-[11px] bg-muted p-1", className)}>
       {LENS_TABS.map((t) => {
         const on = value === t.value;
         return (
@@ -38,13 +29,18 @@ export function CalendarFilterBar({
             type="button"
             onClick={() => onChange(t.value)}
             className={cn(
-              "flex-1 rounded-lg py-2 text-[12.5px] font-semibold transition-colors",
-              on
-                ? "bg-background text-primary shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
-                : "text-muted-foreground",
+              "relative flex-1 rounded-lg py-2 text-[12.5px] font-semibold transition-colors duration-150",
+              on ? "text-primary" : "text-muted-foreground",
             )}
           >
-            {t.label}
+            {on && (
+              <motion.span
+                layoutId="lens-active-pill"
+                className="absolute inset-0 rounded-lg bg-background shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                transition={{ type: "tween", ease: [0.25, 1, 0.5, 1], duration: 0.22 }}
+              />
+            )}
+            <span className="relative z-[1]">{t.label}</span>
           </button>
         );
       })}

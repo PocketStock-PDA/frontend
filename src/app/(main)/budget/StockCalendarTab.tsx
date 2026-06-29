@@ -11,6 +11,7 @@ import { FinanceCalendar } from "@/components/common/FinanceCalendar";
 import { parseUTC } from "@/lib/utils/date";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
 import { EmptyState } from "@/components/common/EmptyState";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   CalendarFilterBar,
   type CalendarLens,
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 import type { StockEvent, StockEventType } from "@/types/domain/stockCalendar";
 import type { OrderHistoryItem } from "@/types/domain/order";
 import type { AutoInvestStock } from "@/types/domain/autoInvest";
+import type { StockDetail } from "@/types/domain/trading";
 
 // 거래(매수/매도) 색 — 한국식: 매수 red, 매도 blue
 const TRADE_BUY = "#F04452";
@@ -37,7 +39,6 @@ const GATHER_SOFT = "#F1EEFF";
 const GATHER_INK = "#6A45E6";
 // 일정(배당/실적) 정보성 슬레이트
 const EVENT_INK = "#64748B";
-const EVENT_SOFT = "#EEF1F5";
 const BRAND = "#2563EB";
 
 // 달력 셀 배경 퍼즐(시그니처) — 날짜 뒤 중앙에 깔리는 조각. Material 'extension' path(viewBox 24).
@@ -52,31 +53,24 @@ const EVENT_LABELS: Record<StockEventType, string> = {
   EARNINGS: "실적",
 };
 
+const LIST_VARIANTS = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.045 } },
+};
+const LIST_VARIANTS_REDUCED = {
+  hidden: {},
+  show: {},
+};
+const ITEM_VARIANTS = {
+  hidden: { opacity: 0, y: 5 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.25, 1, 0.5, 1] } },
+};
+const ITEM_VARIANTS_REDUCED = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { duration: 0.12 } },
+};
+
 // ── 글리프/아이콘 ──────────────────────────────────────────────
-function TriUp({ size = 9 }: { size?: number }) {
-  return (
-    <span
-      className="inline-block h-0 w-0"
-      style={{
-        borderLeft: `${size / 2}px solid transparent`,
-        borderRight: `${size / 2}px solid transparent`,
-        borderBottom: `${(size * 8) / 9}px solid ${TRADE_BUY}`,
-      }}
-    />
-  );
-}
-function TriDn({ size = 9 }: { size?: number }) {
-  return (
-    <span
-      className="inline-block h-0 w-0"
-      style={{
-        borderLeft: `${size / 2}px solid transparent`,
-        borderRight: `${size / 2}px solid transparent`,
-        borderTop: `${(size * 8) / 9}px solid ${TRADE_SELL}`,
-      }}
-    />
-  );
-}
 function PuzzleIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className={className}>
@@ -84,30 +78,6 @@ function PuzzleIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-function CoinIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      className={className}
-    >
-      <circle cx="8" cy="8" r="6" />
-      <path d="M8 5v6M6 7h4" strokeLinecap="round" />
-    </svg>
-  );
-}
-function BarsIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className={className}>
-      <rect x="2" y="9" width="3" height="5" rx="1" />
-      <rect x="6.5" y="5" width="3" height="9" rx="1" />
-      <rect x="11" y="2" width="3" height="12" rx="1" />
-    </svg>
-  );
-}
-
 // ── 모으기(자동적립) 날짜 전개 — 표시월 평일 스케줄 기준 ───────
 // 백엔드 실행내역 대신 활성 종목의 period/periodDay를 그 달에 펼쳐 표시한다(평일만).
 function buildGatherMap(
@@ -197,14 +167,38 @@ export function StockCalendarTab() {
   // ── 보유주식 총 수익률 (포트폴리오 페이지와 동일하게 decimal.js 계산) ──
   const holdingsQ = useHoldings();
   const holdings = holdingsQ.data ?? [];
-  const codes = holdings.map((h) => h.stockCode);
-  const details = useStockDetails(codes); // 캘린더 셀 종목명 표시용(가격 합산엔 더 이상 사용 안 함)
   const summaryQ = usePortfolioSummary();
-  // 캘린더 이벤트 종목명 조회용 (보유에 없는 코드만 추가 조회) — 셀에 코드 대신 이름 표시
-  const eventCodes = [...new Set(events.map((e) => e.stockCode))].filter(
-    (c) => !codes.includes(c),
-  );
-  const eventDetails = useStockDetails(eventCodes);
+
+  // ── 이번 달 거래(매수/매도) — 주문내역(useOrders)에서 ──
+  const ordersQ = useOrders();
+  const monthTrades = (ordersQ.data ?? [])
+    .filter((o) => {
+      // 체결된 거래만(REJECTED·PENDING·QUEUED 제외). AMOUNT 주문은 quantity=null이라 수량 필터 금지
+      if (o.status !== "FILLED") return false;
+      const d = parseUTC(o.createdAt);
+      return (
+        d.getFullYear() === calendarMonth.getFullYear() &&
+        d.getMonth() === calendarMonth.getMonth()
+      );
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  // 보유·이벤트·주문 종목 통합 코드셋 — 로고/이름 단일 detailMap 소스
+  const allCodes = [
+    ...new Set([
+      ...holdings.map((h) => h.stockCode),
+      ...events.map((e) => e.stockCode),
+      ...(ordersQ.data ?? []).map((o) => o.stockCode),
+      ...(autoInvestQ.data?.stocks ?? []).map((s) => s.stockCode),
+    ]),
+  ];
+  const detailQueries = useStockDetails(allCodes);
+  const detailMap = new Map<string, StockDetail>();
+  allCodes.forEach((c, i) => {
+    const d = detailQueries[i]?.data;
+    if (d) detailMap.set(c, d);
+  });
+
   // 보유주식 총 수익률·평가손익은 백엔드 summary 단일소스(total = 환산 KRW, HALF_UP).
   // 직접 holdings×현재가로 합산하면 ① 홈과 반올림이 어긋나고(999 vs 1,000) ② 해외(USD)를
   // 원화로 환산하지 않아 통화가 섞인다. 집계는 PortfolioSummaryService가 단독 책임.
@@ -221,20 +215,6 @@ export function StockCalendarTab() {
   const hasSummaryTotal = totalProfit !== null && totalRate !== null;
   const hasHoldings = holdings.length > 0;
 
-  // ── 이번 달 거래(매수/매도) — 주문내역(useOrders)에서 ──
-  const ordersQ = useOrders();
-  const monthTrades = (ordersQ.data ?? [])
-    .filter((o) => {
-      // 체결된 거래만(REJECTED·PENDING·QUEUED 제외). AMOUNT 주문은 quantity=null이라 수량 필터 금지
-      if (o.status !== "FILLED") return false;
-      const d = parseUTC(o.createdAt);
-      return (
-        d.getFullYear() === calendarMonth.getFullYear() &&
-        d.getMonth() === calendarMonth.getMonth()
-      );
-    })
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-
   // 날짜별 매수/매도 유무 (달력 마커용)
   const tradeMap = new Map<string, { buy: boolean; sell: boolean }>();
   monthTrades.forEach((o) => {
@@ -243,17 +223,6 @@ export function StockCalendarTab() {
     if (o.side === "SELL") cur.sell = true;
     else cur.buy = true;
     tradeMap.set(key, cur);
-  });
-
-  // 종목코드 → 이름 (보유 + 이벤트 상세에서, 없으면 코드 폴백)
-  const nameByCode = new Map<string, string>();
-  holdings.forEach((h, i) => {
-    const n = details[i]?.data?.stockName;
-    if (n) nameByCode.set(h.stockCode, n);
-  });
-  eventCodes.forEach((c, i) => {
-    const n = eventDetails[i]?.data?.stockName;
-    if (n) nameByCode.set(c, n);
   });
 
   const changeMonth = (m: Date) => {
@@ -500,26 +469,20 @@ export function StockCalendarTab() {
           );
         }}
         legend={
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <span className="size-1.5 rounded-full" style={{ background: TRADE_BUY }} />
-              매수
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="size-1.5 rounded-full" style={{ background: TRADE_SELL }} />
-              매도
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="size-1.5 rounded-[2.5px]" style={{ background: GATHER }} />
-              모으기
-            </span>
-            <span className="flex items-center gap-1">
-              <span
-                className="size-1.5 rounded-full"
-                style={{ boxShadow: "inset 0 0 0 1.5px #94A3B8" }}
-              />
-              종목 일정
-            </span>
+          <div className="flex flex-wrap items-center justify-end gap-x-2.5 gap-y-1.5 text-[11px] text-muted-foreground">
+            {([
+              { label: "매수", color: TRADE_BUY },
+              { label: "매도", color: TRADE_SELL },
+              { label: "모으기", color: GATHER },
+              { label: "종목 일정", color: EVENT_INK },
+            ] as const).map(({ label, color }) => (
+              <span key={label} className="flex items-center gap-0.5">
+                <svg viewBox="0 0 24 24" width={10} height={10} fill={color} aria-hidden>
+                  <path d={PUZZLE_PATH} />
+                </svg>
+                {label}
+              </span>
+            ))}
           </div>
         }
       />
@@ -532,16 +495,16 @@ export function StockCalendarTab() {
             animate={{ opacity: 1, y: 0 }}
             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
             transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.32, 0.72, 0, 1] }}
-            className="mt-3"
+            className="mt-4"
           >
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-semibold text-foreground">
-                {format(selectedDate, "M월 d일 (eee)", { locale: ko })} 거래·일정
+                {format(selectedDate, "M월 d일 (eee)", { locale: ko })}
               </p>
               <button
                 type="button"
                 onClick={() => setViewMode("month")}
-                className="flex items-center gap-0.5 text-xs text-muted-foreground"
+                className="-my-2 -mr-1 flex items-center gap-0.5 py-2 pr-1 text-xs text-muted-foreground"
               >
                 <X className="size-3.5" />
                 닫기
@@ -551,23 +514,33 @@ export function StockCalendarTab() {
             {selCount === 0 ? (
               <EmptyState title="이 날은 거래·일정이 없어요" />
             ) : (
-              <div className="divide-y divide-border/50">
+              <motion.div
+                key={selKey}
+                className="divide-y divide-border/50"
+                variants={reduceMotion ? LIST_VARIANTS_REDUCED : LIST_VARIANTS}
+                initial="hidden"
+                animate="show"
+              >
                 {selTrades.map((o) => (
-                  <TimelineTradeRow
-                    key={o.orderId}
-                    order={o}
-                    name={nameByCode.get(o.stockCode) ?? o.stockCode}
-                  />
+                  <motion.div key={o.orderId} variants={reduceMotion ? ITEM_VARIANTS_REDUCED : ITEM_VARIANTS}>
+                    <TimelineTradeRow order={o} detail={detailMap.get(o.stockCode)} />
+                  </motion.div>
                 ))}
-                {selGather.length > 0 && <TimelineGatherRow stocks={selGather} />}
+                {selGather.length > 0 && (
+                  <motion.div variants={reduceMotion ? ITEM_VARIANTS_REDUCED : ITEM_VARIANTS}>
+                    <TimelineGatherRow stocks={selGather} detailMap={detailMap} />
+                  </motion.div>
+                )}
                 {selEvents.map((e) => (
-                  <TimelineEventRow
-                    key={`${e.eventDate}-${e.stockCode}`}
-                    event={e}
-                    isFuture={isAfter(startOfDay(selectedDate), today)}
-                  />
+                  <motion.div key={`${e.eventDate}-${e.stockCode}`} variants={reduceMotion ? ITEM_VARIANTS_REDUCED : ITEM_VARIANTS}>
+                    <TimelineEventRow
+                      event={e}
+                      isFuture={isAfter(startOfDay(selectedDate), today)}
+                      detail={detailMap.get(e.stockCode)}
+                    />
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
           </motion.div>
         )}
@@ -595,52 +568,65 @@ function tradeDetail(order: OrderHistoryItem): string | null {
     : amountText;
 }
 
+function StockAvatar({ detail, stockCode }: { detail?: StockDetail | undefined; stockCode: string }) {
+  const name = detail?.stockName ?? stockCode;
+  return (
+    <Avatar className="size-10 rounded-xl">
+      {detail?.logoUrl && <AvatarImage src={detail.logoUrl} alt={name} />}
+      <AvatarFallback className="rounded-xl bg-muted text-[11px] font-semibold text-muted-foreground">
+        {name.trim().charAt(0).toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
 function TimelineTradeRow({
   order,
-  name,
+  detail,
 }: {
   order: OrderHistoryItem;
-  name: string;
+  detail?: StockDetail | undefined;
 }) {
   const isBuy = order.side !== "SELL";
   const color = isBuy ? TRADE_BUY : TRADE_SELL;
-  const detail = tradeDetail(order);
+  const name = detail?.stockName ?? order.stockCode;
+  const amount = tradeDetail(order);
   return (
-    <div className="flex items-center gap-3.5 py-3.5">
-      <div
-        className="flex size-10 shrink-0 items-center justify-center rounded-full"
-        style={{ background: isBuy ? "#FFF1F2" : "#EEF4FF" }}
-      >
-        {isBuy ? <TriUp size={13} /> : <TriDn size={13} />}
-      </div>
+    <div className="flex items-center gap-3.5 py-3">
+      <StockAvatar detail={detail} stockCode={order.stockCode} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">{name}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {isBuy ? "매수" : "매도"}
         </p>
       </div>
-      {detail && (
+      {amount && (
         <span
           className="font-numeric shrink-0 text-sm font-bold"
           style={{ color }}
         >
-          {detail}
+          {amount}
         </span>
       )}
     </div>
   );
 }
 
-function TimelineGatherRow({ stocks }: { stocks: AutoInvestStock[] }) {
+function TimelineGatherRow({ stocks, detailMap }: { stocks: AutoInvestStock[]; detailMap: Map<string, StockDetail> }) {
   const amounts = gatherAmountByCurrency(stocks);
+  const single = stocks.length === 1 ? stocks[0] : undefined;
   return (
-    <div className="flex items-center gap-3.5 py-3.5">
-      <div
-        className="flex size-10 shrink-0 items-center justify-center rounded-full"
-        style={{ background: GATHER_SOFT, color: GATHER_INK }}
-      >
-        <PuzzleIcon className="size-[17px]" />
-      </div>
+    <div className="flex items-center gap-3.5 py-3">
+      {single ? (
+        <StockAvatar detail={detailMap.get(single.stockCode)} stockCode={single.stockCode} />
+      ) : (
+        <div
+          className="flex size-10 shrink-0 items-center justify-center rounded-full"
+          style={{ background: GATHER_SOFT, color: GATHER_INK }}
+        >
+          <PuzzleIcon className="size-[17px]" />
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">
           {gatherName(stocks)}
@@ -662,19 +648,15 @@ function TimelineGatherRow({ stocks }: { stocks: AutoInvestStock[] }) {
 function TimelineEventRow({
   event,
   isFuture,
+  detail,
 }: {
   event: StockEvent;
   isFuture: boolean;
+  detail?: StockDetail | undefined;
 }) {
-  const isDividend = event.eventType === "DIVIDEND";
   return (
-    <div className="flex items-center gap-3.5 py-3.5">
-      <div
-        className="flex size-10 shrink-0 items-center justify-center rounded-full"
-        style={{ background: EVENT_SOFT, color: EVENT_INK }}
-      >
-        {isDividend ? <CoinIcon className="size-[17px]" /> : <BarsIcon className="size-[17px]" />}
-      </div>
+    <div className="flex items-center gap-3.5 py-3">
+      <StockAvatar detail={detail} stockCode={event.stockCode} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">
           {event.title}

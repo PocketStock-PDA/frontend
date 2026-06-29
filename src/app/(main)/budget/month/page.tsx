@@ -213,28 +213,45 @@ export default function BudgetMonthPage() {
             <p className="font-numeric mt-1.5 text-[34px] font-bold leading-none tracking-tight text-foreground">
               {formatKRW(spentAmount)}
             </p>
-            <p className="mt-2.5 text-[13px] text-muted-foreground">
-              예산 {formatKRW(monthlyBudget)}
-              {" · "}
-              {isOverBudget ? (
-                <span className="font-semibold text-[#F04452]">
-                  {formatKRW(spentAmount - monthlyBudget)} 초과
+            {monthlyBudget > 0 ? (
+              <div className="mt-4">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, usedPct)}%`,
+                      backgroundColor: isOverBudget ? "#F04452" : "#0471E9",
+                    }}
+                  />
+                </div>
+                <div className="mt-2 flex items-baseline justify-between text-[12px]">
+                  <span className="text-muted-foreground">
+                    예산 {formatKRW(monthlyBudget)}
+                  </span>
+                  {isOverBudget ? (
+                    <span className="font-numeric font-semibold text-[#F04452]">
+                      {formatKRW(spentAmount - monthlyBudget)} 초과
+                    </span>
+                  ) : (
+                    <span className="font-numeric font-semibold text-foreground">
+                      {formatKRW(remaining)} 남음
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="mt-2.5 text-[13px] text-muted-foreground">예산을 설정해 보세요</p>
+            )}
+            {isCurrentMonth && (savingsQ.data?.isCollectAgreed) && (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-[13px] text-muted-foreground">절약금</span>
+                <span>
+                  <span className="font-numeric text-[13px] font-semibold text-[#0471E9]">
+                    {formatKRW(savedAmount)}
+                  </span>
+                  <span className="ml-1 text-[12px] text-muted-foreground">월말 CMA 이체</span>
                 </span>
-              ) : (
-                <>
-                  <span className="font-semibold text-foreground">{usedPct}%</span>{" "}
-                  사용
-                </>
-              )}
-            </p>
-            {isCurrentMonth && (
-              <p className="mt-1 text-[13px]">
-                <span className="text-muted-foreground">절약금 </span>
-                <span className="font-numeric font-semibold text-[#0471E9]">
-                  {formatKRW(savedAmount)}
-                </span>
-                <span className="text-muted-foreground"> · 월말 CMA 이체</span>
-              </p>
+              </div>
             )}
             {noAccount && (
               <button
@@ -316,18 +333,31 @@ export default function BudgetMonthPage() {
 
             {/* 편집: 설정한 목표 합계 + 지난달 지출 참고 */}
             {isEditing && (
-              <div className="mb-4 rounded-xl bg-muted/50 px-3.5 py-2.5">
-                <div className="flex items-center justify-between text-[12px]">
-                  <span className="text-muted-foreground">설정한 예산 합계</span>
-                  <span className="font-numeric font-semibold text-foreground">
+              <div className="mb-4 rounded-xl bg-muted/50 px-4 py-3.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[12px] text-muted-foreground">이번달 예산 합계</span>
+                  <span className="font-numeric text-[18px] font-bold text-foreground">
                     {formatKRW(plannedTotal)}
                   </span>
                 </div>
                 {prevTotal > 0 && (
-                  <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>지난달 지출</span>
-                    <span className="font-numeric">{formatKRW(prevTotal)}</span>
+                  <div className="mt-2 flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground">지난달 지출</span>
+                    <span className="font-numeric text-muted-foreground">{formatKRW(prevTotal)}</span>
                   </div>
+                )}
+                {prevTotal > 0 && plannedTotal > 0 && plannedTotal !== prevTotal && (
+                  <p className="mt-1 text-right text-[11px] font-medium">
+                    {plannedTotal < prevTotal ? (
+                      <span className="text-[#0471E9]">
+                        지난달보다 {formatKRW(prevTotal - plannedTotal)} 줄임
+                      </span>
+                    ) : (
+                      <span className="text-[#F04452]">
+                        지난달보다 {formatKRW(plannedTotal - prevTotal)} 늘림
+                      </span>
+                    )}
+                  </p>
                 )}
               </div>
             )}
@@ -347,7 +377,12 @@ export default function BudgetMonthPage() {
                     key={s.label}
                     type="button"
                     onClick={() => applySuggestion(s.factor)}
-                    className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground"
+                    className={cn(
+                      "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                      s.factor < 1
+                        ? "bg-primary/10 text-primary"
+                        : "border border-border text-foreground",
+                    )}
                   >
                     {s.label}
                   </button>
@@ -355,7 +390,7 @@ export default function BudgetMonthPage() {
               </div>
             )}
 
-            <div className="space-y-3.5">
+            <div className={cn(isEditing ? "divide-y divide-border/50" : "space-y-3.5")}>
               {visibleCategories.map((cat) => (
                 <CategoryGoalRow
                   key={cat.category}
@@ -547,47 +582,60 @@ function CategoryGoalRow({
 
   if (isEditing) {
     return (
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-sm text-foreground">
-          {dot}
-          <span className="flex flex-col">
-            <span>{category}</span>
-            {prevSpent !== undefined && prevSpent > 0 && (
-              <span className="text-[11px] font-normal text-muted-foreground">
-                지난달 {formatKRW(prevSpent)}
-              </span>
-            )}
-          </span>
-        </span>
-        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-          목표
+      <div className="flex items-center gap-3 py-3">
+        {dot}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="text-sm font-medium text-foreground">{category}</span>
+          {prevSpent !== undefined && prevSpent > 0 && (
+            <span className="mt-0.5 text-[11px] text-muted-foreground">
+              지난달 {formatKRW(prevSpent)}
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-baseline gap-0.5">
           <input
             inputMode="numeric"
+            placeholder="0"
             value={editValue}
             onChange={(e) => onEditChange?.(e.target.value.replace(/[^0-9]/g, ""))}
-            className="w-24 border-b border-primary bg-transparent text-right text-[12px] font-semibold text-foreground outline-none"
+            className="w-28 border-b border-primary bg-transparent text-right text-[13px] font-semibold text-foreground outline-none placeholder:text-muted-foreground/40"
           />
-          원
-        </span>
+          <span className="text-[12px] text-muted-foreground">원</span>
+        </div>
       </div>
     );
   }
 
+  const budgetPct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+
   return (
-    <div className="flex items-center gap-2.5">
-      {dot}
-      <span className="flex flex-1 items-center gap-1.5 truncate text-sm text-foreground">
-        {category}
-        {isOver && (
-          <span className="text-[11px] font-medium text-[#F04452]">초과</span>
-        )}
-      </span>
-      <span className="font-numeric text-sm font-semibold text-foreground">
-        {formatKRW(spent)}
-      </span>
-      <span className="font-numeric w-9 shrink-0 text-right text-[11px] text-muted-foreground">
-        {share}%
-      </span>
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2.5">
+        {dot}
+        <span className="flex flex-1 items-center gap-1.5 truncate text-sm text-foreground">
+          {category}
+          {isOver && (
+            <span className="text-[11px] font-medium text-[#F04452]">초과</span>
+          )}
+        </span>
+        <span className="font-numeric text-sm font-semibold text-foreground">
+          {formatKRW(spent)}
+        </span>
+        <span className="font-numeric w-9 shrink-0 text-right text-[11px] text-muted-foreground">
+          {share}%
+        </span>
+      </div>
+      {budget > 0 && (
+        <div className="ml-[18px] h-[3px] overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${budgetPct}%`,
+              backgroundColor: isOver ? "#F04452" : color,
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

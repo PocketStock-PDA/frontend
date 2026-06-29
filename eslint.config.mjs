@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "public/workbox-*.js",
     "public/worker-*.js",
     "next-env.d.ts",
+    ".github/**",
   ]),
   {
     rules: {
