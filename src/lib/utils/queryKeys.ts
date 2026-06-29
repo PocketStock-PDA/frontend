@@ -81,5 +81,6 @@ export const queryKeys = {
     all: ["notification"] as const,
     list: (page: number, size: number) =>
       ["notification", "list", page, size] as const,
+    settings: ["notification", "settings"] as const,
   },
 } as const;
