@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
+import { InstitutionLogo } from "@/components/common/InstitutionLogo";
+import { cardCodeFromName } from "@/lib/utils/institution";
 import { useInstitutions } from "@/hooks/queries/useInstitutions";
 import { useAssetScan } from "@/hooks/queries/useAssetScan";
 import { useDormantAccounts } from "@/hooks/queries/useDormantAccounts";
@@ -1320,7 +1322,6 @@ function CleanupDoneView({
 }
 
 // ── 8. 카드 선택 (잔돈 적립, 15) ───────────────────────────────────────────────
-const CARD_CHIP_COLORS = ["bg-blue-600", "bg-rose-500", "bg-neutral-800"];
 
 function CardSelectView({
   cards,
@@ -1385,7 +1386,7 @@ function CardSelectView({
         ) : cards.length === 0 ? (
           <EmptyState title="연동된 카드가 없어요" />
         ) : (
-          cards.map((c, i) => {
+          cards.map((c) => {
             const on = selectedIds.has(c.cardId);
             return (
               <button
@@ -1399,14 +1400,11 @@ function CardSelectView({
                   on ? "border-primary bg-primary/5" : "border-border",
                 )}
               >
-                <span
-                  className={cn(
-                    "flex h-7 w-10 shrink-0 items-center justify-center rounded text-[9px] font-bold text-white",
-                    CARD_CHIP_COLORS[i % CARD_CHIP_COLORS.length],
-                  )}
-                >
-                  {c.cardType === "CREDIT" ? "신용" : "체크"}
-                </span>
+                <InstitutionLogo
+                  code={cardCodeFromName(c.companyName)}
+                  name={c.companyName}
+                  className="size-9 shrink-0"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-foreground">
                     {c.cardName}
@@ -1638,7 +1636,7 @@ function BankSelectView({
         {filtered.length === 0 ? (
           <EmptyState title="기준 미만 잔액 계좌가 없어요" />
         ) : (
-          filtered.map((a, i) => {
+          filtered.map((a) => {
             const on = selected.has(a.accountId);
             return (
               <button
@@ -1652,7 +1650,11 @@ function BankSelectView({
                   on ? "border-primary bg-primary/5" : "border-border",
                 )}
               >
-                <DormantSquare label={a.bankName} index={i} />
+                <InstitutionLogo
+                  code={a.bankCode}
+                  name={a.bankName}
+                  className="size-9 shrink-0"
+                />
                 <div className="min-w-0 flex-1">
                   <AmountDisplay
                     value={a.balance}
@@ -1724,9 +1726,11 @@ function BankDoneView({
             key={a.accountId}
             className="flex items-center gap-3 rounded-xl border border-border px-4 py-3.5"
           >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Landmark className="size-4" />
-            </span>
+            <InstitutionLogo
+              code={a.bankCode}
+              name={a.bankName}
+              className="size-9 shrink-0"
+            />
             <div className="min-w-0 flex-1">
               <AmountDisplay
                 value={a.balance}

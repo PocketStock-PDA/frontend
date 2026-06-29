@@ -46,6 +46,7 @@ export default function TradingExplorePage() {
   const [query, setQuery] = useState("");
 
   const marketParam = searchParams.get("market");
+  const investMode = searchParams.get("invest") === "1";
   const [market, setMarket] = useState<StockMarket>(
     marketParam === "overseas" ? "overseas" : "domestic",
   );
@@ -73,11 +74,11 @@ export default function TradingExplorePage() {
             placeholder="종목명 또는 코드 검색"
           />
           {query.trim().length > 0 && (
-            <SearchDropdown query={query} onPick={goStock} onCollect={goCollect} />
+            <SearchDropdown query={query} onPick={goStock} onCollect={goCollect} showCollect={!investMode} />
           )}
         </div>
 
-        <Rankings market={market} onMarketChange={handleMarketChange} onPick={goStock} />
+        <Rankings market={market} onMarketChange={handleMarketChange} onPick={goStock} showCollect={!investMode} />
       </div>
     </>
   );
@@ -88,10 +89,12 @@ function SearchDropdown({
   query,
   onPick,
   onCollect,
+  showCollect,
 }: {
   query: string;
   onPick: (code: string) => void;
   onCollect: (code: string) => void;
+  showCollect: boolean;
 }) {
   const { data, isLoading } = useStockSearch(query);
   // 백엔드가 드물게 data:null을 주면 api 클라가 {}를 반환 → 배열 가드로 크래시 방지
@@ -115,6 +118,7 @@ function SearchDropdown({
                 item={s}
                 onClick={() => onPick(s.stockCode)}
                 onCollect={() => onCollect(s.stockCode)}
+                showCollect={showCollect}
               />
             </li>
           ))}
@@ -128,10 +132,12 @@ function SearchRow({
   item,
   onClick,
   onCollect,
+  showCollect,
 }: {
   item: StockSearchItem;
   onClick: () => void;
   onCollect: () => void;
+  showCollect: boolean;
 }) {
   return (
     <div className="flex w-full items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted">
@@ -153,15 +159,17 @@ function SearchRow({
           </p>
         </div>
       </button>
-      <button
-        type="button"
-        onClick={onCollect}
-        aria-label={`${item.stockName} 모으기 설정`}
-        className="group shrink-0 flex flex-col items-center gap-0.5 rounded-2xl bg-card px-3.5 py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95"
-      >
-        <CollectIcon className="size-5" />
-        <span className="whitespace-nowrap text-[10px] font-medium text-primary">모으기</span>
-      </button>
+      {showCollect && (
+        <button
+          type="button"
+          onClick={onCollect}
+          aria-label={`${item.stockName} 모으기 설정`}
+          className="group shrink-0 flex flex-col items-center gap-0.5 rounded-2xl bg-card px-3.5 py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95"
+        >
+          <CollectIcon className="size-5" />
+          <span className="whitespace-nowrap text-[10px] font-medium text-primary">모으기</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -171,10 +179,12 @@ function Rankings({
   market,
   onMarketChange,
   onPick,
+  showCollect,
 }: {
   market: StockMarket;
   onMarketChange: (v: StockMarket) => void;
   onPick: (code: string) => void;
+  showCollect: boolean;
 }) {
   const [sort, setSort] = useState<RankingSort>("tradevalue");
   // 해외 순위 한정: 달러 ↔ 원화 표시 토글
@@ -274,6 +284,7 @@ function Rankings({
                 live={live[it.stockCode]}
                 fmtPrice={fmtPrice}
                 onClick={() => onPick(it.stockCode)}
+                showCollect={showCollect}
               />
             ))}
           </div>
@@ -288,11 +299,13 @@ function RankingRow({
   live,
   fmtPrice,
   onClick,
+  showCollect,
 }: {
   item: StockRankingItem;
   live?: LiveQuote | undefined;
   fmtPrice: (price: number, currency: string) => string;
   onClick: () => void;
+  showCollect: boolean;
 }) {
   const router = useRouter();
   // WS 라이브 값 우선, 없으면 REST 스냅샷
@@ -328,15 +341,17 @@ function RankingRow({
           </div>
         </div>
       </button>
-      <button
-        type="button"
-        onClick={() => router.push(tradingAutoDetailPath(item.stockCode))}
-        aria-label={`${item.stockName} 모으기 설정`}
-        className="group shrink-0 flex flex-col items-center gap-0.5 rounded-2xl bg-card px-3.5 py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        <CollectIcon className="size-5" />
-        <span className="whitespace-nowrap text-[10px] font-medium text-primary">모으기</span>
-      </button>
+      {showCollect && (
+        <button
+          type="button"
+          onClick={() => router.push(tradingAutoDetailPath(item.stockCode))}
+          aria-label={`${item.stockName} 모으기 설정`}
+          className="group shrink-0 flex flex-col items-center gap-0.5 rounded-2xl bg-card px-3.5 py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <CollectIcon className="size-5" />
+          <span className="whitespace-nowrap text-[10px] font-medium text-primary">모으기</span>
+        </button>
+      )}
     </div>
   );
 }

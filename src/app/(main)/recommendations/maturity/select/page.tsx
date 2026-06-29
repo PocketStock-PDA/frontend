@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { ChevronRight, X, Landmark, ArrowDown, ArrowRight, CheckCircle2 } from "lucide-react";
+import { ChevronRight, X, ArrowDown, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
+import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { SectionHeader } from "@/components/common/SectionHeader";
 import { useMaturityAccounts } from "@/hooks/queries/useMaturityAccounts";
+import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useMaturityReservations } from "@/hooks/queries/useMaturityReservations";
 import { useCancelMaturityReservation } from "@/hooks/mutations/useCancelMaturityReservation";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
@@ -27,6 +29,9 @@ import type { MaturityReservation, MaturityReservationStatus, DividendPayoutStat
 import type { DividendReinvestSetting } from "@/types/domain/trading";
 
 type Tab = "accounts" | "history" | "drip";
+
+/** accountId → 은행 정보(로고 코드 + 폴백 표시명). (#171) */
+type BankInfo = { code: string; name: string };
 
 // ── 포맷 헬퍼 ─────────────────────────────────────────────────────────────
 
@@ -60,7 +65,18 @@ export default function MaturitySelectPage() {
 
   const { data: accounts = [], isLoading: accLoading, isError } = useMaturityAccounts();
   const { data: reservations = [], isLoading: resLoading } = useMaturityReservations();
+  const { data: bankAccounts = [] } = useBankAccounts();
   const cancelMutation = useCancelMaturityReservation();
+
+  // 만기 예적금 accountId → 은행 정보(로고 + 폴백 텍스트용). 백엔드 DTO에 기관
+  // 식별자가 없어 보유 계좌 목록(useBankAccounts)과 accountId로 조인한다. (#171)
+  const bankById = useMemo(
+    () =>
+      new Map(
+        bankAccounts.map((a) => [a.accountId, { code: a.bankCode, name: a.bankName }]),
+      ),
+    [bankAccounts],
+  );
 
   // 2-step 취소: 첫 탭 → 대기, 두 번째 탭 → 실행. 4초 자동 초기화.
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
@@ -128,6 +144,7 @@ export default function MaturitySelectPage() {
         {tab === "accounts" && (
           <AccountsTab
             accounts={accounts}
+            bankById={bankById}
             isError={isError}
             onConvert={goConvert}
             onLinkAsset={() => router.push("/asset")}
@@ -139,6 +156,7 @@ export default function MaturitySelectPage() {
           <HistoryTab
             reservations={sortedReservations}
             accounts={accounts}
+            bankById={bankById}
             pendingCancelId={pendingCancelId}
             isCancellingId={cancelMutation.isPending ? pendingCancelId : null}
             onCancel={handleCancel}
@@ -158,11 +176,13 @@ export default function MaturitySelectPage() {
 
 function AccountsTab({
   accounts,
+  bankById,
   isError,
   onConvert,
   onLinkAsset,
 }: {
   accounts: MaturityTriggerAccount[];
+  bankById: Map<number, BankInfo>;
   isError: boolean;
   onConvert: (id: number) => void;
   onLinkAsset: () => void;
@@ -221,11 +241,22 @@ function AccountsTab({
               {ddayLabel(featured.daysUntilMaturity)}
             </span>
           </div>
-          <p className="mt-2.5 text-[17px] font-bold text-foreground">{featured.accountName}</p>
-          <p className="mt-1 font-numeric text-[13px] tabular-nums text-[#3c5170]">
-            원금 {formatKRW(featured.principalAmount)} · 연 {featured.interestRate}%
-          </p>
-          <p className="mt-0.5 font-numeric text-[11.5px] tabular-nums text-muted-foreground">
+          <div className="mt-2.5 flex items-center gap-2.5">
+            <InstitutionLogo
+              code={bankById.get(featured.accountId)?.code}
+              name={bankById.get(featured.accountId)?.name ?? featured.accountName}
+              className="size-9 shrink-0"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-[17px] font-bold text-foreground">
+                {featured.accountName}
+              </p>
+              <p className="mt-1 font-numeric text-[13px] tabular-nums text-[#3c5170]">
+                원금 {formatKRW(featured.principalAmount)} · 연 {featured.interestRate}%
+              </p>
+            </div>
+          </div>
+          <p className="mt-1.5 font-numeric text-[11.5px] tabular-nums text-muted-foreground">
             {formatMD(featured.maturityDate)} 만기
           </p>
           <span className="mt-4 flex h-[46px] w-full items-center justify-center rounded-xl bg-primary text-[14.5px] font-bold text-white">
@@ -241,7 +272,11 @@ function AccountsTab({
           <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
             {rest.map((acc) => (
               <li key={acc.accountId}>
-                <AccountRow account={acc} onSelect={() => onConvert(acc.accountId)} />
+                <AccountRow
+                  account={acc}
+                  bank={bankById.get(acc.accountId)}
+                  onSelect={() => onConvert(acc.accountId)}
+                />
               </li>
             ))}
           </ul>
@@ -253,9 +288,11 @@ function AccountsTab({
 
 function AccountRow({
   account,
+  bank,
   onSelect,
 }: {
   account: MaturityTriggerAccount;
+  bank?: BankInfo | undefined;
   onSelect: () => void;
 }) {
   const { accountName, principalAmount, interestRate, maturityDate, daysUntilMaturity } = account;
@@ -265,6 +302,11 @@ function AccountRow({
       onClick={onSelect}
       className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/40 active:bg-muted/60"
     >
+      <InstitutionLogo
+        code={bank?.code}
+        name={bank?.name ?? accountName}
+        className="size-9 shrink-0"
+      />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-bold text-foreground">{accountName}</p>
         <p className="mt-0.5 font-numeric text-xs tabular-nums text-muted-foreground">
@@ -299,12 +341,14 @@ interface AccountGroup {
 function HistoryTab({
   reservations,
   accounts,
+  bankById,
   pendingCancelId,
   isCancellingId,
   onCancel,
 }: {
   reservations: MaturityReservation[];
   accounts: MaturityTriggerAccount[];
+  bankById: Map<number, BankInfo>;
   pendingCancelId: number | null;
   isCancellingId: number | null;
   onCancel: (id: number) => void;
@@ -355,6 +399,7 @@ function HistoryTab({
         <AccountGroupCard
           key={group.accountId}
           group={group}
+          bank={bankById.get(group.accountId)}
           logoByCode={logoByCode}
           pendingCancelId={pendingCancelId}
           isCancellingId={isCancellingId}
@@ -374,12 +419,14 @@ function HistoryTab({
 
 function AccountGroupCard({
   group,
+  bank,
   logoByCode,
   pendingCancelId,
   isCancellingId,
   onCancel,
 }: {
   group: AccountGroup;
+  bank?: BankInfo | undefined;
   logoByCode: Map<string, string | null>;
   pendingCancelId: number | null;
   isCancellingId: number | null;
@@ -398,7 +445,11 @@ function AccountGroupCard({
       <div className="bg-muted px-4 py-3.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <Landmark className="size-3.5 shrink-0 text-muted-foreground" />
+            <InstitutionLogo
+              code={bank?.code}
+              name={bank?.name ?? group.accountName ?? "예금·적금"}
+              className="size-7 shrink-0"
+            />
             <p className="truncate text-[14px] font-bold text-foreground">
               {group.accountName ?? "예금·적금"}
             </p>

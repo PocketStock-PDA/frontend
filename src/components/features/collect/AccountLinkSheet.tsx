@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Landmark } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -13,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { EmptyState } from "@/components/common/EmptyState";
+import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useCollectSettings } from "@/hooks/queries/useCollectSettings";
 import { useSaveCollectSettings } from "@/hooks/mutations/useSaveCollectSettings";
@@ -150,9 +150,11 @@ export function AccountLinkSheet({ open, onOpenChange }: AccountLinkSheetProps) 
                     on ? "border-primary bg-primary/5" : "border-border",
                   )}
                 >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                    <Landmark className="size-4" />
-                  </span>
+                  <InstitutionLogo
+                    code={a.bankCode}
+                    name={a.bankName}
+                    className="size-9 shrink-0"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-foreground">
                       {a.accountName}

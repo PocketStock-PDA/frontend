@@ -7,11 +7,10 @@ import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
-import { Stepper } from "@/components/common/Stepper";
 import { WheelPickerSheet } from "@/components/common/WheelPickerSheet";
 import type { WheelPickerOption } from "@/components/common/WheelPicker";
-import { AmountInput } from "@/components/common/AmountInput";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
+import { OrderAmountPanel } from "@/components/features/trading/OrderAmountPanel";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
@@ -31,11 +30,13 @@ import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useAutoInvest } from "@/hooks/queries/useAutoInvest";
+import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import {
   useRemoveAutoInvest,
   useSaveAutoInvest,
 } from "@/hooks/mutations/useSaveAutoInvest";
-import { formatKRW } from "@/lib/utils/currency";
+import { CurrencyToggle } from "@/components/common/CurrencyToggle";
+import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { cn } from "@/lib/utils";
 import {
@@ -58,12 +59,6 @@ const FREQ_LABEL: Record<AutoInvestFrequency, string> = {
   WEEKLY: "주1회",
   MONTHLY: "월1회",
 };
-const AMOUNT_CHIPS = [1000, 5000, 10000];
-const QTY_CHIPS = [1, 5, 10];
-const AMOUNT_MODE_OPTIONS: { label: string; value: AmountMode }[] = [
-  { label: "금액으로", value: "AMOUNT" },
-  { label: "수량으로", value: "QTY" },
-];
 // 휠 피커 옵션 — 요일(월~금)·날짜(1~31일)
 const WEEKDAY_OPTIONS: WheelPickerOption<Weekday>[] = [
   { label: "월요일", value: "MON" },
@@ -178,10 +173,12 @@ function AutoInvestForm({
   const router = useRouter();
   const holdingsQ = useHoldings();
   const cmaQ = useCmaHome();
+  const exchangeRateQ = useExchangeRate();
   const save = useSaveAutoInvest(stockCode);
   const remove = useRemoveAutoInvest();
 
   const [showRemove, setShowRemove] = useState(false);
+  const [ovsKrw, setOvsKrw] = useState(false);
   const [enabled, setEnabled] = useState(initial.enabled);
   const [frequency, setFrequency] = useState(initial.frequency);
   const [weekdays, setWeekdays] = useState(initial.weekdays);
@@ -197,28 +194,33 @@ function AutoInvestForm({
   const [showDay, setShowDay] = useState(false);
 
   const isUSD = currency === "USD";
+  const fx = isUSD ? (exchangeRateQ.data?.baseRate ?? null) : null;
+  const showKrw = ovsKrw && fx !== null;
   // 모으기도 일반 주문과 동일한 최소주문금액(국내 1,000원 / 해외 $1)
   const minOrder = isUSD ? 1 : 1000;
-  const minOrderText = isUSD ? `$${minOrder}` : `${minOrder.toLocaleString("ko-KR")}원`;
+  const minOrderText = isUSD && !showKrw ? `$${minOrder}` : `${minOrder.toLocaleString("ko-KR")}원`;
   // 신규(모으기 시작) vs 기존(관리) — CTA·헤딩·토글 분기
   const isNew = settingId === null;
   const hasAmount = amountMode === "AMOUNT" ? amount > 0 : quantity > 0;
   const price = toDecimal(currentPrice);
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
   const avgPrice = holding ? holding.avgBuyPrice : currentPrice;
-  const buyingPower = cmaQ.data?.cmaBalance?.KRW ?? 0;
+  const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
   const maxBuyQty = price.gt(0)
     ? new Decimal(buyingPower).div(price).floor().toNumber()
     : 0;
 
-  const summary =
-    amountMode === "QTY"
-      ? `${FREQ_LABEL[frequency]} ${quantity}주씩`
-      : `${FREQ_LABEL[frequency]} ${formatKRW(amount)}씩`;
+  const fmtSummaryAmount = () => {
+    if (amountMode === "QTY") return `${quantity}주`;
+    if (isUSD && !showKrw) return formatUSD(amount);
+    if (isUSD && showKrw && fx) return formatKRW(toDecimal(amount).times(fx).toNumber());
+    return formatKRW(amount);
+  };
+  const summary = `${FREQ_LABEL[frequency]} ${fmtSummaryAmount()}씩`;
 
   const handleSave = () => {
     if (save.isPending) return;
-    // 모으기 최소금액 검증 — 백엔드와 동일 기준(금액 모드만, 국내 1,000원 / 해외 $1)
+    // 모으기 최소금액 검증 — 백엔드와 동일 기준(금액 모드만, 국내 1,000원 / 해외 $1). amount는 항상 native 통화.
     if (amountMode === "AMOUNT" && amount < minOrder) {
       toast.warning(`모으기 금액은 최소 ${minOrderText} 이상이에요`);
       return;
@@ -279,13 +281,18 @@ function AutoInvestForm({
 
       <div className="space-y-6 pb-4">
         {/* 헤딩 — 시작(모을까요?) vs 관리(모으는 중) */}
-        <div className="space-y-1">
-          {hasAmount && (
-            <p className="text-base font-bold text-primary">{summary}</p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1">
+            {hasAmount && (
+              <p className="text-base font-bold text-primary">{summary}</p>
+            )}
+            <p className="text-xl font-bold text-foreground">
+              {isNew ? "모을까요?" : "모으는 중이에요"}
+            </p>
+          </div>
+          {isUSD && fx !== null && (
+            <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
           )}
-          <p className="text-xl font-bold text-foreground">
-            {isNew ? "모을까요?" : "모으는 중이에요"}
-          </p>
         </div>
 
         {/* 기존 설정만: 일시중지/재개 토글 */}
@@ -345,83 +352,26 @@ function AutoInvestForm({
             </button>
           )}
 
-          {/* 매수 금액/수량 (정기적립은 소수점 배치) */}
-          <section className="space-y-3">
-            <SegmentedControl
-              options={AMOUNT_MODE_OPTIONS}
-              value={amountMode}
-              onChange={setAmountMode}
-            />
-            <div className="rounded-2xl bg-muted/50 p-4">
-              {amountMode === "AMOUNT" ? (
-                <AmountInput
-                  value={amount}
-                  onChange={setAmount}
-                  suffix={isUSD ? "$" : "원"}
-                  placeholder="모으기 금액"
-                />
-              ) : (
-                <Stepper
-                  value={quantity}
-                  onChange={setQuantity}
-                  step={0.1}
-                  min={0}
-                  precision={4}
-                  suffix="주"
-                  editable
-                />
-              )}
-            </div>
-
-            {amountMode === "AMOUNT" && (
-              <p className="px-1 text-xs text-muted-foreground">
-                최소 {minOrderText}부터 모을 수 있어요
-              </p>
-            )}
-
-            {/* 빠른 칩 (카드 밖) */}
-            {amountMode === "AMOUNT" ? (
-              <div className="flex gap-2">
-                {AMOUNT_CHIPS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setAmount((a) => a + n)}
-                    className="flex-1 rounded-lg border border-border bg-background py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                  >
-                    +{n.toLocaleString("ko-KR")}원
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setAmount(buyingPower)}
-                  className="flex-1 rounded-lg border border-border bg-background py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  최대
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                {QTY_CHIPS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setQuantity((q) => q + n)}
-                    className="flex-1 rounded-lg border border-border bg-background py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                  >
-                    +{n}주
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setQuantity(maxBuyQty)}
-                  className="flex-1 rounded-lg border border-border bg-background py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  최대
-                </button>
-              </div>
-            )}
-          </section>
+          {/* 매수 금액/수량 */}
+          <OrderAmountPanel
+            amountMode={amountMode}
+            onAmountModeChange={setAmountMode}
+            isUSD={isUSD}
+            showKrw={showKrw}
+            fx={fx}
+            amount={amount}
+            onAmountChange={setAmount}
+            buyingPower={buyingPower}
+            maxBuyQty={maxBuyQty}
+            qty={quantity}
+            onQtyChange={setQuantity}
+            infoLabel="모으기 가능"
+          />
+          {amountMode === "AMOUNT" && (
+            <p className="px-1 text-xs text-muted-foreground">
+              최소 {minOrderText}부터 모을 수 있어요
+            </p>
+          )}
 
           {/* 조건 카드 (물타기/익절 → 트리거) */}
           <div className="space-y-2">

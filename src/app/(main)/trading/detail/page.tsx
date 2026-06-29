@@ -12,7 +12,6 @@ import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
 import { CurrencyToggle } from "@/components/common/CurrencyToggle";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
-import { Stepper } from "@/components/common/Stepper";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
@@ -20,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { JigsawPuzzle } from "@/components/features/portfolio/JigsawPuzzle";
+import { OrderAmountPanel } from "@/components/features/trading/OrderAmountPanel";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useHoldings } from "@/hooks/queries/useHoldings";
@@ -51,8 +51,7 @@ type LiveSel = { mode: "buy" | "sell"; indexes: number[] };
 // 접수(체결 대기) 조각 주문 — 퍼즐 손맛 애니메이션용. 실제 FILLED 시 개별 해제.
 type PendingOrder = { orderId: number; mode: "buy" | "sell"; count: number };
 
-const AMOUNT_CHIPS_KRW = [1000, 5000, 10000];
-const AMOUNT_CHIPS_USD = [1, 5, 10];
+
 
 function formatShares(q: Decimal) {
   return q.toDecimalPlaces(4).toString();
@@ -770,143 +769,25 @@ function TradeContent({
           </section>
         ) : (
           /* 소수점 / 온주 — 수량·금액 입력 카드 */
-          <div className="space-y-3 rounded-2xl bg-muted/50 p-4">
-            {/* 수량으로 | 금액으로 — 금액은 소수점 전용. 온주는 수량만 가능해 '금액으로' 미노출 */}
-            <div className="flex items-center gap-2 text-sm font-bold">
-              <button
-                type="button"
-                onClick={() => changeInputMode("QTY")}
-                className={cn(
-                  inputMode === "QTY" ? "text-foreground" : "text-muted-foreground",
-                )}
-              >
-                수량으로
-              </button>
-              {tab === "FRACTION" && side === "BUY" && (
-                <>
-                  <span className="text-border">|</span>
-                  <button
-                    type="button"
-                    onClick={() => changeInputMode("AMOUNT")}
-                    className={cn(
-                      inputMode === "AMOUNT"
-                        ? "text-foreground"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    금액으로
-                  </button>
-                </>
-              )}
-            </div>
-
-            {inputMode === "QTY" ? (
-              <>
-                <Stepper
-                  value={qty}
-                  onChange={onQtyChange}
-                  step={tab === "WHOLE" ? 1 : 0.1}
-                  min={0}
-                  precision={tab === "WHOLE" ? 0 : 4}
-                  suffix="주"
-                  placeholder={qtyPlaceholder}
-                  editable
-                />
-                <div className="flex gap-2">
-                  {(tab === "WHOLE" ? [1, 5, 10] : [0.1, 0.5, 1]).map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() =>
-                        onQtyChange(
-                          new Decimal(qty)
-                            .plus(n)
-                            .toDecimalPlaces(tab === "WHOLE" ? 0 : 4)
-                            .toNumber(),
-                        )
-                      }
-                      className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                    >
-                      +{n}주
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => onQtyChange(maxQtyValue)}
-                    className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                  >
-                    최대
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <Stepper
-                  value={
-                    showKrw && fx
-                      ? toDecimal(amount).times(fx).toDecimalPlaces(0).toNumber()
-                      : amount
-                  }
-                  onChange={(v) => {
-                    const native =
-                      showKrw && fx
-                        ? toDecimal(v).div(fx).toDecimalPlaces(amountDp).toNumber()
-                        : v;
-                    onAmountChange(native);
-                  }}
-                  step={!isUSD || showKrw ? 1000 : 1}
-                  min={0}
-                  precision={showKrw ? 0 : amountDp}
-                  suffix={isUSD && !showKrw ? "달러" : "원"}
-                  placeholder={amountPlaceholder}
-                  editable
-                />
-                <div className="flex gap-2">
-                  {(showKrw || !isUSD ? AMOUNT_CHIPS_KRW : AMOUNT_CHIPS_USD).map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => {
-                        if (showKrw && fx) {
-                          const newKrw = toDecimal(amount).times(fx).plus(n).toDecimalPlaces(0).toNumber();
-                          onAmountChange(toDecimal(newKrw).div(fx).toDecimalPlaces(amountDp).toNumber());
-                        } else {
-                          onAmountChange(new Decimal(amount).plus(n).toDecimalPlaces(amountDp).toNumber());
-                        }
-                      }}
-                      className="flex-1 rounded-lg border border-border bg-background py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                    >
-                      +{!isUSD || showKrw ? `${n.toLocaleString("ko-KR")}원` : `$${n}`}
-                    </button>
-                  ))}
-                  {/* 최대 = 매수 가능 최대금액으로 설정(누적 아님). 통화 자릿수로 정리(KRW 0·USD 2)해 백엔드 금액과 일치 */}
-                  <button
-                    type="button"
-                    disabled={buyingPower <= 0}
-                    onClick={() =>
-                      onAmountChange(
-                        new Decimal(buyingPower).toDecimalPlaces(amountDp).toNumber(),
-                      )
-                    }
-                    className="flex-1 rounded-lg border border-border bg-background py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-                  >
-                    최대
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* 하단 맥락 정보 — 구매면 구매 가능, 판매면 판매 수량 */}
-            <div className="flex items-center justify-between border-t border-border pt-3">
-              <span className="text-xs text-muted-foreground">
-                {side === "BUY" ? "구매 가능" : "판매 수량"}
-              </span>
-              <span className="font-numeric text-sm font-bold text-foreground">
-                {side === "BUY" && inputMode === "AMOUNT"
-                  ? fmtView(buyingPower)
-                  : `${formatShares(new Decimal(maxQtyValue))}주`}
-              </span>
-            </div>
+          <div className="rounded-2xl bg-muted/50 p-4">
+            <OrderAmountPanel
+              amountMode={inputMode}
+              onAmountModeChange={changeInputMode}
+              isUSD={isUSD}
+              showKrw={showKrw}
+              fx={fx}
+              amount={amount}
+              onAmountChange={onAmountChange}
+              buyingPower={buyingPower}
+              maxBuyQty={maxQtyValue}
+              qty={qty}
+              onQtyChange={onQtyChange}
+              fractional={tab === "FRACTION"}
+              showAmountMode={tab === "FRACTION" && side === "BUY"}
+              qtyPlaceholder={qtyPlaceholder}
+              amountPlaceholder={amountPlaceholder}
+              infoLabel={side === "BUY" ? "구매 가능" : "판매 수량"}
+            />
           </div>
         )}
         </motion.div>

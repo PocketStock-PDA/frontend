@@ -6,6 +6,7 @@ import { CheckCircle2 } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
+import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useTransferAccount } from "@/hooks/queries/useTransferAccount";
@@ -34,9 +35,16 @@ function AccountItem({
           : "border-border bg-background",
       )}
     >
-      <div>
-        <p className="text-sm font-medium text-foreground">{account.bankName}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{account.accountName}</p>
+      <div className="flex min-w-0 items-center gap-3">
+        <InstitutionLogo
+          code={account.bankCode}
+          name={account.bankName}
+          className="size-9 shrink-0"
+        />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-foreground">{account.bankName}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{account.accountName}</p>
+        </div>
       </div>
       {selected && <CheckCircle2 className="size-5 shrink-0 text-primary" />}
     </button>

@@ -327,7 +327,7 @@ export default function PortfolioPage() {
               icon={<StockIcon className="size-8" />}
               label="주식 투자"
               onClick={() =>
-                router.push(topCode ? tradingDetailPath(topCode) : "/trading")
+                router.push(topCode ? tradingDetailPath(topCode) : "/trading?invest=1")
               }
             />
             <ActionTile
