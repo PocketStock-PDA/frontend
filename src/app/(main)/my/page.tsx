@@ -171,19 +171,16 @@ export default function MyPage() {
       </div>
 
       {/* 요약 카드 (CMA / 퍼즐판 총 평가) */}
-      <div
-        className="mt-2 flex items-center justify-between rounded-xl p-5 text-white"
-        style={{ backgroundImage: "var(--grad-1)" }}
-      >
+      <div className="mt-2 flex items-center justify-between rounded-xl bg-brand-surface p-5">
         <div>
-          <p className="text-[12px] text-white/80">포켓스톡 CMA</p>
-          <p className="mt-0.5 text-2xl font-semibold">
+          <p className="text-[12px] text-muted-foreground">포켓스톡 CMA</p>
+          <p className="mt-0.5 text-2xl font-semibold text-foreground">
             {formatKRW(profile.cmaBalance)}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[12px] text-white/80">퍼즐판 총 평가</p>
-          <p className="mt-0.5 text-2xl font-semibold">
+          <p className="text-[12px] text-muted-foreground">퍼즐판 총 평가</p>
+          <p className="mt-0.5 text-2xl font-semibold text-foreground">
             {formatKRW(profile.puzzleValuation)}
           </p>
         </div>
