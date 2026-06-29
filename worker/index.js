@@ -37,19 +37,18 @@ function format(p) {
   const name = d.stockName || d.stockCode; // 종목명 없으면 코드 폴백
   switch (p.type) {
     case "TRADE_FILLED": {
+      // 토스형 1줄: 제목=종목+액션, 본문=수량·총액 한 문장(주당가·라벨 생략, 앱에서 확인).
       const verb = d.side === "BUY" ? "샀어요" : "팔았어요";
       return {
-        title: `${sideKo(d.side)} 체결`,
-        body:
-          `${name} ${qty(d.quantity)}를 주당 ${money(d.fillPrice, d.currency)}에 ${verb}\n` +
-          `체결금액 ${money(d.totalAmount, d.currency)}`,
+        title: `${name} ${sideKo(d.side)} 체결`,
+        body: `${qty(d.quantity)}를 ${money(d.totalAmount, d.currency)}에 ${verb}`,
       };
     }
     case "UNFILLED":
       // 백엔드 UNFILLED = 주문 거부·체결 실패(미체결 아님). reason 미존재 시 일반 문구.
       return {
-        title: `${sideKo(d.side)} 주문 실패`,
-        body: `${name} 주문이 ${d.reason || "체결되지 못했어요"}`,
+        title: `${name} ${sideKo(d.side)} 주문 실패`,
+        body: d.reason || "주문이 체결되지 못했어요",
       };
     default:
       return null; // GOAL_NUDGE / ACCOUNT_VERIFY / 미지원 → 폴백
