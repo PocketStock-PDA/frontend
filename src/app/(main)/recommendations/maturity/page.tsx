@@ -100,7 +100,7 @@ export default function MaturityPage() {
     return (
       <>
         <AppHeader variant="sub" title="만기 자금 굴리기" />
-        <div className="space-y-4">
+        <div className="space-y-5">
           <SkeletonCard lines={1} className="h-20" />
           <SkeletonCard lines={3} className="h-32" />
           <SkeletonCard lines={4} className="h-48" />
@@ -141,20 +141,18 @@ export default function MaturityPage() {
                 name={bank?.bankName ?? account.accountName}
                 className="size-7"
               />
-              <p className="text-sm font-semibold text-primary">만기 수령액</p>
+              <p className="text-sm font-semibold text-foreground">{account.accountName}</p>
             </div>
-            <span className="font-numeric text-[18px] font-bold tabular-nums text-primary">
+            <span className="font-numeric text-lg font-bold tabular-nums text-primary">
               D-{account.daysUntilMaturity}
             </span>
           </div>
-          <p className="mt-1 font-numeric text-[30px] font-semibold leading-tight tabular-nums text-foreground">
+          <p className="mt-3 text-xs font-semibold text-[#3c5170]">만기 수령액</p>
+          <p className="mt-0.5 font-numeric text-[30px] font-semibold leading-tight tabular-nums text-foreground">
             {formatKRW(account.maturityAmount)}
           </p>
           <p className="mt-1.5 font-numeric text-[12.5px] tabular-nums text-[#3c5170]">
-            원금 {formatKRW(account.principalAmount)} + 만기 이자 포함 · 연 {account.interestRate}%
-          </p>
-          <p className="mt-0.5 font-numeric text-[11.5px] tabular-nums text-[#3c5170]">
-            {account.accountName} · {formattedMaturity} 만기
+            원금 {formatKRW(account.principalAmount)} + 만기 이자 포함 · 연 {account.interestRate}% · {formattedMaturity} 만기
           </p>
         </section>
 
@@ -164,13 +162,13 @@ export default function MaturityPage() {
           <div className="mt-3.5 flex items-end justify-between">
             <div>
               <p className="text-[11.5px] font-semibold text-muted-foreground">예금 재예치</p>
-              <p className="mt-0.5 font-numeric text-[18px] font-bold tabular-nums text-foreground">
+              <p className="mt-0.5 font-numeric text-lg font-bold tabular-nums text-foreground">
                 {formatKRW(depositAmount)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-[11.5px] font-semibold text-primary">배당주 투자</p>
-              <p className="mt-0.5 font-numeric text-[18px] font-bold tabular-nums text-primary">
+              <p className="mt-0.5 font-numeric text-lg font-bold tabular-nums text-primary">
                 {formatKRW(dividendAmount)}
               </p>
             </div>
@@ -276,7 +274,7 @@ export default function MaturityPage() {
             type="button"
             onClick={handleGoToReserve}
             disabled={belowMin}
-            className="flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-opacity active:opacity-80 disabled:opacity-50"
+            className="flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-[opacity,transform] duration-150 active:scale-[0.98] active:opacity-80 disabled:opacity-50"
           >
             {selectedCodes.size}종목 예약 확인하기
           </button>
@@ -344,7 +342,7 @@ function DividendStockRow({
       </Avatar>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-semibold text-foreground">
+        <p className="truncate text-sm font-semibold text-foreground">
           {stock.stockName}
         </p>
         <p className="mt-0.5 font-numeric text-[11.5px] tabular-nums text-muted-foreground">

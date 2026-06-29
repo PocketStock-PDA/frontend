@@ -150,7 +150,7 @@ export default function MaturityDripPage() {
     return (
       <>
         <AppHeader variant="sub" title="배당 재투자" />
-        <div className="space-y-4">
+        <div className="space-y-5">
           <SkeletonCard lines={3} className="h-32" />
           <SkeletonCard lines={4} />
           <SkeletonCard lines={3} />
@@ -257,7 +257,7 @@ export default function MaturityDripPage() {
                               {s.stockName}
                             </p>
                             {isReserved && (
-                              <span className="rounded-full bg-brand-surface px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                              <span className="rounded-full bg-brand-surface px-1.5 py-0.5 text-[11px] font-bold text-primary">
                                 예약중
                               </span>
                             )}
@@ -320,7 +320,7 @@ export default function MaturityDripPage() {
         <button
           type="button"
           onClick={() => router.push("/budget?tab=stock")}
-          className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left transition-colors hover:bg-muted/40"
+          className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left transition-[background-color,transform] duration-150 hover:bg-muted/40 active:scale-[0.99]"
         >
           <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
             <Calendar className="size-[18px]" />
@@ -347,7 +347,7 @@ export default function MaturityDripPage() {
                 `/recommendations/maturity/deposit?accountId=${accountId}&amount=${depositAmount}`,
               )
             }
-            className="flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-primary text-sm font-bold text-white transition-opacity active:opacity-80"
+            className="flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-primary text-sm font-bold text-white transition-[opacity,transform] duration-150 active:scale-[0.98] active:opacity-80"
           >
             <PiggyBank className="size-4" />
             남은 예금 {formatKRW(depositAmount)} 재예치하기
@@ -369,7 +369,7 @@ export default function MaturityDripPage() {
 function FlowStep({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex-1 rounded-xl bg-brand-surface px-1.5 py-2.5 text-center">
-      <p className="text-[10px] font-medium text-[#41556f]">{label}</p>
+      <p className="text-[10px] font-medium text-[#3c5170]">{label}</p>
       <p className="font-numeric mt-0.5 text-[12.5px] font-bold tabular-nums text-foreground">
         {value}
       </p>
@@ -401,7 +401,7 @@ function HistoryRow({ payout, logoUrl }: { payout: DividendPayout; logoUrl: stri
         </p>
         <span
           className={cn(
-            "mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold",
+            "mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold",
             chip.cls,
           )}
         >

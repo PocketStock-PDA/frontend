@@ -200,7 +200,7 @@ export default function MaturityReservePage() {
       <AppHeader variant="sub" title="매수 예약 확인" />
       <MaturityStepper current={2} />
 
-      <div className="space-y-4 pb-40">
+      <div className="space-y-5 pb-40">
         {/* ── 요약: 배당주로 굴릴 금액 → 연 배당 예상 ───────────────────── */}
         <section className="rounded-2xl bg-brand-surface p-5">
           <p className="text-sm font-semibold text-primary">배당주로 굴릴 금액</p>
@@ -213,7 +213,7 @@ export default function MaturityReservePage() {
               연 {formatKRW(totalDividend)} 배당 예상
             </span>
           </div>
-          <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-white/60 px-2.5 py-1.5 text-[11.5px] font-semibold text-primary">
+          <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-primary/10 px-2.5 py-1.5 text-[11.5px] font-semibold text-primary">
             <ArrowDown className="size-3 shrink-0" />
             <span className="font-numeric tabular-nums">{maturityShort}</span> 만기일에 자동으로 전환돼요
           </div>
@@ -221,7 +221,7 @@ export default function MaturityReservePage() {
 
         {/* ── 담는 종목 (divide-y 행 + 스테퍼) ─────────────────────────── */}
         <section>
-          <p className="mb-2.5 px-0.5 text-sm font-bold text-muted-foreground">
+          <p className="mb-2.5 px-0.5 text-sm font-bold text-foreground">
             담는 종목{codes.length > 1 ? ` ${codes.length}개` : ""}
           </p>
           <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
@@ -295,7 +295,7 @@ export default function MaturityReservePage() {
                         type="button"
                         onClick={() => adjust(code, -STEP)}
                         disabled={amount <= MIN_AMOUNT}
-                        className="flex size-[30px] items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted disabled:opacity-30"
+                        className="flex size-9 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors duration-150 hover:bg-muted active:scale-95 disabled:opacity-30"
                         aria-label={`${stock?.stockName ?? code} 금액 감소`}
                       >
                         <Minus className="size-3.5" />
@@ -306,7 +306,7 @@ export default function MaturityReservePage() {
                       <button
                         type="button"
                         onClick={() => adjust(code, STEP)}
-                        className="flex size-[30px] items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors hover:bg-muted"
+                        className="flex size-9 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-colors duration-150 hover:bg-muted active:scale-95"
                         aria-label={`${stock?.stockName ?? code} 금액 증가`}
                       >
                         <Plus className="size-3.5" />
@@ -321,7 +321,7 @@ export default function MaturityReservePage() {
 
         {/* ── 해외 배당주: 자동환전 안내 (설정 조회 완료 후에만) ──────────── */}
         {needAutoFx && (
-          <div className="rounded-2xl border border-[#dbe7fb] bg-brand-surface p-3.5">
+          <div className="rounded-2xl border border-primary/20 bg-brand-surface p-3.5">
             <div className="flex items-start gap-2">
               <ArrowRightLeft className="mt-0.5 size-4 shrink-0 text-primary" />
               <div className="min-w-0">
@@ -337,7 +337,7 @@ export default function MaturityReservePage() {
             <button
               type="button"
               onClick={() => setFxSheetOpen(true)}
-              className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-[13px] font-bold text-white transition-opacity active:opacity-80"
+              className="mt-3 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-primary text-[13px] font-bold text-white transition-[opacity,transform] duration-150 active:scale-[0.98] active:opacity-80"
             >
               <ArrowRightLeft className="size-3.5" />
               자동환전 설정하기
@@ -379,8 +379,8 @@ export default function MaturityReservePage() {
           onClick={() => void handleConfirm()}
           disabled={createReservation.isPending || needAutoFx}
           className={cn(
-            "flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-opacity",
-            "disabled:opacity-50 active:opacity-80",
+            "flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-[opacity,transform] duration-150",
+            "disabled:opacity-50 active:scale-[0.98] active:opacity-80",
           )}
         >
           {createReservation.isPending
