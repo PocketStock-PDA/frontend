@@ -13,6 +13,7 @@ import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { SectionHeader } from "@/components/common/SectionHeader";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useMaturityAccounts } from "@/hooks/queries/useMaturityAccounts";
 import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useMaturityReservations } from "@/hooks/queries/useMaturityReservations";
@@ -20,6 +21,7 @@ import { useDepositRollovers } from "@/hooks/queries/useDepositRollovers";
 import { ApiError } from "@/lib/api/client";
 import { useCancelMaturityReservation } from "@/hooks/mutations/useCancelMaturityReservation";
 import { useCancelDepositRollover } from "@/hooks/mutations/useCancelDepositRollover";
+import { useRerouteCanceled } from "@/hooks/mutations/useRerouteCanceled";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useDividendReinvest } from "@/hooks/queries/useDividendReinvest";
 import { useDividendHistory } from "@/hooks/queries/useDividendHistory";
@@ -79,6 +81,7 @@ export default function MaturitySelectPage() {
   const { data: bankAccounts = [] } = useBankAccounts();
   const cancelMutation = useCancelMaturityReservation();
   const cancelRolloverMutation = useCancelDepositRollover();
+  const rerouteMutation = useRerouteCanceled();
 
   // 만기 예적금 accountId → 은행 정보(로고 + 폴백 텍스트용). 백엔드 DTO에 기관
   // 식별자가 없어 보유 계좌 목록(useBankAccounts)과 accountId로 조인한다. (#171)
@@ -113,18 +116,74 @@ export default function MaturitySelectPage() {
     return () => clearTimeout(t);
   }, [pendingCancelGroupId]);
 
+  // 배당주 취소분을 CMA/재예치 중 어디로 보낼지 고르는 시트(활성 rollover 없을 때만 — 배당주 100% 전환)
+  const [rerouteSheet, setRerouteSheet] = useState<
+    { resId: number; accountId: number; amount: number } | null
+  >(null);
+
   const isLoading = accLoading || resLoading;
 
+  // 예약 취소 후 취소분을 '남은 자금 굴리기'로 보낸다(공중분해 방지). 취소→라우팅 순서.
+  const doCancelAndReroute = (
+    id: number,
+    accountId: number,
+    amount: number,
+    target: "CMA" | "DEPOSIT" | null,
+  ) => {
+    cancelMutation.mutate(id, {
+      onSuccess: () => {
+        setPendingCancelId(null);
+        rerouteMutation.mutate(
+          { linkedBankAccountId: accountId, amount, target },
+          {
+            onSuccess: () =>
+              toast.success(
+                target === "CMA"
+                  ? "취소하고 남은 금액을 CMA로 옮겼어요."
+                  : target === "DEPOSIT"
+                    ? "취소하고 남은 금액을 재예치했어요."
+                    : "취소한 금액을 남은 굴리기에 합쳤어요.",
+              ),
+            onError: () =>
+              toast.error("취소는 됐는데 금액 이동에 실패했어요. 잠시 후 다시 시도해 주세요."),
+          },
+        );
+      },
+      onError: () => {
+        toast.error("취소하지 못했어요. 잠시 후 다시 시도해 주세요.");
+        setPendingCancelId(null);
+      },
+    });
+  };
+
   const handleCancel = (id: number) => {
-    if (cancelMutation.isPending) return;
-    if (pendingCancelId === id) {
-      cancelMutation.mutate(id, {
-        onSuccess: () => { toast.success("예약이 취소됐어요."); setPendingCancelId(null); },
-        onError: () => { toast.error("취소하지 못했어요. 잠시 후 다시 시도해 주세요."); setPendingCancelId(null); },
-      });
-    } else {
+    if (cancelMutation.isPending || rerouteMutation.isPending) return;
+    if (pendingCancelId !== id) {
       setPendingCancelId(id);
+      return;
     }
+    const r = reservations.find((x) => x.id === id);
+    if (!r) {
+      setPendingCancelId(null);
+      return;
+    }
+    // 계좌에 활성 rollover(재예치/CMA)가 있으면 자동 합산, 없으면 시트로 CMA/재예치를 고르게 한다.
+    const hasRollover = rollovers.some(
+      (rr) => rr.linkedBankAccountId === r.linkedBankAccountId && rr.status === "RESERVED",
+    );
+    if (hasRollover) {
+      doCancelAndReroute(id, r.linkedBankAccountId, r.buyAmount, null);
+    } else {
+      setPendingCancelId(null);
+      setRerouteSheet({ resId: id, accountId: r.linkedBankAccountId, amount: r.buyAmount });
+    }
+  };
+
+  const pickReroute = (target: "CMA" | "DEPOSIT") => {
+    if (!rerouteSheet) return;
+    const { resId, accountId, amount } = rerouteSheet;
+    setRerouteSheet(null);
+    doCancelAndReroute(resId, accountId, amount, target);
   };
 
   const handleCancelRollover = (id: number) => {
@@ -255,6 +314,40 @@ export default function MaturitySelectPage() {
           <DripTab reservations={reservations} />
         )}
       </div>
+
+      {/* 취소분 행선지 선택 — 계좌에 활성 rollover가 없을 때만(배당주 100% 전환) */}
+      <Sheet
+        open={!!rerouteSheet}
+        onOpenChange={(o) => {
+          if (!o) setRerouteSheet(null);
+        }}
+      >
+        <SheetContent side="bottom" className="rounded-t-2xl px-5 pb-10">
+          <SheetHeader className="pb-1 text-left">
+            <SheetTitle className="text-base">취소한 금액, 어디로 보낼까요?</SheetTitle>
+            <SheetDescription className="text-sm">
+              취소하면 {formatKRW(rerouteSheet?.amount ?? 0)}이 남아요. 어떻게 굴릴지 골라 주세요.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-2.5">
+            <Button
+              className="h-14 w-full text-base font-bold"
+              disabled={rerouteMutation.isPending || cancelMutation.isPending}
+              onClick={() => pickReroute("CMA")}
+            >
+              CMA로 받기
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14 w-full text-base font-bold"
+              disabled={rerouteMutation.isPending || cancelMutation.isPending}
+              onClick={() => pickReroute("DEPOSIT")}
+            >
+              같은 예금으로 재예치
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
