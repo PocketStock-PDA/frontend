@@ -19,7 +19,9 @@ export function HomeHeader({
   const openSidebar = useUiStore((s) => s.openSidebar);
 
   return (
-    <header className="mb-4 bg-background">
+    // AppHeader와 동일하게 상단 고정. -mx-5/-mt로 PageContainer 여백을 상쇄해
+    // 노치까지 붙고, pt로 노치 영역을 비운다.
+    <header className="sticky top-0 z-40 -mx-5 -mt-[calc(env(safe-area-inset-top)+1.5rem)] mb-4 bg-background px-5 pt-[env(safe-area-inset-top)]">
       <div className="flex h-14 items-center justify-between gap-2">
         <div className="min-w-0">
           <h1 className="truncate text-xl font-bold tracking-tight text-foreground">

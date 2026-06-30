@@ -19,6 +19,7 @@ export interface AppHeaderProps {
   showMenu?: boolean;
   /** 좌측 뒤로가기 버튼 노출(sub 변형 기본 true). 전진형 온보딩 등에서 false로 숨김 */
   showBack?: boolean;
+  /** 상단 고정(기본 true). 특수하게 흐름에 두려면 false */
   sticky?: boolean;
   className?: string;
 }
@@ -33,7 +34,7 @@ export function AppHeader({
   right,
   showMenu,
   showBack = true,
-  sticky = false,
+  sticky = true,
   className,
 }: AppHeaderProps) {
   const router = useRouter();
@@ -46,10 +47,11 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        // 기본: 공통 여백 안 in-flow. sticky 지정 시에만 full-bleed 앱바로 상단 고정.
         "mb-4 flex h-14 items-center gap-1 bg-background",
+        // 기본 고정: full-bleed 앱바로 상단 고정. -mx-5/-mt는 PageContainer 여백
+        // (px-5, pt=safe-area+1.5rem)을 상쇄해 노치까지 붙고, pt로 노치를 비운다.
         sticky &&
-          "sticky top-0 z-40 -mx-5 box-content px-5 pt-[env(safe-area-inset-top)]",
+          "sticky top-0 z-40 -mx-5 -mt-[calc(env(safe-area-inset-top)+1.5rem)] box-content px-5 pt-[env(safe-area-inset-top)]",
         className,
       )}
     >
