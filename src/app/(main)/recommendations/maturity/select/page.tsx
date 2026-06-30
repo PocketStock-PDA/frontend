@@ -190,7 +190,7 @@ export default function MaturitySelectPage() {
     if (cancelRolloverMutation.isPending) return;
     if (pendingCancelRolloverId === id) {
       cancelRolloverMutation.mutate(id, {
-        onSuccess: () => { toast.success("CMA 이체 예약이 취소됐어요."); setPendingCancelRolloverId(null); },
+        onSuccess: () => { toast.success("전환 예약이 취소됐어요."); setPendingCancelRolloverId(null); },
         onError: () => { toast.error("취소하지 못했어요. 잠시 후 다시 시도해 주세요."); setPendingCancelRolloverId(null); },
       });
     } else {
@@ -674,9 +674,9 @@ function AccountGroupCard({
     reserved.reduce((s, r) => s + Number(r.buyAmount), 0) +
     rollovers.filter((d) => d.status !== "CANCELLED").reduce((s, d) => s + Number(d.amount), 0);
 
-  // 전체 취소 대상 — RESERVED 배당주 예약 + RESERVED CMA 롤오버
-  const cancellableCmaRollovers = rollovers.filter((d) => d.productType === "CMA" && d.status === "RESERVED");
-  const hasCancellable = reserved.length > 0 || cancellableCmaRollovers.length > 0;
+  // 전체 취소 대상 — RESERVED 배당주 예약 + RESERVED 롤오버(CMA 이체·예금 재예치 모두)
+  const cancellableRollovers = rollovers.filter((d) => d.status === "RESERVED");
+  const hasCancellable = reserved.length > 0 || cancellableRollovers.length > 0;
   const isGroupPending = pendingCancelGroupId === group.accountId;
   const isGroupCancelling = cancellingGroupId === group.accountId;
 
@@ -732,7 +732,7 @@ function AccountGroupCard({
                 onCancelGroup(
                   group.accountId,
                   reserved.map((r) => r.id),
-                  cancellableCmaRollovers.map((d) => d.id),
+                  cancellableRollovers.map((d) => d.id),
                 )
               }
               className={cn(
@@ -1144,7 +1144,7 @@ function DepositRolloverRow({
             : `${formatKRW(Number(amount))} · ${periodMonths}개월 · 연 ${rateLabel}`}
         </p>
       </div>
-      {isCma && isReserved ? (
+      {isReserved ? (
         <button
           type="button"
           onClick={onCancel}
@@ -1155,7 +1155,7 @@ function DepositRolloverRow({
               ? "bg-destructive/10 text-destructive"
               : "bg-muted text-muted-foreground hover:bg-muted/70",
           )}
-          aria-label="CMA 이체 예약 취소"
+          aria-label={isCma ? "CMA 이체 예약 취소" : "예금 재예치 예약 취소"}
         >
           <X className="size-3 shrink-0" />
           {isCancelling ? "취소 중…" : isPendingCancel ? "취소 확인" : "취소"}
