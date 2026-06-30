@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppHeader } from "@/components/common/AppHeader";
 import { MaturityStepper } from "@/components/features/maturity/MaturityStepper";
-import { ExitGuardDialog } from "@/components/features/maturity/ExitGuardDialog";
+import { ExitGuardDialog, ExitFlowButton } from "@/components/features/maturity/ExitGuardDialog";
 import { useCreateMaturityReservation } from "@/hooks/mutations/useCreateMaturityReservation";
 import { useSetDividendReinvest } from "@/hooks/mutations/useSetDividendReinvest";
 import { useCreateDepositRollover } from "@/hooks/mutations/useCreateDepositRollover";
@@ -125,7 +125,12 @@ export default function MaturityCompletePage() {
 
   return (
     <>
-      <AppHeader variant="sub" title="최종 확인" onBack={() => setExitOpen(true)} />
+      <AppHeader
+        variant="sub"
+        title="최종 확인"
+        showMenu={false}
+        right={<ExitFlowButton onClick={() => setExitOpen(true)} />}
+      />
       <MaturityStepper current={5} />
 
       <div className="space-y-4 pb-32">

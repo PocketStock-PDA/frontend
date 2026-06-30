@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { AppHeader } from "@/components/common/AppHeader";
 import { MaturityStepper } from "@/components/features/maturity/MaturityStepper";
-import { ExitGuardDialog } from "@/components/features/maturity/ExitGuardDialog";
+import { ExitGuardDialog, ExitFlowButton } from "@/components/features/maturity/ExitGuardDialog";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { parseAccountId } from "@/lib/utils/params";
 import { formatKRW } from "@/lib/utils/currency";
@@ -61,7 +61,12 @@ export default function MaturityDripPage() {
 
   return (
     <>
-      <AppHeader variant="sub" title="배당 재투자" onBack={() => setExitOpen(true)} />
+      <AppHeader
+        variant="sub"
+        title="배당 재투자"
+        showMenu={false}
+        right={<ExitFlowButton onClick={() => setExitOpen(true)} />}
+      />
       <MaturityStepper current={3} />
 
       <div className="space-y-5 pb-28">

@@ -22,7 +22,7 @@ import {
   DEFAULT_FX_AUTO_SETTINGS,
 } from "@/components/features/exchange/FxAutoSettingsForm";
 import { MaturityStepper } from "@/components/features/maturity/MaturityStepper";
-import { ExitGuardDialog } from "@/components/features/maturity/ExitGuardDialog";
+import { ExitGuardDialog, ExitFlowButton } from "@/components/features/maturity/ExitGuardDialog";
 import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
@@ -159,7 +159,12 @@ export default function MaturityReservePage() {
 
   return (
     <>
-      <AppHeader variant="sub" title="매수 예약 확인" onBack={() => setExitOpen(true)} />
+      <AppHeader
+        variant="sub"
+        title="매수 예약 확인"
+        showMenu={false}
+        right={<ExitFlowButton onClick={() => setExitOpen(true)} />}
+      />
       <MaturityStepper current={2} />
 
       <div className="space-y-5 pb-40">
