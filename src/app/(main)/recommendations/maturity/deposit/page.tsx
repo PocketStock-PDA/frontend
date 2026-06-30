@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { MaturityStepper } from "@/components/features/maturity/MaturityStepper";
-import { ExitGuardDialog } from "@/components/features/maturity/ExitGuardDialog";
+import { ExitGuardDialog, ExitFlowButton } from "@/components/features/maturity/ExitGuardDialog";
 import { useMaturityAccounts } from "@/hooks/queries/useMaturityAccounts";
 import { formatKRW } from "@/lib/utils/currency";
 import { parseAccountId } from "@/lib/utils/params";
@@ -47,7 +47,12 @@ export default function MaturityDepositPage() {
 
   return (
     <>
-      <AppHeader variant="sub" title="예금 재예치" onBack={() => setExitOpen(true)} />
+      <AppHeader
+        variant="sub"
+        title="예금 재예치"
+        showMenu={false}
+        right={<ExitFlowButton onClick={() => setExitOpen(true)} />}
+      />
       <MaturityStepper current={4} />
 
       <div className="space-y-4 pb-52">

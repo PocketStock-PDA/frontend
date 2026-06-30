@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -7,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+/** 멀티스텝 헤더 우측 '나가기'(X) 버튼 — ←(이전 스텝)와 구분되는, 플로우 전체 중단 트리거. */
+export function ExitFlowButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button variant="ghost" size="icon-lg" onClick={onClick} aria-label="나가기">
+      <X className="size-6" />
+    </Button>
+  );
+}
 
 interface ExitGuardDialogProps {
   open: boolean;
