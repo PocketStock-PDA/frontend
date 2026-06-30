@@ -83,16 +83,13 @@ export function PocketStockEntrySheet({
           initial="hidden"
           animate="show"
         >
-          {/* 그랩 핸들 */}
-          <motion.span
-            variants={item}
-            className="mb-6 h-1.5 w-10 rounded-full bg-white/40"
-          />
+          {/* 닫기 없는 진입 게이트라(시작하기로만 이동) 스와이프 닫기를 유도하는
+              그랩 핸들은 두지 않는다. 상단 여백만 로고에 부여. */}
 
           {/* 로고 */}
           <motion.div
             variants={logoItem}
-            className="flex size-[68px] items-center justify-center rounded-[8px] bg-white p-px shadow-[0_10px_24px_rgba(20,40,120,0.25)] ring-1 ring-white/60"
+            className="mt-5 flex size-[68px] items-center justify-center rounded-[8px] bg-white p-px shadow-[0_10px_24px_rgba(20,40,120,0.25)] ring-1 ring-white/60"
           >
             <Image
               src="/images/PocketStock-logo-clean.png"
