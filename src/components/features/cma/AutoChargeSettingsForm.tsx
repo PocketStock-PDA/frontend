@@ -164,11 +164,11 @@ export function AutoChargeSettingsForm({ onSaved, inline = false }: Props) {
           </div>
 
           <SheetContent side="bottom" className="max-h-[85vh] rounded-t-2xl px-0 pb-safe">
-            <SheetHeader className="shrink-0 px-5 pb-1 pt-4">
+            <SheetHeader className="shrink-0 px-5 pb-2 pt-4">
               <SheetTitle className="text-left text-base font-bold">충전 재원 계좌 선택</SheetTitle>
             </SheetHeader>
 
-            <div className="scrollbar-thin overflow-y-auto px-5 pb-4 pt-1">
+            <div className="scrollbar-thin overflow-y-auto px-5 pb-6 pt-2">
               <div className="divide-y divide-border/50">
                 {banks.map((b) => (
                   <BankAccountOption

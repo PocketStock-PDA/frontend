@@ -57,9 +57,10 @@ export default function StockSearchPage() {
                   className="flex w-full items-center gap-3 rounded-xl px-1 py-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
                 >
                   <Avatar className="size-8">
-                    {s.logoUrl && (
-                      <AvatarImage src={s.logoUrl} alt={s.stockName} />
-                    )}
+                    <AvatarImage
+                      src={s.logoUrl ?? (s.secType === "ETF" ? "/icons/etf-default.png" : "")}
+                      alt={s.stockName}
+                    />
                     <AvatarFallback>{s.stockName.trim().charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">

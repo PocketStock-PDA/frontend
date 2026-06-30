@@ -111,7 +111,7 @@ export default function MaturityDepositPage() {
       <ExitGuardDialog
         open={exitOpen}
         onOpenChange={setExitOpen}
-        onConfirm={() => router.back()}
+        onConfirm={() => router.push("/recommendations/maturity/select")}
       />
     </>
   );

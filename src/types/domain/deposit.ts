@@ -27,6 +27,7 @@ export interface DepositRollover {
   baseRate: number;
   maxRate: number;
   periodMonths: number;
+  status: "RESERVED" | "EXECUTED" | "CANCELLED" | "FAILED";
   createdAt: string;
 }
 

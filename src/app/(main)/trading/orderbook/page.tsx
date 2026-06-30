@@ -30,6 +30,7 @@ import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useOrderBook } from "@/hooks/queries/useOrderBook";
+import { useStockBestAsk } from "@/hooks/useStockBestAsk";
 import { useStockQuoteSocket } from "@/hooks/useStockQuoteSocket";
 import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
@@ -108,6 +109,11 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
 
   const basePrice = detailQ.data?.price?.currentPrice ?? 0;
   const obQ = useOrderBook(stockCode);
+  const bestAskResult = useStockBestAsk(stockCode, {
+    overseas: detailQ.data?.currency === "USD",
+    currentPrice: detailQ.data?.price?.currentPrice ?? null,
+    enabled: !!detailQ.data,
+  });
   // 실시간 호가: 스냅샷 위에 STOMP 틱으로 사다리·총잔량 갱신 (issue #2)
   useStockQuoteSocket(stockCode, !!stockCode);
   // 실시간 시세(체결) → 헤더 현재가 갱신 (issue #10)
@@ -178,9 +184,10 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
 
   // 소수점 QUANTITY 매수 hold = qty × bestAsk × (1+buffer). 국내 1%, 해외 2%.
   const fracBuyBuffer = isUSD ? 0.02 : 0.01;
-  // FRACTION hold 계산용 호가 — bestAsk 기준(백엔드 FractionalOrderService와 동일 소스).
+  // FRACTION hold 계산용 호가 — WS→REST 15s polling→currentPrice 폴백 체인.
   // execPrice(표시용)는 refPrice를 유지하고, 한도/maxQty 계산만 bestAsk로 분리.
-  const fracHoldPrice = new Decimal(bestAsk > 0 ? bestAsk : refPrice);
+  const fracHoldBestAsk = bestAskResult.bestAsk ?? refPrice;
+  const fracHoldPrice = new Decimal(fracHoldBestAsk > 0 ? fracHoldBestAsk : refPrice);
 
   const maxQty =
     ctx?.side === "BUY"
@@ -206,12 +213,15 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
           : new Decimal(qty).times(execPrice);
       return need.gt(buyingPower);
     }
-    return new Decimal(qty).gt(sellableQty);
+    return method === "WHOLE"
+      ? new Decimal(qty).gt(holdingQty.floor())
+      : new Decimal(qty).gt(sellableQty);
   })();
   const sheetOverLimitMsg =
     ctx?.side === "BUY" ? "매수 가능 금액을 초과했어요" : "보유 수량을 초과했어요";
 
   const openSheet = (side: Side, p: OrderPrice) => {
+    obQ.refetch();
     setCtx({ side, price: p });
     setMethod("WHOLE");
     setQty(0);
@@ -252,7 +262,11 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
         toast.error("구매 가능 금액을 초과했어요.");
         return;
       }
-    } else if (new Decimal(qty).gt(sellableQty)) {
+    } else if (
+      method === "WHOLE"
+        ? new Decimal(qty).gt(holdingQty.floor())
+        : new Decimal(qty).gt(sellableQty)
+    ) {
       toast.error("보유 수량을 초과했어요.");
       return;
     }
