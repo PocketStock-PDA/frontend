@@ -239,8 +239,7 @@ function TradeContent({
   const bestAsk = toDecimal(bestAskResult.bestAsk ?? detail.price?.currentPrice);
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
   const holdingQty = toDecimal(holding?.quantity);
-  // 소수 판매가능 = fractionalQty − heldFractional (접수 중인 소수 매도분 차감)
-  const sellableQty = holdingQty.minus(toDecimal(holding?.heldFractional));
+  const sellableQty = toDecimal(holding?.fractionalQty).minus(toDecimal(holding?.heldFractional));
   const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
 
   // 조각(퍼즐) — 보유 소수분 → 채운 조각(0~99). 1조각 = 매도 1호가/100(hold 기준과 동일).
@@ -570,6 +569,9 @@ function TradeContent({
         }
         correctedQty = sellableQty.toNumber();
         setQty(correctedQty);
+        toast.warning(
+          `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${formatShares(new Decimal(correctedQty))}주로 조정했어요`,
+        );
       } else {
         correctedQty = minQty.toNumber();
         setQty(correctedQty);
@@ -824,7 +826,7 @@ function TradeContent({
               qtyPlaceholder={qtyPlaceholder}
               amountPlaceholder={amountPlaceholder}
               infoLabel={side === "BUY" ? "구매 가능" : "판매 수량"}
-              belowMinOrder={tab === "FRACTION" && side === "BUY" && new Decimal(buyingPower).lt(minOrder)}
+              belowMinOrder={!cmaQ.isLoading && tab === "FRACTION" && side === "BUY" && new Decimal(buyingPower).lt(minOrder)}
             />
           </div>
         )}

@@ -7,7 +7,7 @@ export interface OrderNotification {
   stockCode: string;
   side: "BUY" | "SELL";
   orderType: "FRACTIONAL" | "LIMIT";
-  status: "FILLED" | "REJECTED";
+  status: "FILLED" | "REJECTED" | "CANCELLED";
   filledQuantity: number | null;
   filledPrice: number | null;
   currency: string;

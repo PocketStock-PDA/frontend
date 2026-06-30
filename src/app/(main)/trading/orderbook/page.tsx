@@ -149,7 +149,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
   const price = toDecimal(basePrice);
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
   const holdingQty = toDecimal(holding?.quantity);
-  const sellableQty = holdingQty.minus(toDecimal(holding?.heldFractional));
+  const sellableQty = toDecimal(holding?.fractionalQty).minus(toDecimal(holding?.heldFractional));
   const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
   const ob = obQ.data;
   const refPrice = ob?.currentPrice ?? basePrice;
