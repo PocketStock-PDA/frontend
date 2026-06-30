@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PartnerPointSheet } from "@/components/features/points/PartnerPointSheet";
+import { AttendanceCard } from "@/components/features/points/AttendanceCard";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { cn } from "@/lib/utils";
 
@@ -204,6 +205,9 @@ export default function PointsPage() {
             </div>
           </div>
         </div>
+
+        {/* 출석체크 — 이벤트 최상단 고정(탭 필터와 무관하게 항상 노출) */}
+        <AttendanceCard />
 
         {/* 세그먼트 탭 (아웃라인 없이 채움/텍스트) */}
         <div className="flex gap-2 mb-2">
