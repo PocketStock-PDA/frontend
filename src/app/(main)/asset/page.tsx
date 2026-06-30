@@ -22,7 +22,7 @@ export default function AssetPage() {
   if (isLoading) {
     return (
       <>
-        <AppHeader variant="sub" title="자산 현황" />
+        <AppHeader variant="sub" title="리밸런싱" />
         <div className="space-y-5">
           <SkeletonCard lines={2} className="h-28" />
           <SkeletonCard lines={4} className="h-52" />
@@ -35,7 +35,7 @@ export default function AssetPage() {
   if (isError || !data) {
     return (
       <>
-        <AppHeader variant="sub" title="자산 현황" />
+        <AppHeader variant="sub" title="리밸런싱" />
         <EmptyState
           title="불러오지 못했어요"
           description="잠시 후 다시 시도해 주세요."
@@ -53,7 +53,7 @@ export default function AssetPage() {
 
   return (
     <>
-      <AppHeader variant="sub" title="자산 현황" />
+      <AppHeader variant="sub" title="리밸런싱" />
       <div className="space-y-5">
         {/* 순자산 + 자산 구성 */}
         <section
