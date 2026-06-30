@@ -423,7 +423,7 @@ export default function HomePage() {
                         <span className="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
                           등록
                         </span>
-                        <span className="truncate text-xs text-muted-foreground">
+                        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                           {linkedCard.cardName}
                         </span>
                       </div>

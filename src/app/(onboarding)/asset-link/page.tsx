@@ -246,16 +246,6 @@ export default function AssetLinkPage() {
       setStep("RESULT");
       return;
     }
-    setTransferred(accounts);
-    // 확정 자투리 = Σ(잔액 % 기준금액) — 확인 후 총합에 반영할 금액.
-    setTransferredAmount(
-      accounts
-        .reduce(
-          (s, a) => s.plus(toDecimal(a.balance).mod(threshold)),
-          toDecimal(0),
-        )
-        .toNumber(),
-    );
     setStep("BANK_LOADING");
     saveSettings.mutate(
       accounts.map((a) => ({
@@ -265,8 +255,21 @@ export default function AssetLinkPage() {
         threshold,
       })),
       {
-        // 실제 수집(collect)은 하지 않음 — 홈 대시보드에서 잔돈으로 보이고, 홈 버튼으로만 수집
-        onSuccess: () => setStep("BANK_DONE"),
+        // 실제 수집(collect)은 하지 않음 — 홈 대시보드에서 잔돈으로 보이고, 홈 버튼으로만 수집.
+        // 완료 상태(bankDone)·확정 자투리는 저장 성공 시에만 반영 — 실패 시 총합에 합산되지 않게.
+        onSuccess: () => {
+          setTransferred(accounts);
+          // 확정 자투리 = Σ(잔액 % 기준금액)
+          setTransferredAmount(
+            accounts
+              .reduce(
+                (s, a) => s.plus(toDecimal(a.balance).mod(threshold)),
+                toDecimal(0),
+              )
+              .toNumber(),
+          );
+          setStep("BANK_DONE");
+        },
         onError: (e) => {
           toast.error(errMsg(e));
           setStep("BANK_SELECT");
