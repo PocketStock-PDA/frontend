@@ -113,7 +113,7 @@ function PasswordLogin({ onSimple }: { onSimple: () => void }) {
       <button
         type="button"
         onClick={onSimple}
-        className="mt-4 text-sm font-medium text-primary"
+        className="mt-4 text-sm font-medium text-primary hidden"
       >
         간편 로그인 (PIN·패턴)
       </button>
