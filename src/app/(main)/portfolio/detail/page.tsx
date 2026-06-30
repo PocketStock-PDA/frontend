@@ -251,6 +251,8 @@ function StockDetailContent({
     .times(PIECES_PER_SHARE)
     .toDecimalPlaces(0, Decimal.ROUND_DOWN)
     .toNumber(); // 0~100, 버림(정수 조각)
+  // 1조각(0.01주) 미만 잔여분 — 조각 뷰에서 판매 불가, 전량 매도 시 안내 대상
+  const subPieceRemainder = frac.minus(new Decimal(pieces).div(PIECES_PER_SHARE));
   // 평가금액·평가손익·수익률은 백엔드 summary 단일소스(native 통화, HALF_UP 반올림) — 포트폴리오 홈과 일치.
   // 직접 qty×price로 재계산하면 반올림 방향이 달라 같은 보유분이 홈/상세에서 어긋난다(예: 999 vs 1,000).
   // summary 미로딩 또는 미평가(priced=false, 현재가 조회 실패) 시에만 현재가×수량으로 폴백.
@@ -474,9 +476,14 @@ function StockDetailContent({
     return isNaN(d.getTime()) ? oldest : format(d, "yyyy년 M월 d일");
   })();
 
-  // 전체(현황) 허브 — 보유 표기("5주 73조각"/0조각이면 "5주") + facet 활성 여부
+  // 전체(현황) 허브 — 보유 표기("5주 73조각"/0조각이면 "5주", 1조각 미만이면 소수 그대로)
   const wholeShares = qty.floor().toNumber().toLocaleString("ko-KR");
-  const bojuText = pieces > 0 ? `${wholeShares}주 ${pieces}조각` : `${wholeShares}주`;
+  const bojuText =
+    pieces > 0
+      ? `${wholeShares}주 ${pieces}조각`
+      : frac.gt(0)
+        ? `${qty.toDecimalPlaces(6).toString()}주`
+        : `${wholeShares}주`;
   const anyFacetActive = pieces > 0 || auto.id !== null;
 
   return (
@@ -914,6 +921,11 @@ function StockDetailContent({
                 {fmtView(perPiece.times(previewPieces).toString())}
               </span>
             </div>
+          )}
+          {activeMode === "sell" && selPieces === pieces && subPieceRemainder.gt(0) && (
+            <p className="pb-2 text-center text-xs text-muted-foreground">
+              {subPieceRemainder.toDecimalPlaces(6).toString()}주 잔여분은 소수 매도로 별도 정리할 수 있어요
+            </p>
           )}
           <div className="flex gap-2.5 pb-3">
             <Button

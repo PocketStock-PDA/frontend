@@ -574,7 +574,7 @@ function AccountGroupCard({
 // ── 배당 재투자 탭 ────────────────────────────────────────────────────────
 
 function formatShares(n: number): string {
-  return Number(n).toLocaleString("ko-KR", { maximumFractionDigits: 4 });
+  return Number(n).toLocaleString("ko-KR", { maximumFractionDigits: 6 });
 }
 
 const DRIP_STATUS_CHIP: Record<DividendPayoutStatus, { label: string; cls: string }> = {

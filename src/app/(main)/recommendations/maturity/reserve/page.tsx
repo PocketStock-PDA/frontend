@@ -8,11 +8,9 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
-import { ApiError } from "@/lib/api/client";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
 import { parseAccountId } from "@/lib/utils/params";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
-import { useCreateMaturityReservation } from "@/hooks/mutations/useCreateMaturityReservation";
 import {
   Sheet,
   SheetContent,
@@ -24,6 +22,7 @@ import {
   DEFAULT_FX_AUTO_SETTINGS,
 } from "@/components/features/exchange/FxAutoSettingsForm";
 import { MaturityStepper } from "@/components/features/maturity/MaturityStepper";
+import { ExitGuardDialog } from "@/components/features/maturity/ExitGuardDialog";
 import { useExchangeAutoSettings } from "@/hooks/queries/useExchangeAutoSettings";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
@@ -41,11 +40,10 @@ export default function MaturityReservePage() {
   // 예금 재예치분 — 예약 후 배당 재투자(drip) → 예금 재예치 단계로 그대로 잇는다.
   const depositAmount = Math.floor(Number(params.get("deposit")) || 0);
   const { data } = useMaturityRecommendation(accountId);
-  const createReservation = useCreateMaturityReservation();
   const { data: fxSettings } = useExchangeAutoSettings();
   const { data: fxRate } = useExchangeRate();
-  // 자동환전 설정 시트 — 원클릭 대신 /exchange 설정 폼을 그대로 띄워 직접 구성하게 한다.
   const [fxSheetOpen, setFxSheetOpen] = useState(false);
+  const [exitOpen, setExitOpen] = useState(false);
   const submittingRef = useRef(false);
 
   // URL 파라미터 파싱: items=017800:250000,030000:150000
@@ -131,56 +129,20 @@ export default function MaturityReservePage() {
     }));
   };
 
-  const handleConfirm = async () => {
-    // 따닥 클릭/리렌더 전 연속 호출로 같은 배치가 두 번 나가지 않게 가드.
+  const handleConfirm = () => {
     if (submittingRef.current) return;
     if (!account || codes.length === 0) return;
-    // 해외 종목이 있는데 자동환전이 꺼져 있으면 서버가 거부한다 — 먼저 켜도록 막는다.
     if (needAutoFx) {
       toast.error("해외 배당주는 자동환전을 먼저 켜야 예약할 수 있어요.");
       return;
     }
-    submittingRef.current = true;
-
-    try {
-      const results = await Promise.allSettled(
-        codes.map((code) =>
-          createReservation.mutateAsync({
-            linkedBankAccountId: account.accountId,
-            stockCode: code,
-            buyAmount: amounts[code] ?? 0,
-          }),
-        ),
-      );
-
-      const rejected = results.filter(
-        (r): r is PromiseRejectedResult => r.status === "rejected",
-      );
-      // 409(이미 예약됨)만 "건너뜀"으로 처리하고, 네트워크/5xx/검증 실패는 장애로 본다.
-      const isConflict = (reason: unknown) =>
-        reason instanceof ApiError && reason.status === 409;
-      const conflicts = rejected.filter((r) => isConflict(r.reason));
-      const realErrors = rejected.filter((r) => !isConflict(r.reason));
-      const succeeded = results.length - rejected.length;
-
-      if (realErrors.length > 0) {
-        toast.error("예약 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.");
-        return; // 이동하지 않고 재시도 가능하게 둔다
-      }
-      // 이미 예약된 종목(409)은 막지 않는다 — 이미 예약 완료 상태이므로 안내만 하고 다음 단계로 진행.
-      if (conflicts.length > 0 && succeeded === 0) {
-        toast.info("이미 예약한 종목이에요. 다음 단계로 넘어갈게요.");
-      } else if (conflicts.length > 0) {
-        toast.info(`${conflicts.length}종목은 이미 예약돼 있어 건너뛰었어요.`);
-      }
-
-      // 예약 후 배당 재투자 화면으로 — 예금 재예치분이 있으면 함께 넘겨 다음 단계로 잇는다.
-      // push로 이동해 뒤로가기가 단계 순서(3→2→1)대로 돌아가게 한다.
-      const dq = depositAmount > 0 ? `&deposit=${depositAmount}` : "";
-      router.push(`/recommendations/maturity/drip?accountId=${account.accountId}${dq}`);
-    } finally {
-      submittingRef.current = false;
-    }
+    // 스테퍼로 조정한 금액을 그대로 items 파라미터에 담아 다음 단계로 넘긴다.
+    // 실제 예약 API는 step 5(완료)에서 한 번에 호출한다.
+    const itemsParam = codes.map((c) => `${c}:${amounts[c] ?? 0}`).join(",");
+    const dq = depositAmount > 0 ? `&deposit=${depositAmount}` : "";
+    router.push(
+      `/recommendations/maturity/drip?items=${itemsParam}&accountId=${account.accountId}${dq}`,
+    );
   };
 
   if (!rawItems || codes.length === 0 || !account) {
@@ -197,7 +159,7 @@ export default function MaturityReservePage() {
 
   return (
     <>
-      <AppHeader variant="sub" title="매수 예약 확인" />
+      <AppHeader variant="sub" title="매수 예약 확인" onBack={() => setExitOpen(true)} />
       <MaturityStepper current={2} />
 
       <div className="space-y-5 pb-40">
@@ -242,18 +204,18 @@ export default function MaturityReservePage() {
                       ? new Decimal(amount)
                           .dividedBy(fxRateValue)
                           .dividedBy(currentPrice)
-                          .toDecimalPlaces(4)
+                          .toDecimalPlaces(6)
                           .toNumber()
                       : null
                     : new Decimal(amount)
                         .dividedBy(currentPrice)
-                        .toDecimalPlaces(4)
+                        .toDecimalPlaces(6)
                         .toNumber();
               const sharesLabel =
                 estimatedShares === null
                   ? null
                   : estimatedShares < 1
-                    ? `약 ${estimatedShares.toFixed(4)}주`
+                    ? `약 ${estimatedShares.toFixed(6)}주`
                     : `약 ${new Decimal(estimatedShares).toDecimalPlaces(2).toNumber()}주`;
 
               return (
@@ -376,24 +338,21 @@ export default function MaturityReservePage() {
       <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
         <button
           type="button"
-          onClick={() => void handleConfirm()}
-          disabled={createReservation.isPending || needAutoFx}
+          onClick={handleConfirm}
+          disabled={needAutoFx}
           className={cn(
             "flex h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white transition-[opacity,transform] duration-150",
             "disabled:opacity-50 active:scale-[0.98] active:opacity-80",
           )}
         >
-          {createReservation.isPending
-            ? "예약 중…"
-            : needAutoFx
-              ? "자동환전을 켜주세요"
-              : codes.length > 1
-                ? `${codes.length}종목 예약하기`
-                : "예약하기"}
+          {needAutoFx
+            ? "자동환전을 켜주세요"
+            : codes.length > 1
+              ? `${codes.length}종목 담기`
+              : "다음"}
         </button>
       </div>
 
-      {/* ── 자동환전 설정 시트 (/exchange/auto-settings 폼 재사용) ──────────── */}
       <Sheet open={fxSheetOpen} onOpenChange={setFxSheetOpen}>
         <SheetContent
           side="bottom"
@@ -412,6 +371,12 @@ export default function MaturityReservePage() {
           />
         </SheetContent>
       </Sheet>
+
+      <ExitGuardDialog
+        open={exitOpen}
+        onOpenChange={setExitOpen}
+        onConfirm={() => router.back()}
+      />
     </>
   );
 }
