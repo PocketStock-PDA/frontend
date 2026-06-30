@@ -289,7 +289,7 @@ function StockDetailContent({
   const showKrw = ovsKrw && fx !== null;
   const viewCurrency: "USD" | "KRW" = isUSD && !showKrw ? "USD" : "KRW";
   // KRW 표시(국내·해외 원화 토글)는 정수 원화 기준 수익률로 통일 — 목록 페이지 krwRate()와 동일 소스
-  const displayRate = (!isUSD || showKrw) && hv?.profitKrw != null && hv?.investedKrw != null && hv.investedKrw > 0
+  const displayRate = (!isUSD || showKrw) && hv?.profitKrw !== null && hv?.profitKrw !== undefined && hv?.investedKrw !== null && hv?.investedKrw !== undefined && hv.investedKrw > 0
     ? new Decimal(hv.profitKrw).div(hv.investedKrw).times(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
     : rate;
   // Decimal 값을 표시 통화로 환산(원화 보기면 ×환율). AmountDisplay/ChangeIndicator 값 주입용.

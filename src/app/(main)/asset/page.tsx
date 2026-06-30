@@ -111,7 +111,7 @@ export default function AssetPage() {
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.24, ease: [0.25, 1, 0.5, 1] }}
             >
-              <MaturityAlertCard account={maturityData!.triggerAccount!} />
+              {maturityData?.triggerAccount && <MaturityAlertCard account={maturityData.triggerAccount} />}
             </motion.div>
           )}
         </AnimatePresence>
