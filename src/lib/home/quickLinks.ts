@@ -10,7 +10,7 @@ import {
   PointsQuickIcon,
 } from "@/components/icons/QuickLinkIcons";
 
-/** 홈 "바로가기" 타일 1개. id 는 홈화면 편집(순서/표시) 저장 키로 쓰이므로 변경 금지. */
+/** 홈 "바로가기" 타일 1개. id 는 바로가기 편집(순서/표시) 저장 키로 쓰이므로 변경 금지. */
 export interface QuickLink {
   id: string;
   label: string;

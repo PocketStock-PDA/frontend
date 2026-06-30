@@ -157,7 +157,7 @@ export default function MyPage() {
         </div>
       </div>
 
-      {/* 홈화면 편집 + 자산연동 추가 */}
+      {/* 바로가기 편집 + 자산연동 추가 */}
       <div className="mt-5 grid grid-cols-2 gap-2.5">
         <button
           onClick={() => router.push("/home/edit")}
@@ -165,7 +165,7 @@ export default function MyPage() {
         >
           <LayoutGrid className="size-5 text-primary" />
           <span className="text-xs font-medium leading-snug text-foreground">
-            홈화면 편집
+            바로가기 편집
           </span>
         </button>
         <button

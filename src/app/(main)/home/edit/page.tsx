@@ -64,7 +64,7 @@ export default function HomeEditPage() {
 
   return (
     <>
-      <AppHeader variant="sub" title="홈화면 편집" />
+      <AppHeader variant="sub" title="바로가기 편집" />
 
       <p className="mb-3 text-[13px] text-muted-foreground">
         손잡이를 끌어 순서를 바꾸고, 스위치로 표시 여부를 정하세요.
