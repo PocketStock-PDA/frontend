@@ -36,6 +36,8 @@ const nextConfig: NextConfig = {
             // 인증·회원(계좌개설·1원인증·약관·비밀번호)도 core-api
             { source: "/api/auth/:path*", destination: `${coreTarget}/api/auth/:path*` },
             { source: "/api/users/:path*", destination: `${coreTarget}/api/users/:path*` },
+            // 포인트 출석체크도 core-api (cma의 ledger-api와 다른 서비스)
+            { source: "/api/points/:path*", destination: `${coreTarget}/api/points/:path*` },
           ]
         : []),
       { source: "/api/:path*", destination: `${target}/api/:path*` },

@@ -80,6 +80,10 @@ export const queryKeys = {
     all: ["stockCalendar"] as const,
     events: (year: number, month: number) => ["stockCalendar", "events", year, month] as const,
   },
+  points: {
+    all: ["points"] as const,
+    attendance: ["points", "attendance"] as const,
+  },
   user: {
     profile: ["user", "profile"] as const,
   },
