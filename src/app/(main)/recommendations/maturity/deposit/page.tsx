@@ -93,17 +93,17 @@ export default function MaturityDepositPage() {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => goComplete("rollover")}
+            onClick={() => goComplete("cma")}
             className="h-12 flex-1 rounded-xl border border-border text-sm font-semibold text-foreground transition-colors hover:bg-muted active:scale-95"
           >
-            같은 상품으로 재예치
+            CMA로 이체
           </button>
           <button
             type="button"
-            onClick={() => goComplete("cma")}
+            onClick={() => goComplete("rollover")}
             className="h-12 flex-1 rounded-xl bg-primary text-sm font-semibold text-white transition-opacity active:scale-95 active:opacity-80"
           >
-            CMA로 이체
+            같은 상품으로 재예치
           </button>
         </div>
       </div>

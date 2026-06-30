@@ -331,6 +331,7 @@ export default function MaturitySelectPage() {
           </SheetHeader>
           <div className="mt-4 space-y-2.5">
             <Button
+              variant="outline"
               className="h-14 w-full text-base font-bold"
               disabled={rerouteMutation.isPending || cancelMutation.isPending}
               onClick={() => pickReroute("CMA")}
@@ -338,7 +339,6 @@ export default function MaturitySelectPage() {
               CMA로 받기
             </Button>
             <Button
-              variant="outline"
               className="h-14 w-full text-base font-bold"
               disabled={rerouteMutation.isPending || cancelMutation.isPending}
               onClick={() => pickReroute("DEPOSIT")}
