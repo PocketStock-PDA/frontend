@@ -9,6 +9,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme="light"
       className="toaster group"
+      // 토스트가 상단 고정 헤더(h-14 + safe-area)의 뒤로가기/햄버거 버튼을 가리지 않도록
+      // 헤더 높이만큼 아래로 내린다. 좌우는 sonner 기본 모바일 여백(16px) 유지.
+      offset={{ top: "calc(env(safe-area-inset-top) + 4rem)" }}
+      mobileOffset={{
+        top: "calc(env(safe-area-inset-top) + 4rem)",
+        left: "16px",
+        right: "16px",
+      }}
       icons={{
         success: <CircleCheckIcon className="size-4 text-emerald-500" />,
         info: <InfoIcon className="size-4 text-[#2563eb]" />,
