@@ -132,7 +132,7 @@ export function OrderAmountPanel({
                   onQtyChange(
                     new Decimal(qty)
                       .plus(n)
-                      .toDecimalPlaces(fractional ? 4 : 0)
+                      .toDecimalPlaces(fractional ? 6 : 0)
                       .toNumber(),
                   )
                 }
