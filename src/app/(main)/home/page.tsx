@@ -589,7 +589,7 @@ export default function HomePage() {
         <CardLinkSheet open={cardSheetOpen} onOpenChange={setCardSheetOpen} />
         <FxLinkSheet open={fxSheetOpen} onOpenChange={setFxSheetOpen} />
 
-        {/* 바로가기 (홈화면 편집에서 순서/표시 변경) */}
+        {/* 바로가기 (바로가기 편집에서 순서/표시 변경) */}
         <section>
           <div className="mb-3 px-3 flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-muted-foreground">
