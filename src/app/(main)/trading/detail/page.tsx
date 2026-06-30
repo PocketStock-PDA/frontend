@@ -281,10 +281,13 @@ function TradeContent({
       : new Decimal(buyingPower).div(calcPrice.times(1 + fracBuyBuffer))
     : new Decimal(0);
   const maxQtyBase = side === "BUY" ? maxBuyQty : holdingQty;
+  // SELL+FRACTION: 보유 수량 그대로(버림 금지) — 버림으로 최솟값 미달 → 상향보정 → 보유초과 연쇄 방지.
   const maxQtyValue =
     tab === "WHOLE"
       ? maxQtyBase.floor().toNumber()
-      : maxQtyBase.toDecimalPlaces(4, Decimal.ROUND_DOWN).toNumber();
+      : side === "SELL"
+        ? holdingQty.toNumber()
+        : maxQtyBase.toDecimalPlaces(4, Decimal.ROUND_DOWN).toNumber();
 
   // 방향 전환 — 매도는 금액으로 불가(수량만). 조각 선택·멱등키 초기화.
   const changeSide = (s: Side) => {
@@ -555,14 +558,23 @@ function TradeContent({
         );
       }
     } else if (calcPrice.gt(0) && new Decimal(qty).times(calcPrice).lt(minOrder)) {
-      correctedQty = new Decimal(minOrder)
-        .div(calcPrice)
-        .toDecimalPlaces(4, Decimal.ROUND_UP)
-        .toNumber();
-      setQty(correctedQty);
-      toast.warning(
-        `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${formatShares(new Decimal(correctedQty))}주로 조정했어요`,
-      );
+      const minQty = new Decimal(minOrder).div(calcPrice).toDecimalPlaces(4, Decimal.ROUND_UP);
+      // SELL: 보정 수량이 실제 보유를 초과하면 → 보유 전량으로 대체(보유가치 ≥ 최솟값이면 유효)
+      if (side === "SELL" && minQty.gt(holdingQty)) {
+        if (holdingQty.times(calcPrice).lt(minOrder)) {
+          submitting.current = false;
+          toast.error(`보유금액이 최소 주문금액(${fmtAmount(minOrder)}) 미만이에요.`);
+          return;
+        }
+        correctedQty = holdingQty.toNumber();
+        setQty(correctedQty);
+      } else {
+        correctedQty = minQty.toNumber();
+        setQty(correctedQty);
+        toast.warning(
+          `최소 주문금액은 ${fmtAmount(minOrder)} 이상이에요. ${formatShares(new Decimal(correctedQty))}주로 조정했어요`,
+        );
+      }
     }
     // 보정 후 실제 주문 가능 범위 검증 — 매수 가능 금액 / 매도 가능 수량 초과 시 차단.
     // bestAsk 기준: 백엔드 hold 계산과 동일 소스 → INSUFFICIENT_BALANCE 방지.
