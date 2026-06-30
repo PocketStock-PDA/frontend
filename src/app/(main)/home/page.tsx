@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CreditCard, Landmark, Plane, Settings } from "lucide-react";
@@ -21,6 +21,7 @@ import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { CollectSlider } from "@/components/features/cma/CollectSlider";
 import { WelcomeEventDialog } from "@/components/features/onboarding/WelcomeEventDialog";
+import { RewardCollectCompleteSheet } from "@/components/features/onboarding/RewardCollectCompleteSheet";
 import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import { useMyProfile } from "@/hooks/queries/useMyProfile";
 import { useNotifications } from "@/hooks/queries/useNotifications";
@@ -83,6 +84,16 @@ export default function HomePage() {
   const router = useRouter();
   // 인사말 이름은 /home 응답에 없어 마이페이지 프로필(GET /api/users/me/mypage)에서 가져온다.
   const { data, isLoading, isError, error, refetch } = useCmaHome();
+
+  // 웰컴 보상 직후 진입 시 URL 정리 + 플래그 캡처
+  // useState lazy initializer는 SSR에서 window 없이 false로 굳어버리므로 useRef+effect 패턴 사용
+  const isFromRewardRef = useRef(false);
+  useEffect(() => {
+    if (window.location.search.includes("from=reward")) {
+      isFromRewardRef.current = true;
+      window.history.replaceState({}, "", "/home");
+    }
+  }, []);
   const { data: profile } = useMyProfile();
   const { data: notifications } = useNotifications();
   const { data: collectSettings } = useCollectSettings();
@@ -111,6 +122,25 @@ export default function HomePage() {
   const [drainPct, setDrainPct] = useState(0);
   const lastDrainRef = useRef(0);
 
+  const [rewardCollectOpen, setRewardCollectOpen] = useState(false);
+  const rewardShownRef = useRef(false);
+  // 코인 애니메이션 완료 여부 — API 성공과 AND 조건으로 팝업 트리거
+  const [collectAnimDone, setCollectAnimDone] = useState(false);
+  const [sliderResetKey, setSliderResetKey] = useState(0);
+
+  // 코인 애니 종료 + collect 성공 둘 다 충족 시 450ms 텀 두고 팝업
+  useEffect(() => {
+    if (
+      !collectAnimDone ||
+      !collect.isSuccess ||
+      !isFromRewardRef.current ||
+      rewardShownRef.current
+    ) return;
+    rewardShownRef.current = true;
+    const t = setTimeout(() => setRewardCollectOpen(true), 450);
+    return () => clearTimeout(t);
+  }, [collectAnimDone, collect.isSuccess]);
+
   const [pointSheetOpen, setPointSheetOpen] = useState(false);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [cardSheetOpen, setCardSheetOpen] = useState(false);
@@ -122,6 +152,29 @@ export default function HomePage() {
     origin: DOMRect;
     target: DOMRect;
   } | null>(null);
+
+  // 모으기 완료 시 CMA 잔액 카운트업
+  const prevKrwBalanceRef = useRef(0);
+  const [collectAnimPct, setCollectAnimPct] = useState(0);
+
+  useEffect(() => {
+    if (!collectAnim) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCollectAnimPct(0);
+      return;
+    }
+    const DURATION = 3000;
+    const startTime = performance.now() + 120;
+    let rafId: number;
+    const tick = (now: number) => {
+      const raw = Math.min(1, Math.max(0, now - startTime) / DURATION);
+      const eased = raw < 0.5 ? 2 * raw * raw : 1 - Math.pow(-2 * raw + 2, 2) / 2; // ease-in-out quad
+      setCollectAnimPct(eased);
+      if (raw < 1) rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [collectAnim]);
 
   const handleDragStart = () => {
     const origins = [accountTileRef, fxTileRef, pointTileRef]
@@ -160,6 +213,8 @@ export default function HomePage() {
 
   const handleCollect = () => {
     if (collect.isPending) return; // 재진입 방지
+    prevKrwBalanceRef.current = data?.cmaBalance?.KRW ?? 0;
+    setCollectAnimDone(false);
     // 슬라이드 완료 즉시 코인 버스트 연출 — API 응답 기다리지 않음
     const origin = sourcesRef.current?.getBoundingClientRect();
     const target = collectBtnRef.current?.getBoundingClientRect();
@@ -289,6 +344,13 @@ export default function HomePage() {
   // 모으기 버튼 금액: KRW·USD 별도 합계를 함께 표기.
   // 임계 판단은 표시 단위(원/센트)와 동일 기준 — 포매터(ROUND_DOWN) 출력이 0이면 노출/활성 제외
   // (예: 0<USD<0.01은 "$0.00"으로 찍히므로 "0인데 활성" 모순 방지)
+  // 코인 애니메이션 중 CMA 잔액 카운트업 — 스냅샷(prev) + 수집액 × 진행률
+  // eslint-disable-next-line react-hooks/refs
+  const prevKrwBalance = prevKrwBalanceRef.current;
+  const displayKrwBalance = collectAnim
+    ? Math.round(prevKrwBalance + data.totalCollectable * collectAnimPct)
+    : data.cmaBalance.KRW;
+
   const krwLabel = formatKRW(data.totalCollectable);
   const usdLabel = formatUSD(data.totalCollectableUsd);
   const hasKrw = krwLabel !== formatKRW(0);
@@ -298,7 +360,7 @@ export default function HomePage() {
     hasUsd ? usdLabel : null,
   ].filter(Boolean);
   const collectAmountLabel =
-    collectAmounts.length > 0 ? collectAmounts.join(" + ") : formatKRW(0);
+    collectAmounts.length > 0 ? collectAmounts.join(" + ") : "";
 
   // 수집 가능 잔돈 표시 — 은행 | 쏠트래블(한 줄) + 포인트(마이신한/제휴사 분리, 좌우 full 한 줄).
   const accountSource = displayedCollectSources.find(
@@ -341,7 +403,11 @@ export default function HomePage() {
           active
           origin={collectAnim.origin}
           target={collectAnim.target}
-          onComplete={() => setCollectAnim(null)}
+          onComplete={() => {
+            setCollectAnim(null);
+            setCollectAnimDone(true);
+            setSliderResetKey((k) => k + 1);
+          }}
         />
       )}
       {welcomeEligible && (
@@ -366,7 +432,7 @@ export default function HomePage() {
         {/* TODO: usdToKrwRate는 환율 API 연동 시 전달(펼침 시 'N원 기준' 표기) */}
         <CmaBalanceCard
           accountNo={data.cmaAccountNo}
-          krwBalance={data.cmaBalance.KRW}
+          krwBalance={displayKrwBalance}
           usdBalance={data.cmaBalance.USD}
           interestRate={data.interestRate}
           todayInterest={data.todayInterest}
@@ -593,6 +659,7 @@ export default function HomePage() {
               amountLabel={collectAmountLabel}
               isPending={collect.isPending}
               isError={collect.isError}
+              resetTrigger={sliderResetKey}
               guideEnabled={!welcomeEligible || welcomeDismissed}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
@@ -608,6 +675,14 @@ export default function HomePage() {
             </p>
           )}
         </div>
+
+        <RewardCollectCompleteSheet
+          open={rewardCollectOpen}
+          onConfirm={() => {
+            setRewardCollectOpen(false);
+            router.push("/portfolio");
+          }}
+        />
 
         <PartnerPointSheet
           open={pointSheetOpen}

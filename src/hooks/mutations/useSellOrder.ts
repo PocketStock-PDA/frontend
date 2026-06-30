@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
-import { queryKeys } from "@/lib/utils/queryKeys";
+import { invalidateTradingData } from "@/lib/utils/invalidateTradingData";
 import type { SellOrderRequest, SplitOrderResponse } from "@/types/domain/order";
 
 /**
@@ -20,7 +20,6 @@ export function useSellOrder() {
         ...(req.orderType === "AMOUNT" ? { amount: req.amount } : {}),
         ...(req.orderType === "QUANTITY" ? { quantity: req.quantity } : {}),
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.trading.all }),
+    onSuccess: () => { invalidateTradingData(queryClient); },
   });
 }

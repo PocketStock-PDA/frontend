@@ -290,12 +290,12 @@ function CurrencyToggle({ checked, onChange }: { checked: boolean; onChange: (v:
       onClick={() => onChange(!checked)}
       className={cn(
         "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors",
-        checked ? "bg-brand" : "bg-muted",
+        checked ? "bg-muted" : "bg-brand",
       )}
     >
       <span className={cn(
         "flex size-5 items-center justify-center rounded-full bg-white font-numeric text-[10px] font-bold shadow-sm transition-transform duration-200 ease-out",
-        checked ? "translate-x-5 text-brand" : "translate-x-0 text-muted-foreground",
+        checked ? "translate-x-5 text-muted-foreground" : "translate-x-0 text-brand",
       )}>
         {checked ? "₩" : "$"}
       </span>
@@ -399,6 +399,16 @@ interface TradesTabProps {
 }
 
 function TradesTab({ orders, detailMap, isLoading, isError, market, month, side, showKrw, fxRate }: TradesTabProps) {
+  const [expandedRejections, setExpandedRejections] = useState<Set<number>>(new Set());
+
+  function toggleRejection(orderId: number) {
+    setExpandedRejections((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  }
+
   const filtered = useMemo(() => {
     return orders.filter((o) => {
       // PENDING/QUEUED는 미체결 탭에만 표시 — 거래내역은 완료(FILLED·REJECTED) 주문만
@@ -444,12 +454,29 @@ function TradesTab({ orders, detailMap, isLoading, isError, market, month, side,
                         <span className="ml-1.5 text-brand">대기중</span>
                       )}
                       {o.status === "REJECTED" && (
-                        <span className="ml-1.5 text-destructive">거절</span>
+                        o.failReason ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleRejection(o.orderId)}
+                            className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-destructive/10 px-1.5 text-[11px] font-medium text-destructive active:bg-destructive/20"
+                          >
+                            거절
+                            <ChevronDown className={cn(
+                              "size-3 transition-transform duration-150",
+                              expandedRejections.has(o.orderId) && "rotate-180",
+                            )} />
+                          </button>
+                        ) : (
+                          <span className="ml-1.5 text-destructive">거절</span>
+                        )
                       )}
                       {o.status === "CANCELLED" && (
                         <span className="ml-1.5 text-muted-foreground">취소</span>
                       )}
                     </p>
+                    {o.status === "REJECTED" && o.failReason && expandedRejections.has(o.orderId) && (
+                      <p className="mt-1 text-[11px] text-destructive/70">{o.failReason}</p>
+                    )}
                   </div>
                   <div className="shrink-0 text-right">
                     <p className={cn(

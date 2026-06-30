@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
+import { ChevronLeft, Menu, Search, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
+import { useUiStore } from "@/store/uiStore";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
 import { CurrencyToggle } from "@/components/common/CurrencyToggle";
@@ -27,6 +28,7 @@ import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { JigsawPuzzle } from "@/components/features/portfolio/JigsawPuzzle";
 import { OrderAmountPanel } from "@/components/features/trading/OrderAmountPanel";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
+import { useStockSearch } from "@/hooks/queries/useStockSearch";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
@@ -44,7 +46,7 @@ import { PIECES_PER_SHARE } from "@/lib/utils/pieces";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { splitOrderToast, wholeOrderToast } from "@/lib/utils/orderResult";
 import { cn } from "@/lib/utils";
-import { tradingOrderbookPath } from "@/lib/navigation/routes";
+import { tradingDetailPath, tradingOrderbookPath } from "@/lib/navigation/routes";
 import type {
   SplitOrderResponse,
   WholeOrderResponse,
@@ -111,6 +113,7 @@ function TradeContent({
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
+  const openSidebar = useUiStore((s) => s.openSidebar);
   const detailQ = useStockDetail(stockCode);
   const exchangeRateQ = useExchangeRate(); // 해외 종목 원화 환산 토글용(매매기준율)
   const holdingsQ = useHoldings();
@@ -147,6 +150,23 @@ function TradeContent({
   const [ovsKrw, setOvsKrw] = useState(false);
   // 거래 인증 필요(TXN_AUTH_REQUIRED) 시 계좌 비밀번호를 받기 위한 시트 — 인증 후 그 side로 재시도
   const [authSide, setAuthSide] = useState<Side | null>(null);
+
+  // Spotlight 검색
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchResults = useStockSearch(searchQuery);
+  const searchStocks = Array.isArray(searchResults.data) ? searchResults.data : [];
+
+  const enterSearch = () => {
+    setIsSearching(true);
+    setSearchQuery("");
+    setTimeout(() => searchInputRef.current?.focus(), 30);
+  };
+  const exitSearch = () => {
+    setIsSearching(false);
+    setSearchQuery("");
+  };
 
   // 멱등키: 같은 주문(파라미터·side) 재시도 시 동일 키 재사용, 입력 변경 시 폐기 (issue #4)
   const orderKeys = useRef<Record<Side, string | null>>({ BUY: null, SELL: null });
@@ -649,48 +669,168 @@ function TradeContent({
 
   return (
     <>
-      <AppHeader
-        variant="sub"
-        right={
-          // 해외 종목 + 환율 보유 시: 달러 ↔ 원화 조회 토글
-          isUSD && fx !== null ? (
-            <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
-          ) : undefined
-        }
-        title={
-          // 헤더 탭 → 검색 전용 오버레이 (메뉴 아님). 종목명 옆 돋보기로 검색 가능함을 암시
+      {/* 헤더 행 — 하단 페이드로 콘텐츠가 유리 밑으로 사라지는 느낌 */}
+      <div className="sticky top-0 z-40 -mx-5 px-3 pt-2 pb-2">
+        <div className="flex items-start gap-1">
+          {/* 뒤로가기 — 카드 밖, 검색바 상단에 고정 */}
           <button
             type="button"
-            onClick={() => router.push("/trading/search")}
-            aria-label="종목 검색 열기"
-            className="-mx-1 flex items-center gap-2 rounded-lg px-1 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            onClick={() => router.back()}
+            aria-label="뒤로"
+            className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-muted"
           >
-            <Avatar className="size-7">
-              {detail.logoUrl && (
-                <AvatarImage src={detail.logoUrl} alt={detail.stockName} />
-              )}
-              <AvatarFallback className="text-[10px]">
-                {(detail.stockCode ?? detail.stockName).trim().charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <span className="flex flex-col text-left leading-tight">
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                {detail.stockName}
-                <Search className="size-3" />
-              </span>
-              <span className="flex items-baseline gap-1.5">
-                <AmountDisplay
-                  value={(showKrw ? price.times(fx) : price).toString()}
-                  currency={viewCurrency}
-                  size="md"
-                  className="font-bold"
-                />
-                <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
-              </span>
-            </span>
+            <ChevronLeft className="size-5" />
           </button>
-        }
-      />
+
+          {/* Spotlight — 하나의 glass 컨테이너, absolute로 콘텐츠 위에 떠있음 */}
+          <div className="relative min-w-0 flex-1">
+            {/* 레이아웃 공간 확보용 invisible spacer */}
+            <div className="h-11" />
+
+            {/* 실제 glass 컨테이너 — 단일 backdrop-blur, top 모서리 항상 pill 유지 */}
+            <motion.div
+              animate={{
+                borderTopLeftRadius: isSearching && searchQuery.trim().length > 0 ? 22 : 9999,
+                borderTopRightRadius: isSearching && searchQuery.trim().length > 0 ? 22 : 9999,
+                borderBottomLeftRadius: isSearching && searchQuery.trim().length > 0 ? 16 : 9999,
+                borderBottomRightRadius: isSearching && searchQuery.trim().length > 0 ? 16 : 9999,
+              }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className={cn(
+                "absolute inset-x-0 top-0 z-50 overflow-hidden",
+                "bg-white/20 backdrop-blur-md dark:bg-white/10",
+                "shadow-[0_4px_30px_rgba(0,0,0,0.10)]",
+                "border border-white/30",
+                !isSearching && "cursor-pointer",
+              )}
+              onClick={!isSearching ? enterSearch : undefined}
+            >
+              {/* 검색바 / 종목 정보 행 */}
+              <div className="flex h-11 items-center gap-3 px-4">
+                <AnimatePresence mode="wait" initial={false}>
+                  {isSearching ? (
+                    <motion.div
+                      key="search"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.12 }}
+                      className="flex min-w-0 flex-1 items-center gap-3"
+                    >
+                      <input
+                        ref={searchInputRef}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="검색"
+                        className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); exitSearch(); }}
+                        aria-label="검색 닫기"
+                        className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="info"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.12 }}
+                      className="flex min-w-0 flex-1 items-center gap-2.5"
+                    >
+                      <Avatar className="size-7 shrink-0">
+                        {detail.logoUrl && (
+                          <AvatarImage src={detail.logoUrl} alt={detail.stockName} />
+                        )}
+                        <AvatarFallback className="text-[10px]">
+                          {(detail.stockCode ?? detail.stockName).trim().charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="flex min-w-0 flex-1 flex-col text-left leading-tight">
+                        <span className="truncate text-xs text-muted-foreground">
+                          {detail.stockName}
+                        </span>
+                        <span className="flex items-baseline gap-1.5">
+                          <AmountDisplay
+                            value={(showKrw ? price.times(fx) : price).toString()}
+                            currency={viewCurrency}
+                            size="md"
+                            className="font-bold"
+                          />
+                          <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
+                        </span>
+                      </span>
+                      {isUSD && fx !== null && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
+                        </div>
+                      )}
+                      <Search className="size-4 shrink-0 text-muted-foreground" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* 결과 — 같은 glass 컨테이너 내부에서 펼쳐짐 → 경계선·색 차이 없음 */}
+              <AnimatePresence initial={false}>
+                {isSearching && searchQuery.trim().length > 0 && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1], delay: 0.05 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mx-4 border-t border-black/[0.06] dark:border-white/[0.08]" />
+                    <div className="scrollbar-muted max-h-[260px] overflow-auto py-1">
+                      {searchStocks.length === 0 && !searchResults.isLoading ? (
+                        <p className="px-4 py-5 text-center text-sm text-muted-foreground">
+                          검색 결과가 없어요
+                        </p>
+                      ) : (
+                        <ul>
+                          {searchStocks.map((s) => (
+                            <li key={s.stockCode}>
+                              <button
+                                type="button"
+                                onClick={() => { exitSearch(); router.push(tradingDetailPath(s.stockCode)); }}
+                                className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                              >
+                                <Avatar className="size-8 shrink-0">
+                                  {s.logoUrl && <AvatarImage src={s.logoUrl} alt={s.stockName} />}
+                                  <AvatarFallback className="text-[10px]">
+                                    {s.stockCode.charAt(0)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="block truncate text-sm font-semibold">{s.stockName}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          </div>
+
+          {/* 메뉴 — 카드 밖 */}
+          <button
+            type="button"
+            onClick={openSidebar}
+            aria-label="메뉴"
+            className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-muted"
+          >
+            <Menu className="size-6" />
+          </button>
+        </div>
+      </div>
 
       <div className="space-y-5 pb-40">
         {/* 구매 | 판매 — 주문 방향 먼저 선택(시맨틱색). 활성 알약이 좌우로 미끄러져
@@ -873,49 +1013,62 @@ function TradeContent({
 
       {/* 실행 — 하단 탭바 위 고정 액션바. 예상 주문금액 + 구매/판매 인라인 확정 */}
       {!noSellable && (
-        <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pt-3">
-          {/* 예상 주문금액 — 유효해질 때 한 줄이 펼쳐지고, 값이 바뀌면 살짝 스왑(시세 틱 아님) */}
-          <AnimatePresence initial={false}>
-            {stickyValid && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={
-                  reduce
-                    ? { duration: 0 }
-                    : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
-                }
-                className="overflow-hidden"
-              >
-                <div className="flex items-center justify-between pb-1.5 text-sm">
-                  <span className="text-muted-foreground">예상 주문금액</span>
-                  <span
-                    key={stickyAmount}
-                    className="ps-amount-swap font-numeric font-bold text-primary"
-                  >
-                    {fmtView(stickyAmount)}
-                  </span>
+        <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pt-2.5">
+          {/* 주문 요약 — 항상 3칸 그리드. 미입력 시 가운데·오른쪽 비움 */}
+          {(() => {
+            const holdQty =
+              tab === "PIECES"
+                ? new Decimal(selPieces).div(PIECES_PER_SHARE)
+                : new Decimal(qty);
+            const holdAmt =
+              stickyValid && side === "BUY" && tab !== "WHOLE" && inputMode !== "AMOUNT"
+                ? holdQty.times(calcPrice).times(1 + fracBuyBuffer)
+                : null;
+            const showHold = holdAmt !== null && holdAmt.gt(0);
+            const balanceLabel = side === "BUY" ? (isUSD ? "달러 잔액" : "원화 잔액") : "보유 수량";
+            const balanceValue =
+              side === "BUY"
+                ? isUSD
+                  ? showKrw && fx !== null
+                    ? formatKRW(toDecimal(buyingPower).times(fx).toNumber())
+                    : formatUSD(buyingPower)
+                  : formatKRW(buyingPower)
+                : `${formatShares(holdingQty)}주`;
+
+            return (
+              <div className="grid grid-cols-3 divide-x divide-border pb-3">
+                <div className="pr-3">
+                  <p className="text-[11px] text-muted-foreground">{balanceLabel}</p>
+                  <p className="font-numeric truncate text-sm font-semibold tabular-nums">
+                    {balanceValue}
+                  </p>
                 </div>
-                {/* 소수점·조각 매수: 실제 예약 차감액(bestAsk × qty × 1+buffer). AMOUNT·매도·온주는 미표시. */}
-                {side === "BUY" && tab !== "WHOLE" && inputMode !== "AMOUNT" && (() => {
-                  const holdQty = tab === "PIECES"
-                    ? new Decimal(selPieces).div(PIECES_PER_SHARE)
-                    : new Decimal(qty);
-                  const holdAmt = holdQty.times(calcPrice).times(1 + fracBuyBuffer);
-                  if (holdAmt.lte(0)) return null;
-                  return (
-                    <div className="flex items-center justify-between pb-1.5 text-xs">
-                      <span className="text-muted-foreground">예약 차감</span>
-                      <span className="font-numeric text-muted-foreground">
+                <div className="px-3 text-center">
+                  {stickyValid && (
+                    <>
+                      <p className="text-[11px] text-muted-foreground">예상 주문금액</p>
+                      <p
+                        key={stickyAmount}
+                        className="ps-amount-swap font-numeric truncate text-sm font-bold tabular-nums text-primary"
+                      >
+                        {fmtView(stickyAmount)}
+                      </p>
+                    </>
+                  )}
+                </div>
+                <div className="pl-3 text-right">
+                  {showHold && (
+                    <>
+                      <p className="text-[11px] text-muted-foreground">예약 차감</p>
+                      <p className="font-numeric truncate text-sm font-medium tabular-nums text-muted-foreground">
                         약 {fmtView(holdAmt.toDecimalPlaces(amountDp).toNumber())}
-                      </span>
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           {stickyValid && isOverLimit && (
             <p className="pb-2 text-center text-xs font-medium text-destructive">
               {overLimitMsg}

@@ -199,7 +199,7 @@ export function defaultSetting(stockCode: string, currency = "KRW"): AutoInvestS
     amountMode: "AMOUNT",
     amount: currency === "USD" ? 10 : 10000,
     quantity: 1,
-    buyCondition: { ...DEFAULT_BUY_CONDITION },
+    buyCondition: { ...DEFAULT_BUY_CONDITION, amount: currency === "USD" ? 10 : 10000 },
     sellCondition: { ...DEFAULT_SELL_CONDITION },
   };
 }

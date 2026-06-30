@@ -2,6 +2,7 @@ import { BottomTabBar } from "@/components/common/BottomTabBar";
 import { Sidebar } from "@/components/common/Sidebar";
 import { PageContainer } from "@/components/common/PageContainer";
 import { PushSync } from "@/components/common/PushSync";
+import { TradingSync } from "@/components/common/TradingSync";
 import { RequireAuth } from "@/lib/auth/AuthProvider";
 
 export default function MainLayout({
@@ -19,6 +20,7 @@ export default function MainLayout({
         <BottomTabBar />
         <Sidebar />
         <PushSync />
+        <TradingSync />
       </div>
     </RequireAuth>
   );

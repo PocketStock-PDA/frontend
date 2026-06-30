@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AmountInput } from "@/components/common/AmountInput";
 import { Stepper } from "@/components/common/Stepper";
-import { formatKRW } from "@/lib/utils/currency";
+import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
 import type {
   AmountMode,
@@ -99,6 +99,7 @@ export interface ConditionBuySheetProps {
   currentPrice: number;
   /** 평단가 (없으면 현재가) */
   avgPrice: number;
+  currency: "KRW" | "USD";
   value: BuyCondition;
   onApply: (c: BuyCondition) => void;
 }
@@ -109,6 +110,7 @@ export function ConditionBuySheet({
   stockName,
   currentPrice,
   avgPrice,
+  currency,
   value,
   onApply,
 }: ConditionBuySheetProps) {
@@ -127,6 +129,7 @@ export function ConditionBuySheet({
           <BuyForm
             currentPrice={currentPrice}
             avgPrice={avgPrice}
+            currency={currency}
             value={value}
             onApply={(c) => {
               onApply(c);
@@ -142,14 +145,17 @@ export function ConditionBuySheet({
 function BuyForm({
   currentPrice,
   avgPrice,
+  currency,
   value,
   onApply,
 }: {
   currentPrice: number;
   avgPrice: number;
+  currency: "KRW" | "USD";
   value: BuyCondition;
   onApply: (c: BuyCondition) => void;
 }) {
+  const fmt = currency === "USD" ? formatUSD : formatKRW;
   const [dropRate, setDropRate] = useState(value.dropRate);
   const [mode, setMode] = useState<AmountMode>(value.mode);
   const [amount, setAmount] = useState(value.amount);
@@ -168,7 +174,7 @@ function BuyForm({
       <p className="text-sm text-muted-foreground">
         현재가{" "}
         <span className="font-numeric font-bold text-foreground">
-          {formatKRW(currentPrice)}
+          {fmt(currentPrice)}
         </span>{" "}
         · 내 수익률{" "}
         <span className={cn("font-numeric font-bold", profitTone)}>
@@ -184,7 +190,7 @@ function BuyForm({
           <RateStepper value={dropRate} onChange={setDropRate} prefix="-" />
         </div>
         <p className="text-xs text-muted-foreground">
-          예상 감지가 {formatKRW(target.toString())} 이하일 때
+          예상 감지가 {fmt(target.toString())} 이하일 때
         </p>
       </div>
 
@@ -195,7 +201,7 @@ function BuyForm({
         onChange={setMode}
       />
       {mode === "AMOUNT" ? (
-        <AmountInput value={amount} onChange={setAmount} placeholder="모으기 금액" />
+        <AmountInput value={amount} onChange={setAmount} placeholder="모으기 금액" suffix={currency === "USD" ? "달러" : "원"} />
       ) : (
         <Stepper
           value={quantity}
@@ -229,6 +235,7 @@ export interface ConditionSellSheetProps {
   stockName: string;
   currentPrice: number;
   avgPrice: number;
+  currency: "KRW" | "USD";
   value: SellCondition;
   onApply: (c: SellCondition) => void;
 }
@@ -239,6 +246,7 @@ export function ConditionSellSheet({
   stockName,
   currentPrice,
   avgPrice,
+  currency,
   value,
   onApply,
 }: ConditionSellSheetProps) {
@@ -257,6 +265,7 @@ export function ConditionSellSheet({
           <SellForm
             currentPrice={currentPrice}
             avgPrice={avgPrice}
+            currency={currency}
             value={value}
             onApply={(c) => {
               onApply(c);
@@ -272,14 +281,17 @@ export function ConditionSellSheet({
 function SellForm({
   currentPrice,
   avgPrice,
+  currency,
   value,
   onApply,
 }: {
   currentPrice: number;
   avgPrice: number;
+  currency: "KRW" | "USD";
   value: SellCondition;
   onApply: (c: SellCondition) => void;
 }) {
+  const fmt = currency === "USD" ? formatUSD : formatKRW;
   const [riseRate, setRiseRate] = useState(value.riseRate);
   const [mode, setMode] = useState<SellCondition["mode"]>(value.mode);
   const [ratioPct, setRatioPct] = useState(value.ratioPct);
@@ -298,7 +310,7 @@ function SellForm({
       <p className="text-sm text-muted-foreground">
         현재가{" "}
         <span className="font-numeric font-bold text-foreground">
-          {formatKRW(currentPrice)}
+          {fmt(currentPrice)}
         </span>{" "}
         · 내 수익률{" "}
         <span className={cn("font-numeric font-bold", profitTone)}>
@@ -314,7 +326,7 @@ function SellForm({
           <RateStepper value={riseRate} onChange={setRiseRate} prefix="+" />
         </div>
         <p className="text-xs text-muted-foreground">
-          예상 감지가 {formatKRW(target.toString())} 이상일 때
+          예상 감지가 {fmt(target.toString())} 이상일 때
         </p>
       </div>
 

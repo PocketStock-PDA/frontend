@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
-import { queryKeys } from "@/lib/utils/queryKeys";
+import { invalidateTradingData } from "@/lib/utils/invalidateTradingData";
 import type {
   WholeOrderRequest,
   WholeOrderResponse,
@@ -16,7 +16,6 @@ export function useWholeOrder() {
   return useMutation({
     mutationFn: (req: WholeOrderRequest) =>
       api.post<WholeOrderResponse>("/api/trading/orders/whole", req),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.trading.all }),
+    onSuccess: () => { invalidateTradingData(queryClient); },
   });
 }
