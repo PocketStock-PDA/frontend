@@ -3,7 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
-import { formatHoldingShort } from "@/lib/utils/pieces";
+import { formatQuantity } from "@/lib/utils/pieces";
 
 export interface HoldingCardProps {
   name: string;
@@ -69,7 +69,7 @@ export function HoldingCard({
           <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
         ) : (
           <p className="mt-0.5 font-numeric text-xs text-muted-foreground">
-            {formatHoldingShort(quantity)}
+            {formatQuantity(quantity)}
           </p>
         )}
       </div>

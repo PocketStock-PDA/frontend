@@ -19,7 +19,7 @@ export function splitOrderToast(
     segs.push(`온주 ${r.wholeQty}주 즉시 체결`);
   }
   if (r.fractionalEstQty !== null) {
-    const q = new Decimal(r.fractionalEstQty).toDecimalPlaces(4).toString();
+    const q = new Decimal(r.fractionalEstQty).toDecimalPlaces(6).toString();
     segs.push(`소수 ${q}주 ${verb} 접수`);
   }
   const title = segs.length > 0 ? segs.join(" · ") : `${verb} 주문이 접수됐어요`;

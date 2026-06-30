@@ -189,12 +189,12 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
           ? new Decimal(buyingPower).div(execPrice).floor().toNumber()
           : new Decimal(buyingPower)
               .div(fracHoldPrice.times(1 + fracBuyBuffer))
-              .toDecimalPlaces(4, Decimal.ROUND_DOWN)
+              .toDecimalPlaces(6, Decimal.ROUND_DOWN)
               .toNumber()
         : 0
       : method === "WHOLE"
         ? holdingQty.floor().toNumber()
-        : holdingQty.toDecimalPlaces(4, Decimal.ROUND_DOWN).toNumber();
+        : holdingQty.toNumber();
 
   const sheetIsOverLimit = (() => {
     if (!ctx || qty <= 0) return false;
@@ -491,7 +491,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
               onChange={onQty}
               step={method === "WHOLE" ? 1 : 0.1}
               min={0}
-              precision={method === "WHOLE" ? 0 : 4}
+              precision={method === "WHOLE" ? 0 : 6}
               suffix="주"
               placeholder={
                 method === "WHOLE"
@@ -509,7 +509,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
                     onQty(
                       new Decimal(qty)
                         .plus(n)
-                        .toDecimalPlaces(method === "WHOLE" ? 0 : 4)
+                        .toDecimalPlaces(method === "WHOLE" ? 0 : 6)
                         .toNumber(),
                     )
                   }
@@ -533,10 +533,10 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
               </span>
               <span className="font-numeric text-sm font-bold text-foreground">
                 {ctx?.side === "BUY"
-                  ? `${maxQty.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}주`
+                  ? `${maxQty.toLocaleString("ko-KR", { maximumFractionDigits: 6 })}주`
                   : `${(method === "WHOLE"
                       ? holdingQty.floor()
-                      : holdingQty.toDecimalPlaces(4, Decimal.ROUND_DOWN)
+                      : holdingQty
                     ).toString()}주`}
               </span>
             </div>

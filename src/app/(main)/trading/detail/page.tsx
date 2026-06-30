@@ -54,7 +54,7 @@ type PendingOrder = { orderId: number; mode: "buy" | "sell"; count: number };
 
 
 function formatShares(q: Decimal) {
-  return q.toDecimalPlaces(4).toString();
+  return q.toDecimalPlaces(6).toString();
 }
 
 export default function TradePage() {
@@ -287,7 +287,7 @@ function TradeContent({
       ? maxQtyBase.floor().toNumber()
       : side === "SELL"
         ? holdingQty.toNumber()
-        : maxQtyBase.toDecimalPlaces(4, Decimal.ROUND_DOWN).toNumber();
+        : maxQtyBase.toDecimalPlaces(6, Decimal.ROUND_DOWN).toNumber();
 
   // 방향 전환 — 매도는 금액으로 불가(수량만). 조각 선택·멱등키 초기화.
   const changeSide = (s: Side) => {
@@ -355,7 +355,7 @@ function TradeContent({
       const effectiveQty =
         inputMode === "QTY" && tab === "FRACTION" && calcPrice.gt(0) &&
         new Decimal(qty).times(calcPrice).lt(minOrder)
-          ? new Decimal(minOrder).div(calcPrice).toDecimalPlaces(4, Decimal.ROUND_UP).toNumber()
+          ? new Decimal(minOrder).div(calcPrice).toDecimalPlaces(6, Decimal.ROUND_UP).toNumber()
           : qty;
       const need =
         effectiveAmount !== null
@@ -558,7 +558,7 @@ function TradeContent({
         );
       }
     } else if (calcPrice.gt(0) && new Decimal(qty).times(calcPrice).lt(minOrder)) {
-      const minQty = new Decimal(minOrder).div(calcPrice).toDecimalPlaces(4, Decimal.ROUND_UP);
+      const minQty = new Decimal(minOrder).div(calcPrice).toDecimalPlaces(6, Decimal.ROUND_UP);
       // SELL: 보정 수량이 실제 보유를 초과하면 → 보유 전량으로 대체(보유가치 ≥ 최솟값이면 유효)
       if (side === "SELL" && minQty.gt(holdingQty)) {
         if (holdingQty.times(calcPrice).lt(minOrder)) {

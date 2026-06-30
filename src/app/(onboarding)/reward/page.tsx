@@ -40,7 +40,7 @@ function estimateText(currency: string | undefined, price: number | undefined) {
   const budget = isUsd ? BUDGET_USD : BUDGET_KRW;
   const budgetText = isUsd ? `$${BUDGET_USD}` : formatKRW(BUDGET_KRW);
   if (price && price > 0) {
-    const qty = toDecimal(budget).div(price).toDecimalPlaces(4).toString();
+    const qty = toDecimal(budget).div(price).toDecimalPlaces(6).toString();
     return `${budgetText} (약 ${qty}주)`;
   }
   return budgetText;
@@ -48,7 +48,7 @@ function estimateText(currency: string | undefined, price: number | undefined) {
 
 /** 지급 결과(실제 수량) → "N주" */
 function grantedShares(reward: WelcomeReward) {
-  return `${toDecimal(reward.quantity).toDecimalPlaces(4).toString()}주`;
+  return `${toDecimal(reward.quantity).toDecimalPlaces(6).toString()}주`;
 }
 
 /**

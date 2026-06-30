@@ -39,3 +39,10 @@ export function formatHoldingShort(
   const { whole, pieces } = toPieceParts(quantity);
   return `${whole.toLocaleString("ko-KR")}주 ${formatPieces(pieces)}조각`;
 }
+
+/** "0.0031주" / "5.11주" — 소수점 수량 표기(trailing zero 제거, 최대 4자리). */
+export function formatQuantity(
+  quantity: number | string | null | undefined,
+): string {
+  return `${toDecimal(quantity).toDecimalPlaces(6).toString()}주`;
+}

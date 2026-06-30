@@ -10,7 +10,7 @@ const AMOUNT_CHIPS_KRW = [1000, 5000, 10000];
 const AMOUNT_CHIPS_USD = [1, 5, 10];
 
 function formatShares(q: Decimal) {
-  return q.toDecimalPlaces(4).toString();
+  return q.toDecimalPlaces(6).toString();
 }
 
 export interface OrderAmountPanelProps {
@@ -115,7 +115,7 @@ export function OrderAmountPanel({
             onChange={onQtyChange}
             step={fractional ? 0.1 : 1}
             min={0}
-            precision={fractional ? 4 : 0}
+            precision={fractional ? 6 : 0}
             suffix="주"
             placeholder={qtyPlaceholder}
             editable

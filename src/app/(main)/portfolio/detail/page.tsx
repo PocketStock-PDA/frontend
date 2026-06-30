@@ -84,7 +84,7 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
 };
 
 function formatShares(q: Decimal) {
-  return q.toDecimalPlaces(4).toString();
+  return q.toDecimalPlaces(6).toString();
 }
 
 interface Selection {
