@@ -456,7 +456,7 @@ function TradesTab({ orders, detailMap, isLoading, isError, market, month, side,
                       "font-numeric text-[14px] font-bold",
                       isRejected ? "text-muted-foreground line-through" : isBuy ? "text-up" : "text-down",
                     )}>
-                      {isBuy ? "+" : "−"}{qty.toDecimalPlaces(4).toString()}주
+                      {isBuy ? "+" : "−"}{qty.toDecimalPlaces(6).toString()}주
                     </p>
                     {!isRejected && fillAmt.gt(0) && (() => {
                       const isUsd = o.currency === "USD";
@@ -610,7 +610,7 @@ function ProfitTab({ orders, detailMap, isLoading, isError, market, month, showK
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[14px] font-semibold text-foreground">{name}</p>
                         <p className="text-[12px] text-muted-foreground">
-                          매도 {qty.toDecimalPlaces(4).toString()}주 · {fmtTime(o.createdAt)}
+                          매도 {qty.toDecimalPlaces(6).toString()}주 · {fmtTime(o.createdAt)}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -691,7 +691,7 @@ function PendingOrderItem({
           "font-numeric text-[13px] font-semibold",
           isBuy ? "text-up" : "text-down",
         )}>
-          {isBuy ? "+" : "−"}{qty.toDecimalPlaces(4).toString()}주
+          {isBuy ? "+" : "−"}{qty.toDecimalPlaces(6).toString()}주
         </p>
         <Button
           variant="outline"

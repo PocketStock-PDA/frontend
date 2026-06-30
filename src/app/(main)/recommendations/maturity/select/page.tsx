@@ -122,21 +122,25 @@ export default function MaturitySelectPage() {
     return [...reserved, ...rest];
   }, [reservations]);
 
-  // 전환내역에 한 번이라도 뜬 계좌(배당주 예약 or 예금 재예치/CMA 이체) — 예금·적금 선택 탭에서 숨긴다.
-  const convertedAccountIds = useMemo(
-    () =>
-      new Set<number>([
-        ...reservations.map((r) => r.linkedBankAccountId),
-        ...rollovers.map((d) => d.linkedBankAccountId),
-      ]),
-    [reservations, rollovers],
-  );
+  // RESERVED·EXECUTED 예약이 있거나 재예치가 있는 계좌만 차단 — 전부 취소/실패면 재시도 가능.
+  const convertedAccountIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const r of reservations) {
+      if (r.status === "RESERVED" || r.status === "EXECUTED") {
+        ids.add(r.linkedBankAccountId);
+      }
+    }
+    for (const d of rollovers) {
+      ids.add(d.linkedBankAccountId);
+    }
+    return ids;
+  }, [reservations, rollovers]);
 
   if (isLoading) {
     return (
       <>
         <AppHeader variant="sub" title="만기 자금 굴리기" />
-        <div className="space-y-4">
+        <div className="space-y-5">
           <SkeletonCard lines={1} className="h-10" />
           <SkeletonCard lines={3} className="h-40" />
         </div>
@@ -257,11 +261,11 @@ function AccountsTab({
         <button
           type="button"
           onClick={() => onConvert(featured.accountId)}
-          className="block w-full rounded-2xl border border-[#dbe7fb] bg-brand-surface p-[18px] text-left transition-[background-color,transform] duration-150 ease-out hover:bg-brand-surface/70 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="block w-full rounded-2xl border border-primary/20 bg-brand-surface p-[18px] text-left transition-[background-color,transform] duration-150 ease-out hover:bg-brand-surface/70 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <div className="flex items-center justify-between">
             <span className="text-[11.5px] font-bold text-primary">가장 가까운 만기</span>
-            <span className="font-numeric text-[18px] font-bold tabular-nums text-primary">
+            <span className="font-numeric text-lg font-bold tabular-nums text-primary">
               {ddayLabel(featured.daysUntilMaturity)}
             </span>
           </div>
@@ -276,14 +280,11 @@ function AccountsTab({
                 {featured.accountName}
               </p>
               <p className="mt-1 font-numeric text-[13px] tabular-nums text-[#3c5170]">
-                만기수령 {formatKRW(featured.maturityAmount)} · 연 {featured.interestRate}%
+                만기수령 {formatKRW(featured.maturityAmount)} · 연 {featured.interestRate}% · {formatMD(featured.maturityDate)}
               </p>
             </div>
           </div>
-          <p className="mt-1.5 font-numeric text-[11.5px] tabular-nums text-muted-foreground">
-            {formatMD(featured.maturityDate)} 만기
-          </p>
-          <span className="mt-4 flex h-[46px] w-full items-center justify-center rounded-xl bg-primary text-[14.5px] font-bold text-white">
+          <span className="mt-4 flex h-[46px] w-full items-center justify-center rounded-xl bg-primary text-sm font-bold text-white">
             이 자금 굴리기
           </span>
         </button>
@@ -324,7 +325,7 @@ function AccountRow({
     <button
       type="button"
       onClick={onSelect}
-      className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/40 active:bg-muted/60"
+      className="flex w-full items-center gap-3 px-4 py-4 text-left transition-[background-color,transform] duration-150 hover:bg-muted/40 active:scale-[0.99] active:bg-muted/60"
     >
       <InstitutionLogo
         code={bank?.code}
@@ -421,7 +422,14 @@ function HistoryTab({
     });
   }, [reservations, rollovers, accounts]);
 
-  if (groups.length === 0) {
+  // 모든 예약이 취소됐고 재예치도 없는 그룹은 전환 내역에서 숨김 — 예금·적금 탭에서 재선택 가능.
+  const visibleGroups = groups.filter(
+    (g) =>
+      g.rollovers.length > 0 ||
+      g.reservations.some((r) => r.status !== "CANCELLED"),
+  );
+
+  if (visibleGroups.length === 0) {
     return (
       <EmptyState
         title="전환 내역이 없어요"
@@ -432,7 +440,7 @@ function HistoryTab({
 
   return (
     <div className="space-y-4">
-      {groups.map((group) => (
+      {visibleGroups.map((group) => (
         <AccountGroupCard
           key={group.accountId}
           group={group}
@@ -470,7 +478,11 @@ function AccountGroupCard({
   onCancel: (id: number) => void;
 }) {
   const reserved = group.reservations.filter((r) => r.status === "RESERVED");
-  const past = group.reservations.filter((r) => r.status !== "RESERVED");
+  // CANCELLED는 개별 행으로 보여주지 않음 — 카운트만 표시.
+  const cancelled = group.reservations.filter((r) => r.status === "CANCELLED");
+  const visiblePast = group.reservations.filter(
+    (r) => r.status !== "RESERVED" && r.status !== "CANCELLED",
+  );
   const rollovers = group.rollovers;
   const hasReserved = reserved.length > 0;
   const hasConversion = hasReserved || rollovers.length > 0;
@@ -490,14 +502,14 @@ function AccountGroupCard({
               name={bank?.name ?? group.accountName ?? "예금·적금"}
               className="size-7 shrink-0"
             />
-            <p className="truncate text-[14px] font-bold text-foreground">
+            <p className="truncate text-sm font-bold text-foreground">
               {group.accountName ?? "예금·적금"}
             </p>
           </div>
           {group.daysUntilMaturity !== null && (
             <span
               className={cn(
-                "shrink-0 font-numeric text-[12px] font-bold tabular-nums",
+                "shrink-0 font-numeric text-xs font-bold tabular-nums",
                 ddayTone(group.daysUntilMaturity),
               )}
             >
@@ -505,13 +517,13 @@ function AccountGroupCard({
             </span>
           )}
         </div>
-        <p className="mt-1 font-numeric text-[12px] tabular-nums text-muted-foreground">
+        <p className="mt-1 font-numeric text-xs tabular-nums text-muted-foreground">
           {formatMD(group.maturityDate)} 만기
           {group.principalAmount !== null && ` · 원금 ${formatKRW(group.principalAmount)}`}
           {group.interestRate !== null && ` · 연 ${group.interestRate}%`}
         </p>
         {hasConversion && (
-          <div className="mt-2.5 flex items-center gap-1.5 rounded-lg bg-brand-surface px-2.5 py-1.5 text-[11.5px] font-bold text-primary">
+          <div className="mt-2.5 flex items-center gap-1.5 rounded-xl bg-brand-surface px-2.5 py-1.5 text-[11.5px] font-bold text-primary">
             <ArrowDown className="size-3 shrink-0" />
             <span className="font-numeric tabular-nums">{formatMD(group.maturityDate)}</span>
             <span>만기일 자동 전환</span>
@@ -539,7 +551,7 @@ function AccountGroupCard({
             onCancel={() => onCancel(r.id)}
           />
         ))}
-        {past.map((r) => (
+        {visiblePast.map((r) => (
           <ReservationRow
             key={r.id}
             reservation={r}
@@ -549,6 +561,11 @@ function AccountGroupCard({
             onCancel={() => {}}
           />
         ))}
+        {cancelled.length > 0 && (
+          <li className="px-4 py-2.5 text-[11.5px] text-muted-foreground">
+            외 {cancelled.length}개 취소됨
+          </li>
+        )}
       </ul>
     </div>
   );
@@ -557,7 +574,7 @@ function AccountGroupCard({
 // ── 배당 재투자 탭 ────────────────────────────────────────────────────────
 
 function formatShares(n: number): string {
-  return Number(n).toLocaleString("ko-KR", { maximumFractionDigits: 4 });
+  return Number(n).toLocaleString("ko-KR", { maximumFractionDigits: 6 });
 }
 
 const DRIP_STATUS_CHIP: Record<DividendPayoutStatus, { label: string; cls: string }> = {
@@ -760,7 +777,7 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
                         <div className="flex flex-wrap items-center gap-1.5">
                           <p className="text-sm font-bold text-foreground">{s.stockName}</p>
                           {isReserved && (
-                            <span className="rounded-full bg-brand-surface px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                            <span className="rounded-full bg-brand-surface px-1.5 py-0.5 text-[11px] font-bold text-primary">
                               예약중
                             </span>
                           )}
@@ -825,7 +842,7 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
 function DripFlowStep({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex-1 rounded-xl bg-brand-surface px-1.5 py-2.5 text-center">
-      <p className="text-[10px] font-medium text-[#41556f]">{label}</p>
+      <p className="text-[10px] font-medium text-[#3c5170]">{label}</p>
       <p className="mt-0.5 font-numeric text-[12.5px] font-bold tabular-nums text-foreground">
         {value}
       </p>
@@ -854,7 +871,7 @@ function DripHistoryRow({ payout, logoUrl }: { payout: DividendPayout; logoUrl: 
         <p className="font-numeric text-[13.5px] font-bold tabular-nums text-foreground">
           {formatKRW(payout.grossAmount)}
         </p>
-        <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold", chip.cls)}>
+        <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold", chip.cls)}>
           {chip.label}
         </span>
       </div>
@@ -874,8 +891,8 @@ function DepositRolloverRow({ rollover }: { rollover: DepositRollover }) {
         <PiggyBank className="size-[18px]" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-semibold text-foreground">{productName}</p>
-        <p className="mt-0.5 font-numeric text-[12px] tabular-nums text-muted-foreground">
+        <p className="truncate text-sm font-semibold text-foreground">{productName}</p>
+        <p className="mt-0.5 font-numeric text-xs tabular-nums text-muted-foreground">
           {isCma
             ? `${formatKRW(Number(amount))} · 포켓스톡 CMA 입금`
             : `${formatKRW(Number(amount))} · ${periodMonths}개월 · 연 ${rateLabel}`}
@@ -923,8 +940,8 @@ function ReservationRow({
       </Avatar>
 
       <div className={cn("min-w-0 flex-1", !isReserved && "opacity-60")}>
-        <p className="text-[14px] font-semibold text-foreground">{stockName}</p>
-        <p className="mt-0.5 font-numeric text-[12px] tabular-nums text-muted-foreground">
+        <p className="text-sm font-semibold text-foreground">{stockName}</p>
+        <p className="mt-0.5 font-numeric text-xs tabular-nums text-muted-foreground">
           {formatKRW(Number(buyAmount))} · {formatMD(maturityDate)} 집행
         </p>
       </div>

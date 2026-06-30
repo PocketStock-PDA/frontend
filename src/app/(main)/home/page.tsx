@@ -37,6 +37,16 @@ import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import type { CollectSourceType } from "@/types/domain/cma";
 
 
+function CardSvgIcon() {
+  return (
+    <svg className="size-6 shrink-0" viewBox="6 8 24 20" fill="none">
+      <rect x="9.5" y="11" width="21" height="13.5" rx="2.6" fill="#3f7bff" />
+      <rect x="9.5" y="14" width="21" height="2.6" fill="#2a62e0" />
+      <rect x="12.5" y="20" width="6" height="2" rx="1" fill="#fff" fillOpacity="0.85" />
+    </svg>
+  );
+}
+
 const SOURCE_ICON: Record<
   CollectSourceType,
   React.ComponentType<{ className?: string }>
@@ -201,10 +211,17 @@ export default function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <SkeletonCard lines={2} className="h-32" />
-        <SkeletonCard lines={3} className="h-48" />
-      </div>
+      <>
+        <HomeHeader
+          userName={profile?.name ?? ""}
+          onBellClick={() => router.push("/notifications")}
+          unreadCount={notifications?.unreadCount ?? 0}
+        />
+        <div className="space-y-4">
+          <SkeletonCard lines={2} className="h-32" />
+          <SkeletonCard lines={3} className="h-48" />
+        </div>
+      </>
     );
   }
 
@@ -240,7 +257,12 @@ export default function HomePage() {
 
   if (isError || !data) {
     return (
-      <div>
+      <>
+        <HomeHeader
+          userName={profile?.name ?? ""}
+          onBellClick={() => router.push("/notifications")}
+          unreadCount={notifications?.unreadCount ?? 0}
+        />
         <EmptyState
           title="불러오지 못했어요"
           description="잠시 후 다시 시도해 주세요."
@@ -250,7 +272,7 @@ export default function HomePage() {
             </Button>
           }
         />
-      </div>
+      </>
     );
   }
 
@@ -382,36 +404,7 @@ export default function HomePage() {
                 {/* 카드 행 — 연결 여부 무관하게 항상 표시 */}
                 {linkedCard ? (
                   <div className="relative flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4">
-                    <svg
-                      className="size-6 shrink-0"
-                      viewBox="6 8 24 20"
-                      fill="none"
-                    >
-                      <rect
-                        x="9.5"
-                        y="11"
-                        width="21"
-                        height="13.5"
-                        rx="2.6"
-                        fill="#3f7bff"
-                      />
-                      <rect
-                        x="9.5"
-                        y="14"
-                        width="21"
-                        height="2.6"
-                        fill="#2a62e0"
-                      />
-                      <rect
-                        x="12.5"
-                        y="20"
-                        width="6"
-                        height="2"
-                        rx="1"
-                        fill="#fff"
-                        fillOpacity="0.85"
-                      />
-                    </svg>
+                    <CardSvgIcon />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-foreground">
                         카드 사용 잔돈
@@ -426,52 +419,22 @@ export default function HomePage() {
                       size="md"
                       className="shrink-0 font-bold"
                     />
-                    {editCollect && (
-                      <button
-                        type="button"
-                        aria-label="잔돈 적립 카드 설정"
-                        onClick={() => setCardSheetOpen(true)}
-                        className="absolute -right-2 -top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md"
-                      >
-                        설정
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      aria-label="잔돈 적립 카드 설정"
+                      onClick={() => setCardSheetOpen(true)}
+                      tabIndex={editCollect ? undefined : -1}
+                      className={`absolute -right-2 -top-2 origin-center rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md transition-[transform,opacity] duration-150 ${editCollect ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"}`}
+                    >
+                      설정
+                    </button>
                   </div>
                 ) : (
                   <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4">
-                    <svg
-                      className="size-6 shrink-0"
-                      viewBox="6 8 24 20"
-                      fill="none"
-                    >
-                      <rect
-                        x="9.5"
-                        y="11"
-                        width="21"
-                        height="13.5"
-                        rx="2.6"
-                        fill="#3f7bff"
-                      />
-                      <rect
-                        x="9.5"
-                        y="14"
-                        width="21"
-                        height="2.6"
-                        fill="#2a62e0"
-                      />
-                      <rect
-                        x="12.5"
-                        y="20"
-                        width="6"
-                        height="2"
-                        rx="1"
-                        fill="#fff"
-                        fillOpacity="0.85"
-                      />
-                    </svg>
+                    <CardSvgIcon />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-foreground">
-                        카드 잔돈
+                        카드 사용 잔돈
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
                         카드를 연결하면 잔돈을 적립할 수 있어요
@@ -531,16 +494,15 @@ export default function HomePage() {
                     className="font-bold"
                   />
                 </div>
-                {editCollect && (
-                  <button
-                    type="button"
-                    aria-label="은행 잔돈 설정"
-                    onClick={() => setAccountSheetOpen(true)}
-                    className="absolute -right-2 -top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md"
-                  >
-                    설정
-                  </button>
-                )}
+                <button
+                  type="button"
+                  aria-label="은행 잔돈 설정"
+                  onClick={() => setAccountSheetOpen(true)}
+                  tabIndex={editCollect ? undefined : -1}
+                  className={`absolute -right-2 -top-2 origin-center rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md transition-[transform,opacity] duration-150 ${editCollect ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"}`}
+                >
+                  설정
+                </button>
               </div>
             )}
             {fxSource && (
@@ -557,16 +519,15 @@ export default function HomePage() {
                     className="font-bold"
                   />
                 </div>
-                {editCollect && (
-                  <button
-                    type="button"
-                    aria-label="SOL트래블 모으기 설정"
-                    onClick={() => setFxSheetOpen(true)}
-                    className="absolute -right-2 -top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md"
-                  >
-                    설정
-                  </button>
-                )}
+                <button
+                  type="button"
+                  aria-label="SOL트래블 모으기 설정"
+                  onClick={() => setFxSheetOpen(true)}
+                  tabIndex={editCollect ? undefined : -1}
+                  className={`absolute -right-2 -top-2 origin-center rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md transition-[transform,opacity] duration-150 ${editCollect ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"}`}
+                >
+                  설정
+                </button>
               </div>
             )}
             {/* 포인트 — 마이신한포인트 / 금액 / 제휴 / 금액 세로 스택 */}
@@ -584,16 +545,15 @@ export default function HomePage() {
                   {drainedPartner.toLocaleString()}P
                 </span>
               </div>
-              {editCollect && (
-                <button
-                  type="button"
-                  aria-label="포인트 설정"
-                  onClick={() => setPointSheetOpen(true)}
-                  className="absolute -right-2 -top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md"
-                >
-                  설정
-                </button>
-              )}
+              <button
+                type="button"
+                aria-label="포인트 설정"
+                onClick={() => setPointSheetOpen(true)}
+                tabIndex={editCollect ? undefined : -1}
+                className={`absolute -right-2 -top-2 origin-center rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white shadow-md transition-[transform,opacity] duration-150 ${editCollect ? "scale-100 opacity-100" : "pointer-events-none scale-75 opacity-0"}`}
+              >
+                설정
+              </button>
             </div>
           </div>
 
@@ -611,7 +571,7 @@ export default function HomePage() {
             />
           </div>
           {collect.isError && (
-            <p className="mt-2 text-center text-xs text-destructive">
+            <p role="alert" className="mt-2 text-center text-xs text-destructive">
               모으기에 실패했어요. 잠시 후 다시 시도해 주세요.
             </p>
           )}
@@ -629,7 +589,7 @@ export default function HomePage() {
         <FxLinkSheet open={fxSheetOpen} onOpenChange={setFxSheetOpen} />
 
         {/* 바로가기 (홈화면 편집에서 순서/표시 변경) */}
-        <section className="mt-2">
+        <section>
           <div className="mb-3 px-3 flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-muted-foreground">
               바로가기
@@ -647,11 +607,12 @@ export default function HomePage() {
             </p>
           ) : (
             <div className="grid grid-cols-4 gap-y-5">
-              {quickLinks.map(({ id, label, icon: Icon, href }) => (
+              {quickLinks.map(({ id, label, icon: Icon, href }, index) => (
                 <Link
                   key={id}
                   href={href}
-                  className="flex flex-col items-center gap-1.5"
+                  className="flex flex-col items-center gap-1.5 ps-rise-in"
+                  style={{ "--i": Math.min(index, 5) } as React.CSSProperties}
                 >
                   <span className="flex size-14 items-center justify-center rounded-2xl bg-card shadow-sm ring-1 ring-border">
                     <Icon className="size-7" />

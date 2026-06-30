@@ -1,6 +1,8 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { AlertTriangle } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SectionHeader } from "@/components/common/SectionHeader";
@@ -21,7 +23,7 @@ export default function AssetPage() {
     return (
       <>
         <AppHeader variant="sub" title="자산 현황" />
-        <div className="space-y-4">
+        <div className="space-y-5">
           <SkeletonCard lines={2} className="h-28" />
           <SkeletonCard lines={4} className="h-52" />
           <SkeletonCard lines={2} className="h-24" />
@@ -47,13 +49,18 @@ export default function AssetPage() {
     );
   }
 
+  const hasMaturity = !!maturityData?.triggerAccount;
+
   return (
     <>
       <AppHeader variant="sub" title="자산 현황" />
       <div className="space-y-5">
-        {/* 순자산 + 자산 구성 — 한 카드로 묶음(포트폴리오 탭 톤) */}
-        <section className="overflow-hidden rounded-2xl bg-brand-surface">
-          {/* 순자산 (brand-surface) */}
+        {/* 순자산 + 자산 구성 */}
+        <section
+          className="overflow-hidden rounded-2xl bg-brand-surface ps-rise-in"
+          style={{ "--i": 0 } as CSSProperties}
+        >
+          {/* 순자산 */}
           <div className="px-5 pb-3 pt-5">
             <p className="text-sm font-medium text-primary">순자산</p>
             <AmountDisplay
@@ -63,7 +70,7 @@ export default function AssetPage() {
               className="mt-1.5 block tracking-tight"
             />
             {data.partial && (
-              <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
+              <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
                 <AlertTriangle className="size-3.5 shrink-0" />
                 <span className="flex-1">일부 자산을 불러오지 못해 실제보다 적게 표시될 수 있어요.</span>
                 <button
@@ -80,7 +87,10 @@ export default function AssetPage() {
           {/* 자산 구성 (흰 배경) */}
           <div className="mx-4 mb-4 rounded-2xl border border-primary/30 bg-card p-5">
             {data.portfolio.length === 0 ? (
-              <EmptyState title="등록된 자산이 없어요" />
+              <EmptyState
+                title="등록된 자산이 없어요"
+                description="자산을 연동하면 구성을 한눈에 볼 수 있어요."
+              />
             ) : (
               <AssetPortfolioCard
                 bare
@@ -91,19 +101,31 @@ export default function AssetPage() {
           </div>
         </section>
 
-        {/* 만기 알림 */}
-        {maturityData?.triggerAccount && (
-          <MaturityAlertCard account={maturityData.triggerAccount} />
-        )}
+        {/* 만기 알림 — AnimatePresence로 데이터가 늦게 도착해도 부드럽게 진입 */}
+        <AnimatePresence>
+          {hasMaturity && (
+            <motion.div
+              key="maturity-alert"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.24, ease: [0.25, 1, 0.5, 1] }}
+            >
+              <MaturityAlertCard account={maturityData!.triggerAccount!} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* 자금 굴리기 */}
-        <section>
+        <section
+          className="ps-rise-in"
+          style={{ "--i": hasMaturity ? 2 : 1 } as CSSProperties}
+        >
           <SectionHeader title="자금 굴리기" />
           <AssetActionRows
             daysUntilMaturity={maturityData?.triggerAccount?.daysUntilMaturity}
           />
         </section>
-
       </div>
     </>
   );

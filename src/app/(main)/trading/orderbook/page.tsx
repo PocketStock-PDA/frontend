@@ -147,9 +147,9 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
   const fmtAmount = (v: number | string) => (isUSD ? formatUSD(v) : formatKRW(v));
 
   const price = toDecimal(basePrice);
-  const holdingQty = toDecimal(
-    holdingsQ.data?.find((h) => h.stockCode === stockCode)?.quantity,
-  );
+  const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
+  const holdingQty = toDecimal(holding?.quantity);
+  const sellableQty = toDecimal(holding?.fractionalQty).minus(toDecimal(holding?.heldFractional));
   const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
   const ob = obQ.data;
   const refPrice = ob?.currentPrice ?? basePrice;
@@ -189,12 +189,12 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
           ? new Decimal(buyingPower).div(execPrice).floor().toNumber()
           : new Decimal(buyingPower)
               .div(fracHoldPrice.times(1 + fracBuyBuffer))
-              .toDecimalPlaces(4, Decimal.ROUND_DOWN)
+              .toDecimalPlaces(6, Decimal.ROUND_DOWN)
               .toNumber()
         : 0
       : method === "WHOLE"
         ? holdingQty.floor().toNumber()
-        : holdingQty.toDecimalPlaces(4, Decimal.ROUND_DOWN).toNumber();
+        : sellableQty.toNumber();
 
   const sheetIsOverLimit = (() => {
     if (!ctx || qty <= 0) return false;
@@ -206,7 +206,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
           : new Decimal(qty).times(execPrice);
       return need.gt(buyingPower);
     }
-    return new Decimal(qty).gt(holdingQty);
+    return new Decimal(qty).gt(sellableQty);
   })();
   const sheetOverLimitMsg =
     ctx?.side === "BUY" ? "매수 가능 금액을 초과했어요" : "보유 수량을 초과했어요";
@@ -252,7 +252,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
         toast.error("구매 가능 금액을 초과했어요.");
         return;
       }
-    } else if (new Decimal(qty).gt(holdingQty)) {
+    } else if (new Decimal(qty).gt(sellableQty)) {
       toast.error("보유 수량을 초과했어요.");
       return;
     }
@@ -491,7 +491,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
               onChange={onQty}
               step={method === "WHOLE" ? 1 : 0.1}
               min={0}
-              precision={method === "WHOLE" ? 0 : 4}
+              precision={method === "WHOLE" ? 0 : 6}
               suffix="주"
               placeholder={
                 method === "WHOLE"
@@ -509,7 +509,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
                     onQty(
                       new Decimal(qty)
                         .plus(n)
-                        .toDecimalPlaces(method === "WHOLE" ? 0 : 4)
+                        .toDecimalPlaces(method === "WHOLE" ? 0 : 6)
                         .toNumber(),
                     )
                   }
@@ -533,10 +533,10 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
               </span>
               <span className="font-numeric text-sm font-bold text-foreground">
                 {ctx?.side === "BUY"
-                  ? `${maxQty.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}주`
+                  ? `${maxQty.toLocaleString("ko-KR", { maximumFractionDigits: 6 })}주`
                   : `${(method === "WHOLE"
                       ? holdingQty.floor()
-                      : holdingQty.toDecimalPlaces(4, Decimal.ROUND_DOWN)
+                      : sellableQty
                     ).toString()}주`}
               </span>
             </div>

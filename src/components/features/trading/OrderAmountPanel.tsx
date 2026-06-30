@@ -10,7 +10,7 @@ const AMOUNT_CHIPS_KRW = [1000, 5000, 10000];
 const AMOUNT_CHIPS_USD = [1, 5, 10];
 
 function formatShares(q: Decimal) {
-  return q.toDecimalPlaces(4).toString();
+  return q.toDecimalPlaces(6).toString();
 }
 
 export interface OrderAmountPanelProps {
@@ -41,6 +41,8 @@ export interface OrderAmountPanelProps {
   qtyPlaceholder?: string;
   amountPlaceholder?: string;
   infoLabel?: string;
+  /** true이면 QTY 모드 info row에 수량 대신 "잔고 부족" 경고 표시 (BUY 잔고 < 최소 주문금액) */
+  belowMinOrder?: boolean;
 }
 
 export function OrderAmountPanel({
@@ -61,6 +63,7 @@ export function OrderAmountPanel({
   qtyPlaceholder = "몇 주 모을까요?",
   amountPlaceholder = "모으기 금액",
   infoLabel = "구매 가능",
+  belowMinOrder = false,
 }: OrderAmountPanelProps) {
   const amountDp = isUSD ? 2 : 0;
   const resolvedQtyChips = qtyChips ?? (fractional ? [0.1, 0.5, 1] : [1, 5, 10]);
@@ -115,7 +118,7 @@ export function OrderAmountPanel({
             onChange={onQtyChange}
             step={fractional ? 0.1 : 1}
             min={0}
-            precision={fractional ? 4 : 0}
+            precision={fractional ? 6 : 0}
             suffix="주"
             placeholder={qtyPlaceholder}
             editable
@@ -129,7 +132,7 @@ export function OrderAmountPanel({
                   onQtyChange(
                     new Decimal(qty)
                       .plus(n)
-                      .toDecimalPlaces(fractional ? 4 : 0)
+                      .toDecimalPlaces(fractional ? 6 : 0)
                       .toNumber(),
                   )
                 }
@@ -195,10 +198,12 @@ export function OrderAmountPanel({
       {/* 구매 가능 / 모으기 가능 */}
       <div className="flex items-center justify-between border-t border-border pt-3">
         <span className="text-xs text-muted-foreground">{infoLabel}</span>
-        <span className="font-numeric text-sm font-bold text-foreground">
+        <span className={amountMode === "QTY" && belowMinOrder ? "text-xs text-destructive font-medium" : "font-numeric text-sm font-bold text-foreground"}>
           {amountMode === "AMOUNT"
             ? fmtPower()
-            : `${formatShares(new Decimal(maxBuyQty))}주`}
+            : belowMinOrder
+              ? "잔고가 최소 주문금액 미만이에요"
+              : `${formatShares(new Decimal(maxBuyQty))}주`}
         </span>
       </div>
     </div>

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
+  Puzzle,
   Star,
   XCircle,
   type LucideIcon,
@@ -215,6 +216,8 @@ function notifIcon(type: string): { Icon: LucideIcon; tone: string } {
     return { Icon: XCircle, tone: "bg-rose-50 text-rose-500" };
   if (t.includes("DEPOSIT") || t.includes("CMA"))
     return { Icon: CreditCard, tone: "bg-blue-50 text-blue-500" };
+  if (t === "PUZZLE_COMPLETE")
+    return { Icon: Puzzle, tone: "bg-violet-50 text-violet-500" };
   if (t.includes("GOAL") || t.includes("REWARD"))
     return { Icon: Star, tone: "bg-amber-50 text-amber-500" };
   if (t.includes("PRICE") || t.includes("ALERT"))

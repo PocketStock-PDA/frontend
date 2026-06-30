@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { ChevronRight, Layers } from "lucide-react";
@@ -14,6 +14,7 @@ import { CurrencyToggle } from "@/components/common/CurrencyToggle";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { JigsawPuzzle } from "@/components/features/portfolio/JigsawPuzzle";
 import { CollectStatus } from "@/components/features/portfolio/CollectStatus";
 import { FacetCard, MiniPuzzle } from "@/components/features/portfolio/FacetCard";
@@ -24,6 +25,7 @@ import { usePortfolioSummary } from "@/hooks/queries/usePortfolioSummary";
 import { useStockDetail } from "@/hooks/queries/useStockDetail";
 import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useOrders } from "@/hooks/queries/useOrders";
+import { useWelcomeRewards } from "@/hooks/queries/useWelcomeRewards";
 import {
   useAutoInvest,
   useAutoInvestExecutions,
@@ -36,6 +38,7 @@ import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { useCancelOrder } from "@/hooks/mutations/useCancelOrder";
 import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
+import { useOrderNotification } from "@/hooks/useOrderNotification";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { parseUTC } from "@/lib/utils/date";
 import { toDecimal } from "@/lib/utils/decimal";
@@ -81,7 +84,7 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
 };
 
 function formatShares(q: Decimal) {
-  return q.toDecimalPlaces(4).toString();
+  return q.toDecimalPlaces(6).toString();
 }
 
 interface Selection {
@@ -149,6 +152,7 @@ function StockDetailContent({
   const detailQ = useStockDetail(stockCode);
   const exchangeRateQ = useExchangeRate(); // 해외 종목 원화 환산 토글용(매매기준율)
   const ordersQ = useOrders();
+  const rewardsQ = useWelcomeRewards();
   // 자동모으기 종목인지 + 회차 내역 (모으기 종목일 때만 의미)
   const auto = useAutoInvest(stockCode);
   const execQ = useAutoInvestExecutions(auto.id);
@@ -178,47 +182,28 @@ function StockDetailContent({
     { orderId: number; mode: "buy" | "sell"; count: number }[]
   >([]);
   const hasPending = pendingOrders.length > 0;
-  const ordersRefetch = ordersQ.refetch;
   const holdingsRefetch = holdingsQ.refetch;
-  // 폴링 콜백에서 최신 pending을 읽기 위한 ref(이펙트 내부 동기 setState 회피)
-  const pendingRef = useRef(pendingOrders);
-  useEffect(() => {
-    pendingRef.current = pendingOrders;
-  }, [pendingOrders]);
 
-  // 접수 중이면 주문내역을 폴링(차수배치 ~1분)하며 reconcile.
-  // FILLED → 보유 갱신 후 해제(확정 스냅) / 실패 → 해제(롤백). 5분 안전망.
+  // WS 체결통보 — FILLED: 보유 재조회 후 pending 해제(확정 스냅) / REJECTED: 롤백 + 토스트.
+  // 이 종목 주문만 처리(다른 종목 체결 이벤트 무시). 5분 안전망은 유지.
+  useOrderNotification((notification) => {
+    if (notification.stockCode !== stockCode) return;
+    const { orderId, status } = notification;
+    setPendingOrders((prev) => {
+      const hit = prev.find((p) => p.orderId === orderId);
+      if (!hit) return prev;
+      if (status === "FILLED") void holdingsRefetch();
+      if (status === "REJECTED") toast.error("체결되지 못한 주문이 있어요.");
+      return prev.filter((p) => p.orderId !== orderId);
+    });
+  }, hasPending);
+
+  // 5분 안전망 — WS 단절 시 pending이 영구 잔류하지 않도록.
   useEffect(() => {
     if (!hasPending) return;
-    const tick = async () => {
-      const res = await ordersRefetch();
-      const list = res.data ?? [];
-      const resolved = new Set<number>();
-      let anyFilled = false;
-      let anyFailed = false;
-      for (const p of pendingRef.current) {
-        const o = list.find((x) => x.orderId === p.orderId);
-        if (!o) continue;
-        if (o.status === "FILLED") {
-          resolved.add(p.orderId);
-          anyFilled = true;
-        } else if (o.status === "REJECTED" || o.status === "CANCELLED") {
-          resolved.add(p.orderId);
-          anyFailed = true;
-        }
-      }
-      if (resolved.size === 0) return;
-      if (anyFilled) void holdingsRefetch();
-      if (anyFailed) toast.error("체결되지 못한 주문이 있어요.");
-      setPendingOrders((prev) => prev.filter((p) => !resolved.has(p.orderId)));
-    };
-    const iv = setInterval(() => void tick(), 4000);
     const stop = setTimeout(() => setPendingOrders([]), 300_000);
-    return () => {
-      clearInterval(iv);
-      clearTimeout(stop);
-    };
-  }, [hasPending, ordersRefetch, holdingsRefetch]);
+    return () => clearTimeout(stop);
+  }, [hasPending]);
 
   const pendingBuy = pendingOrders.reduce(
     (s, p) => s + (p.mode === "buy" ? p.count : 0),
@@ -266,6 +251,8 @@ function StockDetailContent({
     .times(PIECES_PER_SHARE)
     .toDecimalPlaces(0, Decimal.ROUND_DOWN)
     .toNumber(); // 0~100, 버림(정수 조각)
+  // 1조각(0.01주) 미만 잔여분 — 조각 뷰에서 판매 불가, 전량 매도 시 안내 대상
+  const subPieceRemainder = frac.minus(new Decimal(pieces).div(PIECES_PER_SHARE));
   // 평가금액·평가손익·수익률은 백엔드 summary 단일소스(native 통화, HALF_UP 반올림) — 포트폴리오 홈과 일치.
   // 직접 qty×price로 재계산하면 반올림 방향이 달라 같은 보유분이 홈/상세에서 어긋난다(예: 999 vs 1,000).
   // summary 미로딩 또는 미평가(priced=false, 현재가 조회 실패) 시에만 현재가×수량으로 폴백.
@@ -301,6 +288,10 @@ function StockDetailContent({
   const fx = isUSD ? exchangeRateQ.data?.baseRate ?? null : null;
   const showKrw = ovsKrw && fx !== null;
   const viewCurrency: "USD" | "KRW" = isUSD && !showKrw ? "USD" : "KRW";
+  // KRW 표시(국내·해외 원화 토글)는 정수 원화 기준 수익률로 통일 — 목록 페이지 krwRate()와 동일 소스
+  const displayRate = (!isUSD || showKrw) && hv?.profitKrw != null && hv?.investedKrw != null && hv.investedKrw > 0
+    ? new Decimal(hv.profitKrw).div(hv.investedKrw).times(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+    : rate;
   // Decimal 값을 표시 통화로 환산(원화 보기면 ×환율). AmountDisplay/ChangeIndicator 값 주입용.
   const toView = (v: Decimal) => (showKrw ? v.times(fx) : v);
   // 조회용 금액 포맷 — 원화 보기면 USD값을 환율로 환산, 아니면 종목 통화 그대로.
@@ -413,6 +404,9 @@ function StockDetailContent({
     .filter((o) => o.stockCode === stockCode && o.status !== "REJECTED")
     .slice(0, 5);
 
+  const recentRewards = (rewardsQ.data ?? [])
+    .filter((r) => r.stockCode === stockCode);
+
   const handleCancel = (orderId: number) => {
     if (cancelOrder.isPending) return;
     cancelOrder.mutate(orderId, {
@@ -482,18 +476,45 @@ function StockDetailContent({
     return isNaN(d.getTime()) ? oldest : format(d, "yyyy년 M월 d일");
   })();
 
-  // 전체(현황) 허브 — 보유 표기("5주 73조각"/0조각이면 "5주") + facet 활성 여부
+  // 전체(현황) 허브 — 보유 표기("5주 73조각"/0조각이면 "5주", 1조각 미만이면 소수 그대로)
   const wholeShares = qty.floor().toNumber().toLocaleString("ko-KR");
-  const bojuText = pieces > 0 ? `${wholeShares}주 ${pieces}조각` : `${wholeShares}주`;
+  const bojuText =
+    pieces > 0
+      ? `${wholeShares}주 ${pieces}조각`
+      : frac.gt(0)
+        ? `${qty.toDecimalPlaces(6).toString()}주`
+        : `${wholeShares}주`;
   const anyFacetActive = pieces > 0 || auto.id !== null;
 
   return (
     <>
       <AppHeader
         variant="sub"
-        title={detail.stockName}
+        title={
+          isCollect ? detail.stockName : (
+            <span className="flex items-center gap-2">
+              <Avatar className="size-7 shrink-0">
+                {detail.logoUrl && <AvatarImage src={detail.logoUrl} alt="" />}
+                <AvatarFallback className="text-[10px]">
+                  {(detail.stockCode ?? detail.stockName).trim().charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="flex flex-col text-left leading-tight">
+                <span className="text-xs text-muted-foreground">{detail.stockName}</span>
+                <span className="flex items-baseline gap-1.5">
+                  <AmountDisplay
+                    value={toView(price).toString()}
+                    currency={viewCurrency}
+                    size="md"
+                    className="font-bold"
+                  />
+                  <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
+                </span>
+              </span>
+            </span>
+          )
+        }
         right={
-          // 해외 종목 + 환율 보유 시: 달러 ↔ 원화 조회 토글
           isUSD && fx !== null ? (
             <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
           ) : undefined
@@ -512,7 +533,7 @@ function StockDetailContent({
             collectedQty={formatShares(collectedQtyD)}
             collectedCount={fills.length}
             profit={toView(profit).toNumber()}
-            rate={rate.toNumber()}
+            rate={displayRate.toNumber()}
             currency={viewCurrency}
             showPieces={pieces > 0}
             onEdit={() => router.push(tradingAutoDetailPath(stockCode))}
@@ -524,52 +545,6 @@ function StockDetailContent({
           />
         ) : (
           <>
-        {/* 현재가 + 등락 — 조각 뷰만(현황은 허브 히어로가 대신) */}
-        {isPieces && (
-          <div className="flex items-baseline gap-2">
-            <AmountDisplay
-              value={toView(price).toString()}
-              currency={viewCurrency}
-              size="lg"
-            />
-            <ChangeIndicator
-              value={detail.price?.changeRate ?? 0}
-              percent
-              size="md"
-            />
-          </div>
-        )}
-
-        {/* 모으기 배너 — 조각 뷰에서만. 탭 → 모으기 현황 */}
-        {isPieces && auto.id !== null && auto.setting && (
-          <button
-            type="button"
-            onClick={() =>
-              router.push(portfolioDetailPath(stockCode, { view: "collect" }))
-            }
-            className="flex w-full items-center justify-between rounded-xl bg-brand-surface px-4 py-3 text-left"
-          >
-            <span className="flex min-w-0 items-center gap-2 text-sm">
-              <span
-                className={cn(
-                  "inline-block size-2 shrink-0 rounded-full",
-                  auto.setting.enabled ? "bg-primary" : "bg-muted-foreground/40",
-                )}
-              />
-              <span className="shrink-0 font-bold text-primary">
-                {auto.setting.enabled ? "모으기 중" : "모으기 일시중지"}
-              </span>
-              <span className="truncate text-foreground/80">
-                {FREQ_LABEL[auto.setting.frequency]} ·{" "}
-                {auto.setting.amountMode === "AMOUNT"
-                  ? fmtView(auto.setting.amount)
-                  : `${auto.setting.quantity}주`}
-              </span>
-            </span>
-            <ChevronRight className="size-4 shrink-0 text-primary" />
-          </button>
-        )}
-
         {isPieces ? (
           <>
             {/* 퍼즐 현황 (조각 탭 → 매수/매도 선택) */}
@@ -612,7 +587,7 @@ function StockDetailContent({
                 <div className="flex items-baseline justify-between text-sm">
                   <span className="text-muted-foreground">내 보유</span>
                   <span className="font-numeric font-bold text-foreground">
-                    {bojuText}
+                    {formatShares(qty)}주
                     <span className="ml-1.5 text-xs font-medium text-muted-foreground">
                       {fmtView(evalAmount.toString())}
                     </span>
@@ -628,10 +603,18 @@ function StockDetailContent({
                   </span>
                 </div>
               </div>
-              <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="inline-block size-2 rounded-full bg-primary" />
-                빈 조각 탭 → 매수 · 채운 조각 탭 → 매도
-              </p>
+              {auto.id !== null && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(portfolioDetailPath(stockCode, { view: "collect" }))
+                  }
+                  className="mt-3 flex items-center gap-0.5 text-sm font-semibold text-primary"
+                >
+                  모으기로 모은 주식 보기
+                  <ChevronRight className="size-4" />
+                </button>
+              )}
             </section>
 
             {/* 1주만큼 모였으면 온주로 굳히기 — 퍼즐을 보는 이 맥락에서 띄운다 */}
@@ -662,7 +645,7 @@ function StockDetailContent({
                 value={toView(profit).toNumber()}
                 suffix={viewCurrency === "KRW" ? "원" : ""}
                 prefix={viewCurrency === "USD" ? "$" : ""}
-                subPercent={rate.toNumber()}
+                subPercent={displayRate.toNumber()}
                 size="md"
                 className="mt-1"
               />
@@ -674,22 +657,6 @@ function StockDetailContent({
                 <span className="text-muted-foreground">보유</span>
                 <span className="font-numeric font-bold text-foreground">
                   {bojuText}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">현재가</span>
-                <span className="flex items-center gap-1.5">
-                  <AmountDisplay
-                    value={toView(price).toString()}
-                    currency={viewCurrency}
-                    size="sm"
-                    className="font-bold"
-                  />
-                  <ChangeIndicator
-                    value={detail.price?.changeRate ?? 0}
-                    percent
-                    size="sm"
-                  />
                 </span>
               </div>
             </div>
@@ -754,7 +721,7 @@ function StockDetailContent({
                       className="flex items-center justify-between py-3"
                     >
                       <span className="text-xs text-muted-foreground">
-                        {format(parseUTC(c.convertedAt), "yyyy.MM.dd")}
+                        {format(parseUTC(c.convertedAt), "MM.dd")}
                       </span>
                       <span className="font-numeric text-sm font-bold text-foreground">
                         {c.wholeQty}주 전환
@@ -770,8 +737,8 @@ function StockDetailContent({
           </>
         )}
 
-        {/* 모으기 내역 (회차) — 자동모으기 종목만 노출. 공통 */}
-        {auto.id !== null && (
+        {/* 모으기 내역 (회차) — 자동모으기 종목만 노출. 조각 뷰 제외(view=collect에서 확인) */}
+        {auto.id !== null && !isPieces && (
           <section>
             <h2 className="mb-3 text-base font-bold text-foreground">모으기 내역</h2>
             {execQ.isLoading ? (
@@ -831,10 +798,33 @@ function StockDetailContent({
         {!isCollect && (
         <section>
           <h2 className="mb-3 text-base font-bold text-foreground">최근 내역</h2>
-          {recentOrders.length === 0 ? (
+          {recentOrders.length === 0 && recentRewards.length === 0 ? (
             <EmptyState title="최근 내역이 없어요" className="py-6" />
           ) : (
             <div className="divide-y divide-border">
+              {recentRewards.map((r) => (
+                <div
+                  key={`reward-${r.grantedAt}`}
+                  className="flex items-center justify-between gap-3 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">
+                      첫 주식 보상
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(r.grantedAt), "MM.dd")}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-numeric text-sm font-bold text-foreground">
+                      {formatShares(toDecimal(r.quantity))}주
+                    </p>
+                    <p className="font-numeric text-xs text-muted-foreground">
+                      {formatKRW(r.budgetKrw)}
+                    </p>
+                  </div>
+                </div>
+              ))}
               {recentOrders.map((o) => {
                 const orderQty = toDecimal(o.quantity);
                 const orderPrice = toDecimal(o.price);
@@ -863,7 +853,7 @@ function StockDetailContent({
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {format(parseUTC(o.createdAt), "yyyy.MM.dd")}
+                        {format(parseUTC(o.createdAt), "MM.dd")}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
@@ -931,6 +921,11 @@ function StockDetailContent({
                 {fmtView(perPiece.times(previewPieces).toString())}
               </span>
             </div>
+          )}
+          {activeMode === "sell" && selPieces === pieces && subPieceRemainder.gt(0) && (
+            <p className="pb-2 text-center text-xs text-muted-foreground">
+              {subPieceRemainder.toDecimalPlaces(6).toString()}주 잔여분은 소수 매도로 별도 정리할 수 있어요
+            </p>
           )}
           <div className="flex gap-2.5 pb-3">
             <Button

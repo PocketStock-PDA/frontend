@@ -19,6 +19,21 @@ export function isAuthenticated(): boolean {
   return accessToken !== null;
 }
 
+/** JWT sub 클레임(= userId)을 decode — 서버 검증 없이 payload만 파싱(클라 렌더용). */
+export function getUserIdFromToken(): number | null {
+  const token = accessToken;
+  if (!token) return null;
+  try {
+    const part = token.split(".")[1] ?? "";
+    const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+    const sub = payload.sub;
+    const id = typeof sub === "number" ? sub : Number(sub);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── 슈퍼쏠(이벤트) 확인 여부 ──────────────────────────────────────────────────
 // 로그인 후 한 번 슈퍼쏠 화면을 거치면 굽는 일반 쿠키(미들웨어가 아닌 클라이언트 가드가 읽음).
 const EVENT_COOKIE = "has_seen_event";

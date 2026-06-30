@@ -349,7 +349,7 @@ export function AssetPortfolioCard({
                   style={{ top: 0, left: S + GAP }}
                   initial={{ opacity: 0, scale: 0.85 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 28, delay: 0.08 }}
+                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
                 >
                   {subItems.length > 0 ? (
                     <DonutChart
@@ -432,9 +432,11 @@ export function AssetPortfolioCard({
             <button
               key={item.category}
               type="button"
+              aria-pressed={isSelected}
+              aria-label={`${item.category} ${item.ratio.toFixed(1)}%`}
               onClick={(e) => handleSelect(idx, e)}
               className={cn(
-                "flex flex-col items-center gap-0.5 rounded-xl py-2 text-center transition-all duration-200",
+                "flex flex-col items-center gap-0.5 rounded-xl py-2 text-center transition-all duration-200 active:scale-[0.94]",
                 isSelected ? "" : "bg-muted/60 text-muted-foreground",
               )}
               style={

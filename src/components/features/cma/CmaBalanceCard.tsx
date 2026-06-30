@@ -64,9 +64,7 @@ export function CmaBalanceCard({
 
   return (
     <div
-      style={{
-        background: "linear-gradient(135deg, #0046FF 0%, #6B3FF5 100%)",
-      }}
+      style={{ background: "var(--grad-1)" }}
       className={cn("rounded-xl p-5 text-white", className)}
     >
       <div className="flex items-center justify-between">
@@ -82,49 +80,64 @@ export function CmaBalanceCard({
           <ChevronRight className="size-4" />
         </button>
       </div>
-      <AmountDisplay
-        value={krwBalance}
-        currency="KRW"
-        size="lg"
-        className="mt-1 text-white"
-      />
-      <p className="mt-1 text-sm text-white/80">
-        연 {ratePct}% · 오늘 이자 +{todayInterestText}
-      </p>
-
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className="mt-3 flex w-full items-center justify-end gap-0.5 text-sm text-white/90"
-      >
-        {expanded ? "접기" : "상세보기"}
-        {expanded ? (
-          <ChevronDown className="size-4" />
-        ) : (
-          <ChevronRight className="size-4" />
-        )}
-      </button>
-
-      {expanded && (
-        <div className="mt-3 space-y-3 border-t border-white/20 pt-3">
-          <BalanceRow
-            symbol="₩"
-            label="원화 잔액"
-            value={formatKRW(krwBalance)}
-          />
-          <BalanceRow
-            symbol="$"
-            label="달러 잔액"
-            value={formatUSD(usdBalance)}
-          />
-          {usdToKrwRate !== undefined && (
-            <p className="text-right text-xs text-white/60">
-              1 USD = {formatKRW(usdToKrwRate)} 기준
-            </p>
-          )}
+      <div className="mt-8">
+        <AmountDisplay
+          value={krwBalance}
+          currency="KRW"
+          size="lg"
+          className="text-white"
+        />
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <p className="text-sm text-white/80">
+            연 {ratePct}% · 오늘 이자 +{todayInterestText}
+          </p>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={expanded ? "잔액 상세 접기" : "잔액 상세 보기"}
+            className="flex shrink-0 items-center gap-0.5 text-sm text-white/90"
+          >
+            {expanded ? "접기" : "상세보기"}
+            <ChevronDown
+              className={cn(
+                "size-4 transition-transform duration-300",
+                expanded && "rotate-180",
+              )}
+            />
+          </button>
         </div>
-      )}
+      </div>
+
+      {/* grid-template-rows trick: 0fr→1fr animates clip without animating height */}
+      <div
+        className="overflow-hidden"
+        style={{
+          display: "grid",
+          gridTemplateRows: expanded ? "1fr" : "0fr",
+          transition: "grid-template-rows 300ms cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
+      >
+        <div className="min-h-0">
+          <div className="mt-3 space-y-3 border-t border-white/20 pt-3">
+            <BalanceRow
+              symbol="₩"
+              label="원화 잔액"
+              value={formatKRW(krwBalance)}
+            />
+            <BalanceRow
+              symbol="$"
+              label="달러 잔액"
+              value={formatUSD(usdBalance)}
+            />
+            {usdToKrwRate !== undefined && (
+              <p className="text-right text-xs text-white/60">
+                1 USD = {formatKRW(usdToKrwRate)} 기준
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

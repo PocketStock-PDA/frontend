@@ -35,7 +35,7 @@ export function PiecesCard({
   currency = "KRW",
   onClick,
 }: PiecesCardProps) {
-  const shares = quantity.toLocaleString("ko-KR", { maximumFractionDigits: 4 });
+  const shares = quantity.toLocaleString("ko-KR", { maximumFractionDigits: 6 });
 
   return (
     <button

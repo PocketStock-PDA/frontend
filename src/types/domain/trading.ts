@@ -73,6 +73,8 @@ export interface Holding {
   wholeQty?: number;
   /** 소수점(신탁, 소수 매도 ≤ 이 값) */
   fractionalQty?: number;
+  /** 소수 매도 접수 중(M2). 소수 판매가능 = fractionalQty − heldFractional */
+  heldFractional?: number;
   avgBuyPrice: number;
   currency: string;
 }

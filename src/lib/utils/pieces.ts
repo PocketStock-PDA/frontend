@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import { toDecimal } from "@/lib/utils/decimal";
 
 // 1주 = 100조각. 퍼즐(조각)은 "소수 잔여분" 차원을 표현한다.
@@ -38,4 +39,18 @@ export function formatHoldingShort(
 ): string {
   const { whole, pieces } = toPieceParts(quantity);
   return `${whole.toLocaleString("ko-KR")}주 ${formatPieces(pieces)}조각`;
+}
+
+/** "0.003067" / "5.11" — 단위 없는 소수점 수량 문자열(6자리, trailing zero 제거). */
+export function formatShares(quantity: Decimal | number | string | null | undefined): string {
+  return (quantity instanceof Decimal ? quantity : toDecimal(quantity))
+    .toDecimalPlaces(6)
+    .toString();
+}
+
+/** "0.0031주" / "5.11주" — 소수점 수량 표기(trailing zero 제거, 6자리). */
+export function formatQuantity(
+  quantity: number | string | null | undefined,
+): string {
+  return `${toDecimal(quantity).toDecimalPlaces(6).toString()}주`;
 }

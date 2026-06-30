@@ -187,18 +187,18 @@ export default function PortfolioPage() {
         : undefined; // 전체는 계좌번호 미표시
 
   // 표시할 평가/원금/손익/통화 — scope + 해외 원화토글(ovsKrw) 반영.
+  // 백엔드 segment의 profitKrw/profitUsd는 개별 holding 합산값과 동일 소스(반올림 순서 통일).
+  // 해외 KRW 수익률만 예외: overseas.profitRate가 USD 기준이라 프론트에서 KRW 손익/원금으로 재계산.
   let displayEval = 0;
   let displayProfit = 0;
   let displayCurrency: "KRW" | "USD" = "KRW";
-  // 수익률(%)도 백엔드 segment.profitRate 단일소스. 예외: 해외 원화토글은 백엔드에 KRW
-  // 기준 환산수익률 필드가 없어(overseas.profitRate=USD 기준·환차 제외) 환산 KRW 손익/원금으로 계산.
   let displayRate = 0;
   let scopeLabel = "총 평가금액";
   if (scope === "domestic") {
     const d = summary?.domestic;
     displayEval = d?.evalKrw ?? 0;
     displayProfit = d?.profitKrw ?? 0;
-    displayRate = d?.profitRate ?? 0;
+    displayRate = krwRate(d?.profitKrw, d?.investedKrw);
     scopeLabel = "국내 평가금액";
   } else if (scope === "overseas") {
     const o = summary?.overseas;
@@ -212,7 +212,8 @@ export default function PortfolioPage() {
     const t = summary?.total;
     displayEval = t?.evalKrw ?? 0;
     displayProfit = t?.profitKrw ?? 0;
-    displayRate = t?.profitRate ?? 0;
+    // KRW 표시이므로 rate도 정수 profitKrw 기준으로 맞춤 (raw precision rate와 1bp 오차 방지)
+    displayRate = krwRate(t?.profitKrw, t?.investedKrw);
   }
   const scopeRate = displayRate;
 
@@ -224,8 +225,10 @@ export default function PortfolioPage() {
         ? rows.filter((r) => r.currency === "USD")
         : rows;
 
-  // 해외 scope + 원화 토글이면 카드도 원화로 — 그 외엔 종목 native 통화.
-  const cardKrw = scope === "overseas" && ovsKrw && fx !== null;
+  // KRW 표시 스코프(전체·국내·해외 원화)는 카드도 profitKrw + krwRate() 기준으로 통일.
+  // 해외 USD 표시만 native 통화 사용.
+  const cardKrw =
+    scope === "all" || scope === "domestic" || (scope === "overseas" && ovsKrw && fx !== null);
   const cardView = (r: (typeof rows)[number]) =>
     cardKrw
       ? {
