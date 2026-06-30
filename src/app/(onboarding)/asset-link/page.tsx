@@ -115,15 +115,14 @@ export default function AssetLinkPage() {
   // 전진형 온보딩: 뒤로가기 제스처(좌→우 스와이프)·브라우저 back으로 홈 이탈 방지.
   useEffect(() => {
     window.history.pushState(null, "", window.location.href);
-    const onPop = () => window.history.pushState(null, "", window.location.href);
+    const onPop = () =>
+      window.history.pushState(null, "", window.location.href);
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   const dormantActive =
-    step === "RESULT" ||
-    step === "DORMANT_FOUND" ||
-    step === "DORMANT_SELECT";
+    step === "RESULT" || step === "DORMANT_FOUND" || step === "DORMANT_SELECT";
 
   const scan = useAssetScan(step !== "LINK");
   const dormant = useDormantAccounts(dormantActive);
@@ -133,28 +132,70 @@ export default function AssetLinkPage() {
   const close = useCloseDormant();
   const saveSettings = useSaveCollectSettings();
 
-  const [selectedDormant, setSelectedDormant] = useState<Set<number>>(new Set());
+  const [selectedDormant, setSelectedDormant] = useState<Set<number>>(
+    new Set(),
+  );
   const [closeResult, setCloseResult] = useState<DormantCloseResult | null>(
     null,
   );
   // 은행 계좌 소액 이체 — 완료(20) 표시용으로 이체한 계좌 보관
   const [transferred, setTransferred] = useState<BankAccount[]>([]);
+  // 이체 확정 시점의 자투리 합계 — 확정 후에만 총합에 반영(확정 전 미리 더하지 않음)
+  const [transferredAmount, setTransferredAmount] = useState(0);
   // 카드 잔돈 모으기 — 선택된 카드 ID 집합
-  const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(
+    new Set(),
+  );
 
   const dormantList = dormant.data ?? [];
-  // "총 잠자는 돈"에 휴면계좌 잔액도 포함한다. 발견 시 합산되고, 해지하면 잔액이 CMA로 옮겨가며
-  // 목록(closed_at IS NULL)에서 빠져 총액에서 자동 제외 → 해지한 금액이 총액에 반영된다.
   const dormantTotal = dormantList.reduce(
     (sum, d) => sum.plus(toDecimal(d.balance)),
     toDecimal(0),
   );
-  const sleepingTotal = toDecimal(scan.data?.totalAmount ?? 0).plus(dormantTotal);
+
+  const bankDone = transferred.length > 0;
+  const cleanupDone = closeResult !== null;
+
+  // 스캔이 발견한 계좌 자투리(끝전) 추정액 — 확정 전 항목 표시용.
+  const scanAccountAmount = toDecimal(
+    scan.data?.sources.find((s) => s.sourceType === "ACCOUNT")?.amount ?? 0,
+  );
+  // 포인트·FX 등 별도 확인이 필요 없는 자동 발견분(스캔의 ACCOUNT 제외 합) — 항상 총합에 포함.
+  const autoFoundAmount = (scan.data?.sources ?? [])
+    .filter((s) => s.sourceType !== "ACCOUNT")
+    .reduce((sum, s) => sum.plus(toDecimal(s.amount)), toDecimal(0));
+
+  // 계좌 자투리는 사용자가 '확인'으로 확정한 뒤에만 총합에 반영한다(확정 전 합산 방지).
+  const confirmedAccountAmount = bankDone
+    ? toDecimal(transferredAmount)
+    : toDecimal(0);
+  const confirmedDormantAmount = closeResult
+    ? toDecimal(closeResult.transferredAmount)
+    : toDecimal(0);
+  // 휴면계좌 해지 금액은 재원별 수집(CMA로 모으기) 대상이 아니라 해지 즉시 CMA에 바로 반영되므로
+  // '모을 수 있는 돈' 총액에서는 제외하고 별도로 표시한다.
+  const sleepingTotal = autoFoundAmount.plus(confirmedAccountAmount);
+
+  // RESULT 항목별 표시 금액(확정 전엔 추정/잔액, 확정 후엔 확정 금액).
+  const accountItemAmount = bankDone
+    ? transferredAmount
+    : scanAccountAmount.toNumber();
+  const dormantItemAmount = cleanupDone
+    ? confirmedDormantAmount.toNumber()
+    : dormantTotal.toNumber();
   // 소액 이체 대상 후보: 비휴면 + KRW 원화 계좌 + 잔액 보유.
   // SOL트래블(외화/FX)은 앞에서 따로 연동·적립하므로 계좌 잔액에서 제외(KRW만).
   const bankEligible = (bank.data ?? []).filter(
-    (a) => !a.isDormant && a.currency === "KRW" && toDecimal(a.balance).greaterThan(0),
+    (a) =>
+      !a.isDormant &&
+      a.currency === "KRW" &&
+      toDecimal(a.balance).greaterThan(0),
   );
+  // SOL트래블(FX) 외화 잔액 — RESULT에서 원화 환산액과 함께 외화(USD)도 표시한다.
+  const usdWalletAmount = (bank.data ?? [])
+    .filter((a) => a.currency === "USD" && !a.isDormant)
+    .reduce((s, a) => s.plus(toDecimal(a.balance)), toDecimal(0))
+    .toNumber();
 
   const busy = saveSettings.isPending;
 
@@ -163,7 +204,7 @@ export default function AssetLinkPage() {
       LINK: "router",
       RESULT: "LINK",
       DORMANT_FOUND: "RESULT",
-      DORMANT_SELECT: "DORMANT_FOUND",
+      DORMANT_SELECT: "RESULT",
       CLEANUP_DONE: "RESULT",
       BANK_SELECT: "RESULT",
       BANK_DONE: "RESULT",
@@ -205,7 +246,6 @@ export default function AssetLinkPage() {
       setStep("RESULT");
       return;
     }
-    setTransferred(accounts);
     setStep("BANK_LOADING");
     saveSettings.mutate(
       accounts.map((a) => ({
@@ -215,8 +255,21 @@ export default function AssetLinkPage() {
         threshold,
       })),
       {
-        // 실제 수집(collect)은 하지 않음 — 홈 대시보드에서 잔돈으로 보이고, 홈 버튼으로만 수집
-        onSuccess: () => setStep("BANK_DONE"),
+        // 실제 수집(collect)은 하지 않음 — 홈 대시보드에서 잔돈으로 보이고, 홈 버튼으로만 수집.
+        // 완료 상태(bankDone)·확정 자투리는 저장 성공 시에만 반영 — 실패 시 총합에 합산되지 않게.
+        onSuccess: () => {
+          setTransferred(accounts);
+          // 확정 자투리 = Σ(잔액 % 기준금액)
+          setTransferredAmount(
+            accounts
+              .reduce(
+                (s, a) => s.plus(toDecimal(a.balance).mod(threshold)),
+                toDecimal(0),
+              )
+              .toNumber(),
+          );
+          setStep("BANK_DONE");
+        },
         onError: (e) => {
           toast.error(errMsg(e));
           setStep("BANK_SELECT");
@@ -296,21 +349,21 @@ export default function AssetLinkPage() {
         <ResultView
           sources={scan.data?.sources ?? []}
           total={sleepingTotal.toNumber()}
+          fxForeign={usdWalletAmount}
+          accountAmount={accountItemAmount}
+          dormantAmount={dormantItemAmount}
           dormantCount={dormantList.length}
-          cleanupDone={closeResult !== null}
-          bankDone={transferred.length > 0}
-          // 은행 계좌 잔돈 → 소액 이체(17, 505), 휴면계좌 → 휴면 발견(14)
+          cleanupDone={cleanupDone}
+          bankDone={bankDone}
+          // 은행 계좌 잔돈 → 소액 이체(17, 505), 휴면계좌 → 계좌 선택(18)로 바로 진입
           onCheckAccount={() => setStep("BANK_SELECT")}
-          onCheckDormant={() => setStep("DORMANT_FOUND")}
+          onCheckDormant={enterDormantSelect}
           onStart={() => setStep("AUTO_AGREE")}
         />
       )}
 
       {step === "DORMANT_FOUND" && (
-        <DormantFoundView
-          accounts={dormantList}
-          onNext={enterDormantSelect}
-        />
+        <DormantFoundView accounts={dormantList} onNext={enterDormantSelect} />
       )}
 
       {step === "DORMANT_SELECT" && (
@@ -504,7 +557,9 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
       return next;
     });
   const toggleAll = () =>
-    setSelected(allSelected ? new Set() : new Set(all.map((i) => i.companyCode)));
+    setSelected(
+      allSelected ? new Set() : new Set(all.map((i) => i.companyCode)),
+    );
 
   // 선택 → 확인 모달. 변경(연동/해제)이 없으면 바로 스캔.
   const proceed = () => {
@@ -570,6 +625,9 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
         </h2>
         <p className="text-sm text-muted-foreground">
           연동할 자산을 선택하세요. 연동된 자산은 다시 눌러 해제할 수 있어요.
+        </p>
+        <p className="text-xs text-muted-foreground/80">
+          * 이미 선택된 자산은 슈퍼SOL에서 연동된 자산일 수 있어요.
         </p>
       </div>
 
@@ -653,8 +711,7 @@ function LinkStep({ onLinked }: { onLinked: () => void }) {
             {toUnlink.length > 0 ? (
               <>
                 해제하면 해당 자산의 잔돈은
-                <br />
-                더 이상 수집되지 않아요.
+                <br />더 이상 수집되지 않아요.
               </>
             ) : (
               <>
@@ -822,7 +879,7 @@ function ScanningView({
   return (
     <div className="pt-2">
       <h2 className="text-xl font-bold leading-snug text-foreground">
-        잠자는 돈을
+        모을 수 있는 돈을
         <br />
         찾고 있어요
       </h2>
@@ -838,7 +895,9 @@ function ScanningView({
           />
         </div>
         <div className="mt-1.5 flex justify-end">
-          <span className="font-numeric text-xs font-medium text-primary">{progress}%</span>
+          <span className="font-numeric text-xs font-medium text-primary">
+            {progress}%
+          </span>
         </div>
       </div>
 
@@ -899,7 +958,9 @@ function ScanningView({
                 <p
                   className={cn(
                     "text-xs",
-                    foundAmount || accountReady ? "text-primary" : "text-muted-foreground",
+                    foundAmount || accountReady
+                      ? "text-primary"
+                      : "text-muted-foreground",
                   )}
                 >
                   {statusText}
@@ -933,6 +994,9 @@ function ScanError({ onRetry }: { onRetry: () => void }) {
 function ResultView({
   sources,
   total,
+  fxForeign,
+  accountAmount,
+  dormantAmount,
   dormantCount,
   cleanupDone,
   bankDone,
@@ -942,6 +1006,9 @@ function ResultView({
 }: {
   sources: ScanSource[];
   total: number;
+  fxForeign: number;
+  accountAmount: number;
+  dormantAmount: number;
   dormantCount: number;
   cleanupDone: boolean;
   bankDone: boolean;
@@ -949,36 +1016,47 @@ function ResultView({
   onCheckAccount: () => void;
   onCheckDormant: () => void;
 }) {
+  // FX(SOL트래블) 행 부제 — 원화 환산액(우측)과 함께 외화(USD)도 같이 노출.
+  const fxSubtitle =
+    fxForeign > 0
+      ? `$${fxForeign.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} · ${SOURCE_SUBTITLE.FX}`
+      : SOURCE_SUBTITLE.FX;
   // 금액형(FX·포인트·카드)은 금액 표시, 은행 계좌(끝전)는 확인 필요 → "확인하기"
   const amountSources = sources.filter(
     (s) => s.sourceType !== "ACCOUNT" && toDecimal(s.amount).greaterThan(0),
   );
-  const accountSource = sources.find((s) => s.sourceType === "ACCOUNT");
-  const sourceCount = amountSources.length + (accountSource ? 1 : 0);
+  // 모을 자투리가 있거나(확정 전) 이미 이체 확정한 경우에만 계좌 항목 노출
+  const showAccount = accountAmount > 0 || bankDone;
+  const showDormant = dormantCount > 0 || cleanupDone;
+  // 출처별 내역(=수집 가능 재원)은 포인트·FX·계좌만. 휴면계좌는 별도 섹션이라 제외.
+  const collectableCount = amountSources.length + (showAccount ? 1 : 0);
 
   return (
     <div className="pb-32 pt-2">
-      {/* 총 잠자는 돈 — 히어로 */}
+      {/* 모을 수 있는 돈 — 히어로 */}
       <div className="py-8 text-center">
-        <p className="text-xs text-muted-foreground">총 잠자는 돈</p>
+        <p className="text-xs text-muted-foreground">모을 수 있는 돈</p>
         <AmountDisplay
           value={total}
           size="xl"
           className="mt-1.5 block text-primary"
         />
         <p className="mt-1.5 text-sm text-muted-foreground">
-          {sourceCount}개 계열사에서 발견했어요
+          {collectableCount > 0
+            ? `${collectableCount}곳에서 발견했어요`
+            : "모을 수 있는 잔돈은 없어요"}
         </p>
       </div>
 
-      {/* 출처별 내역 */}
-      <p className="mb-2 text-xs font-semibold text-muted-foreground">
-        출처별 내역
-      </p>
-      {sourceCount === 0 ? (
-        <EmptyState title="발견된 잔돈이 없어요" />
-      ) : (
+      {/* 출처별 내역 — 수집 가능 재원이 있을 때만 */}
+      {collectableCount > 0 && (
         <div className="space-y-2">
+          <p className="mb-2 text-xs font-semibold text-muted-foreground">
+            출처별 내역
+          </p>
           {amountSources.map((s, i) => (
             <div
               key={`${s.sourceType}-${s.name}`}
@@ -990,16 +1068,18 @@ function ResultView({
                   {SOURCE_TITLE[s.sourceType]}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {SOURCE_SUBTITLE[s.sourceType]}
+                  {s.sourceType === "FX"
+                    ? fxSubtitle
+                    : SOURCE_SUBTITLE[s.sourceType]}
                 </p>
               </div>
               <AmountDisplay value={s.amount} size="sm" className="font-bold" />
             </div>
           ))}
 
-          {/* 은행 계좌 잔돈 — 완료 또는 확인하기 */}
-          {accountSource && (
-            bankDone ? (
+          {/* 은행 계좌 잔돈 — 완료 또는 확인하기. 금액은 항상 표시(확정 후에만 총합 반영) */}
+          {showAccount &&
+            (bankDone ? (
               <div
                 className="ps-rise-in flex items-center gap-3 rounded-xl bg-muted/40 px-4 py-3.5"
                 style={{ "--i": amountSources.length } as React.CSSProperties}
@@ -1012,9 +1092,13 @@ function ResultView({
                     {SOURCE_SUBTITLE.ACCOUNT}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-                  연동 완료
-                </span>
+                <div className="flex shrink-0 flex-col items-end gap-0.5">
+                  <AmountDisplay
+                    value={accountAmount}
+                    size="sm"
+                    className="font-bold"
+                  />
+                </div>
               </div>
             ) : (
               <button
@@ -1031,51 +1115,84 @@ function ResultView({
                     {SOURCE_SUBTITLE.ACCOUNT}
                   </p>
                 </div>
-                <span className="shrink-0 text-sm font-bold text-primary">
-                  확인하기 →
-                </span>
+                <div className="flex shrink-0 flex-col items-end gap-0.5">
+                  <AmountDisplay
+                    value={accountAmount}
+                    size="sm"
+                    className="font-semibold text-zinc-400"
+                  />
+                  <span className="text-xs font-bold text-primary">
+                    확인하기 →
+                  </span>
+                </div>
               </button>
-            )
-          )}
+            ))}
         </div>
       )}
 
-      {/* 휴면계좌 발견 */}
-      {(dormantCount > 0 || cleanupDone) && (
-        cleanupDone ? (
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3.5">
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-primary">휴면계좌 발견</p>
-              <p className="text-xs text-primary/70">계좌 정리가 완료됐어요</p>
+      {/* 휴면계좌 — '모을 수 있는 돈'과 분리. 해지 금액은 CMA에 바로 반영(재원별 수집 대상 아님) */}
+      {showDormant && (
+        <div className="mt-6">
+          <p className="mb-2 text-xs font-semibold text-muted-foreground">
+            휴면계좌 정리
+          </p>
+          {cleanupDone ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3.5">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-primary">휴면계좌 발견</p>
+                <p className="text-xs text-primary/70">
+                  계좌 정리가 완료됐어요
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-0.5">
+                <AmountDisplay
+                  value={dormantAmount}
+                  size="sm"
+                  className="font-bold text-primary"
+                />
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                  CMA 반영 완료
+                </span>
+              </div>
             </div>
-            <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-              완료
-            </span>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={onCheckDormant}
-            className="mt-3 flex w-full items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3.5 text-left"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-primary">휴면계좌 발견</p>
-              <p className="text-xs text-primary/70">
-                쓰지 않는 계좌 {dormantCount}개가 있어요
-              </p>
-            </div>
-            <span className="shrink-0 text-sm font-bold text-primary">
-              확인하기 →
-            </span>
-          </button>
-        )
+          ) : (
+            <button
+              type="button"
+              onClick={onCheckDormant}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3.5 text-left"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-primary">휴면계좌 발견</p>
+                <p className="text-xs text-primary/70">
+                  쓰지 않는 계좌 {dormantCount}개가 있어요
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-0.5">
+                <AmountDisplay
+                  value={dormantAmount}
+                  size="sm"
+                  className="font-semibold text-zinc-400"
+                />
+                <span className="text-xs font-bold text-primary">
+                  확인하기 →
+                </span>
+              </div>
+            </button>
+          )}
+          <p className="mt-3 px-1 text-xs text-muted-foreground break-keep">
+            * 휴면계좌 해지 금액은 위 ‘모을 수 있는 돈’과 별개로, CMA 계좌에
+            바로 반영돼요
+          </p>
+        </div>
+      )}
+
+      {/* 수집 가능 재원도 휴면계좌도 없을 때만 */}
+      {collectableCount === 0 && !showDormant && (
+        <EmptyState title="발견된 잔돈이 없어요" />
       )}
 
       <BottomCta>
-        <Button
-          onClick={onStart}
-          className="h-12 w-full text-base font-bold"
-        >
+        <Button onClick={onStart} className="h-12 w-full text-base font-bold">
           투자 시작하기
         </Button>
       </BottomCta>
@@ -1126,7 +1243,11 @@ function DormantFoundView({
                   {a.bankName} · 휴면
                 </p>
               </div>
-              <AmountDisplay value={a.balance} size="sm" className="font-bold" />
+              <AmountDisplay
+                value={a.balance}
+                size="sm"
+                className="font-bold"
+              />
             </div>
           ))
         )}
@@ -1201,9 +1322,7 @@ function DormantSelectView({
               <span
                 className={cn(
                   "flex size-5 shrink-0 items-center justify-center rounded-full border-2",
-                  on
-                    ? "border-primary"
-                    : "border-muted-foreground/30",
+                  on ? "border-primary" : "border-muted-foreground/30",
                 )}
               >
                 {on && <span className="size-2.5 rounded-full bg-primary" />}
@@ -1232,11 +1351,19 @@ function DormantSelectView({
 const LOADING_COPY = {
   dormant: {
     title: ["정리할 수 있는", "계좌인지 알아볼게요"],
-    steps: ["해지 가능한지 확인 중", "잔액 옮김 계좌 확인 중", "예상 금액 확인 중"],
+    steps: [
+      "해지 가능한지 확인 중",
+      "잔액 옮김 계좌 확인 중",
+      "예상 금액 확인 중",
+    ],
   },
   bank: {
     title: ["은행계좌 잔돈을", "모을 준비를 하고 있어요"],
-    steps: ["계좌 잔돈 확인 중", "이체 가능 여부 확인 중", "모으기 설정 적용 중"],
+    steps: [
+      "계좌 잔돈 확인 중",
+      "이체 가능 여부 확인 중",
+      "모으기 설정 적용 중",
+    ],
   },
 } as const;
 
@@ -1248,10 +1375,7 @@ function CleanupLoadingView({
   const { title, steps } = LOADING_COPY[variant];
   const [active, setActive] = useState(0);
   useEffect(() => {
-    const t = setInterval(
-      () => setActive((a) => (a + 1) % steps.length),
-      700,
-    );
+    const t = setInterval(() => setActive((a) => (a + 1) % steps.length), 700);
     return () => clearInterval(t);
   }, [steps.length]);
 
@@ -1394,8 +1518,8 @@ function CardSelectView({
     if (initialSelectedIds.size > 0 && selectedIds.size === 0) {
       onChangeSelected(new Set(initialSelectedIds));
     }
-  // 마운트 시 1회만 실행
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // 마운트 시 1회만 실행
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSelectedIds.size]);
 
   const toggle = (cardId: number) => {
@@ -1405,9 +1529,11 @@ function CardSelectView({
 
   return (
     <div className="pb-32 pt-2">
-      <h2 className="text-xl font-bold text-foreground">결제 잔돈 자동 모으기</h2>
+      <h2 className="text-xl font-bold text-foreground">
+        결제 후 잔돈 자동 모으기
+      </h2>
       <p className="mt-1.5 text-sm text-muted-foreground">
-        잔돈을 모을 카드를 선택해 주세요.
+        결제 후 남는 잔돈을 모을 카드를 선택해 주세요.
       </p>
 
       <div className="mt-5 space-y-2">
@@ -1461,7 +1587,9 @@ function CardSelectView({
                 <span
                   className={cn(
                     "flex size-5 shrink-0 items-center justify-center rounded-full border-2",
-                    on ? "border-primary bg-primary" : "border-muted-foreground/30",
+                    on
+                      ? "border-primary bg-primary"
+                      : "border-muted-foreground/30",
                   )}
                 >
                   {on && <Check className="size-3 text-primary-foreground" />}
@@ -1519,7 +1647,12 @@ function AutoAgreeView({
 }) {
   // 필수 항목(privacy) + collect 기본 체크
   const [checked, setChecked] = useState<Set<string>>(
-    () => new Set(AGREE_ITEMS.filter((i) => i.required || i.key === "collect").map((i) => i.key)),
+    () =>
+      new Set(
+        AGREE_ITEMS.filter((i) => i.required || i.key === "collect").map(
+          (i) => i.key,
+        ),
+      ),
   );
   const requiredOk = AGREE_ITEMS.filter((i) => i.required).every((i) =>
     checked.has(i.key),
@@ -1616,8 +1749,10 @@ function BankSelectView({
   onConfirm: (accounts: BankAccount[], threshold: number) => void;
 }) {
   const [threshold, setThreshold] = useState(5000);
+  // 자투리 = 잔액 % 기준금액 — 잔액이 기준금액보다 커도 기준 미만의 끝전만 부분 수집한다.
+  const jaturiOf = (a: BankAccount, t: number) => toDecimal(a.balance).mod(t);
   const eligibleFor = (t: number) =>
-    accounts.filter((a) => toDecimal(a.balance).lessThan(t));
+    accounts.filter((a) => jaturiOf(a, t).greaterThan(0));
   const [selected, setSelected] = useState<Set<number>>(
     () => new Set(eligibleFor(5000).map((a) => a.accountId)),
   );
@@ -1679,7 +1814,7 @@ function BankSelectView({
       {/* 대상 계좌 */}
       <div className="mt-4 space-y-2">
         {filtered.length === 0 ? (
-          <EmptyState title="기준 미만 잔액 계좌가 없어요" />
+          <EmptyState title="기준 금액 미만의 잔돈이 있는 계좌가 없어요" />
         ) : (
           filtered.map((a) => {
             const on = selected.has(a.accountId);
@@ -1702,12 +1837,12 @@ function BankSelectView({
                 />
                 <div className="min-w-0 flex-1">
                   <AmountDisplay
-                    value={a.balance}
+                    value={jaturiOf(a, threshold).toNumber()}
                     size="sm"
                     className="block font-bold"
                   />
                   <p className="truncate text-xs text-muted-foreground">
-                    {a.accountName}
+                    {a.accountName} · 잔액 {formatKRW(a.balance)}
                   </p>
                 </div>
                 <span
