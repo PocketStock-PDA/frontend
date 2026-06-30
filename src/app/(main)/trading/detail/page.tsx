@@ -239,6 +239,8 @@ function TradeContent({
   const bestAsk = toDecimal(bestAskResult.bestAsk ?? detail.price?.currentPrice);
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
   const holdingQty = toDecimal(holding?.quantity);
+  // 소수 판매가능 = fractionalQty − heldFractional (접수 중인 소수 매도분 차감)
+  const sellableQty = holdingQty.minus(toDecimal(holding?.heldFractional));
   const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
 
   // 조각(퍼즐) — 보유 소수분 → 채운 조각(0~99). 1조각 = 매도 1호가/100(hold 기준과 동일).
@@ -286,7 +288,7 @@ function TradeContent({
     tab === "WHOLE"
       ? maxQtyBase.floor().toNumber()
       : side === "SELL"
-        ? holdingQty.toNumber()
+        ? sellableQty.toNumber()
         : maxQtyBase.toDecimalPlaces(6, Decimal.ROUND_DOWN).toNumber();
 
   // 방향 전환 — 매도는 금액으로 불가(수량만). 조각 선택·멱등키 초기화.
@@ -371,7 +373,7 @@ function TradeContent({
       inputMode === "AMOUNT" && calcPrice.gt(0)
         ? new Decimal(amount).div(calcPrice)
         : new Decimal(qty);
-    return sellQty.gt(holdingQty);
+    return sellQty.gt(sellableQty);
   })();
   const overLimitMsg =
     side === "BUY" ? "매수 가능 금액을 초과했어요" : "보유 수량을 초과했어요";
@@ -560,13 +562,13 @@ function TradeContent({
     } else if (calcPrice.gt(0) && new Decimal(qty).times(calcPrice).lt(minOrder)) {
       const minQty = new Decimal(minOrder).div(calcPrice).toDecimalPlaces(6, Decimal.ROUND_UP);
       // SELL: 보정 수량이 실제 보유를 초과하면 → 보유 전량으로 대체(보유가치 ≥ 최솟값이면 유효)
-      if (side === "SELL" && minQty.gt(holdingQty)) {
-        if (holdingQty.times(calcPrice).lt(minOrder)) {
+      if (side === "SELL" && minQty.gt(sellableQty)) {
+        if (sellableQty.times(calcPrice).lt(minOrder)) {
           submitting.current = false;
-          toast.error(`보유금액이 최소 주문금액(${fmtAmount(minOrder)}) 미만이에요.`);
+          toast.error(`판매 가능 금액이 최소 주문금액(${fmtAmount(minOrder)}) 미만이에요.`);
           return;
         }
-        correctedQty = holdingQty.toNumber();
+        correctedQty = sellableQty.toNumber();
         setQty(correctedQty);
       } else {
         correctedQty = minQty.toNumber();
@@ -596,7 +598,7 @@ function TradeContent({
             ? new Decimal(correctedAmount).div(calcPrice)
             : new Decimal(0)
           : new Decimal(correctedQty);
-      if (sellQty.gt(holdingQty)) {
+      if (sellQty.gt(sellableQty)) {
         submitting.current = false;
         toast.error("보유 수량을 초과했어요.");
         return;
@@ -822,6 +824,7 @@ function TradeContent({
               qtyPlaceholder={qtyPlaceholder}
               amountPlaceholder={amountPlaceholder}
               infoLabel={side === "BUY" ? "구매 가능" : "판매 수량"}
+              belowMinOrder={tab === "FRACTION" && side === "BUY" && new Decimal(buyingPower).lt(minOrder)}
             />
           </div>
         )}

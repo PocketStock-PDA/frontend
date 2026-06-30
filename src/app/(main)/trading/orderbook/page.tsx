@@ -147,9 +147,9 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
   const fmtAmount = (v: number | string) => (isUSD ? formatUSD(v) : formatKRW(v));
 
   const price = toDecimal(basePrice);
-  const holdingQty = toDecimal(
-    holdingsQ.data?.find((h) => h.stockCode === stockCode)?.quantity,
-  );
+  const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
+  const holdingQty = toDecimal(holding?.quantity);
+  const sellableQty = holdingQty.minus(toDecimal(holding?.heldFractional));
   const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
   const ob = obQ.data;
   const refPrice = ob?.currentPrice ?? basePrice;
@@ -194,7 +194,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
         : 0
       : method === "WHOLE"
         ? holdingQty.floor().toNumber()
-        : holdingQty.toNumber();
+        : sellableQty.toNumber();
 
   const sheetIsOverLimit = (() => {
     if (!ctx || qty <= 0) return false;
@@ -206,7 +206,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
           : new Decimal(qty).times(execPrice);
       return need.gt(buyingPower);
     }
-    return new Decimal(qty).gt(holdingQty);
+    return new Decimal(qty).gt(sellableQty);
   })();
   const sheetOverLimitMsg =
     ctx?.side === "BUY" ? "매수 가능 금액을 초과했어요" : "보유 수량을 초과했어요";
@@ -252,7 +252,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
         toast.error("구매 가능 금액을 초과했어요.");
         return;
       }
-    } else if (new Decimal(qty).gt(holdingQty)) {
+    } else if (new Decimal(qty).gt(sellableQty)) {
       toast.error("보유 수량을 초과했어요.");
       return;
     }
@@ -536,7 +536,7 @@ function OrderbookContent({ stockCode }: { stockCode: string }) {
                   ? `${maxQty.toLocaleString("ko-KR", { maximumFractionDigits: 6 })}주`
                   : `${(method === "WHOLE"
                       ? holdingQty.floor()
-                      : holdingQty
+                      : sellableQty
                     ).toString()}주`}
               </span>
             </div>
