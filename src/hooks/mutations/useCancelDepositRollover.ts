@@ -6,7 +6,7 @@ export function useCancelDepositRollover() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
-      api.delete<void>(`/api/recommendations/maturity/deposit-to-cma/${id}`),
+      api.delete<void>(`/api/recommendations/maturity/rollover/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.deposit.rollovers });
     },
