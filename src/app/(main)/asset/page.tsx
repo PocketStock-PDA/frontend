@@ -2,14 +2,12 @@
 
 import type { CSSProperties } from "react";
 import { AlertTriangle } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
-import { SectionHeader } from "@/components/common/SectionHeader";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
-import { AssetActionRows } from "@/components/features/asset/AssetActionRows";
 import { AssetPortfolioCard } from "@/components/features/asset/AssetPortfolioCard";
-import { MaturityAlertCard } from "@/components/features/asset/MaturityAlertCard";
+import { MaturityAlert } from "@/components/features/asset/MaturityAlert";
+import { RebalanceSuggestion } from "@/components/features/asset/RebalanceSuggestion";
 import { Button } from "@/components/ui/button";
 import { useAssetSummary } from "@/hooks/queries/useAssetSummary";
 import { useMaturityRecommendation } from "@/hooks/queries/useMaturityRecommendation";
@@ -49,12 +47,15 @@ export default function AssetPage() {
     );
   }
 
-  const hasMaturity = !!maturityData?.triggerAccount;
-
   return (
     <>
       <AppHeader variant="sub" title="자산 현황" />
       <div className="space-y-5">
+        {/* 만기 임박 알림 — 만기 ≤ 1개월 예적금이 있을 때만, 순자산보다 위 */}
+        {maturityData?.triggerAccount && (
+          <MaturityAlert account={maturityData.triggerAccount} />
+        )}
+
         {/* 순자산 + 자산 구성 */}
         <section
           className="overflow-hidden rounded-2xl bg-brand-surface ps-rise-in"
@@ -101,31 +102,11 @@ export default function AssetPage() {
           </div>
         </section>
 
-        {/* 만기 알림 — AnimatePresence로 데이터가 늦게 도착해도 부드럽게 진입 */}
-        <AnimatePresence>
-          {hasMaturity && (
-            <motion.div
-              key="maturity-alert"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.24, ease: [0.25, 1, 0.5, 1] }}
-            >
-              {maturityData?.triggerAccount && <MaturityAlertCard account={maturityData.triggerAccount} />}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* 자금 굴리기 */}
-        <section
-          className="ps-rise-in"
-          style={{ "--i": hasMaturity ? 2 : 1 } as CSSProperties}
-        >
-          <SectionHeader title="자금 굴리기" />
-          <AssetActionRows
-            daysUntilMaturity={maturityData?.triggerAccount?.daysUntilMaturity}
-          />
-        </section>
+        {/* 리밸런싱 추천 — 멘트(예적금 비중↑) + 액션(만기 자금 굴리기·맞춤 카드 추천)을 한 카드에 묶음 */}
+        <RebalanceSuggestion
+          portfolio={data.portfolio}
+          daysUntilMaturity={maturityData?.triggerAccount?.daysUntilMaturity}
+        />
       </div>
     </>
   );
