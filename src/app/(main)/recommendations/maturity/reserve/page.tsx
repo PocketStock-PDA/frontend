@@ -362,10 +362,8 @@ export default function MaturityReservePage() {
             <SheetTitle>자동환전 설정</SheetTitle>
           </SheetHeader>
           <FxAutoSettingsForm
-            initialSettings={{
-              ...(fxSettings ?? DEFAULT_FX_AUTO_SETTINGS),
-              autoEnabled: true,
-            }}
+            initialSettings={fxSettings ?? DEFAULT_FX_AUTO_SETTINGS}
+            requireEnabled
             submitLabel="자동환전 켜고 저장"
             onSaved={() => setFxSheetOpen(false)}
           />
