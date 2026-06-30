@@ -638,9 +638,6 @@ function CategoryGoalRow({
         {dot}
         <span className="flex flex-1 items-center gap-1.5 truncate text-sm text-foreground">
           {category}
-          {isOver && (
-            <span className="text-[11px] font-medium text-[#F04452]">초과</span>
-          )}
         </span>
         <span className="font-numeric text-sm font-semibold text-foreground">
           {formatKRW(spent)}
@@ -650,7 +647,7 @@ function CategoryGoalRow({
         </span>
       </div>
       {budget > 0 && (
-        <div className="ml-[18px] h-[3px] overflow-hidden rounded-full bg-muted">
+        <div className="ml-[18px] mr-[46px] h-[3px] overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full"
             style={{
