@@ -765,11 +765,6 @@ function TradeContent({
                           <ChangeIndicator value={detail.price?.changeRate ?? 0} percent size="sm" />
                         </span>
                       </span>
-                      {isUSD && fx !== null && (
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
-                        </div>
-                      )}
                       <Search className="size-4 shrink-0 text-muted-foreground" />
                     </motion.div>
                   )}
@@ -835,6 +830,12 @@ function TradeContent({
       <div className="space-y-5 pb-40">
         {/* 구매 | 판매 — 주문 방향 먼저 선택(시맨틱색). 활성 알약이 좌우로 미끄러져
             방향 전환을 손에 잡히게 한다. 가운데 정렬·좁은 알약 */}
+        <div className="relative flex items-center">
+        {isUSD && fx !== null && (
+          <div className="absolute right-0">
+            <CurrencyToggle checked={ovsKrw} onChange={setOvsKrw} />
+          </div>
+        )}
         <div className="relative mx-auto flex w-[64%] rounded-full bg-muted p-1">
           {(
             [
@@ -869,6 +870,7 @@ function TradeContent({
               </button>
             );
           })}
+        </div>
         </div>
 
         {noSellable ? (
