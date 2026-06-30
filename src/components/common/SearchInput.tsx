@@ -42,7 +42,9 @@ export function SearchInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+        // iOS는 16px 미만 입력 포커스 시 화면을 자동 확대 → 모바일 text-base(16px)로 줌 차단,
+        // md+에선 기존 14px 유지(Input 컴포넌트와 동일 패턴).
+        className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground md:text-sm [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (
         <button
