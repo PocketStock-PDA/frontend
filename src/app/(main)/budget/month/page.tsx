@@ -20,7 +20,9 @@ import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
 import { useSetManualGoals } from "@/hooks/mutations/useSetManualGoals";
 import { useSetTransferAccount } from "@/hooks/mutations/useSetTransferAccount";
 import { useAgreeCollect } from "@/hooks/mutations/useAgreeCollect";
-import { api } from "@/lib/api/client";
+import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
+import { api, ApiError } from "@/lib/api/client";
+import { toast } from "sonner";
 import { queryKeys } from "@/lib/utils/queryKeys";
 import { formatKRW, parseAmount } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
@@ -92,6 +94,7 @@ export default function BudgetMonthPage() {
   const [showSetupSheet, setShowSetupSheet] = useState(false);
   const [setupAccountId, setSetupAccountId] = useState<number | null>(null);
   const [agreeChecked, setAgreeChecked] = useState(false);
+  const [txnAuthOpen, setTxnAuthOpen] = useState(false);
 
   // 지난달 카테고리별 지출 — 목표 설정 시 참고용 (편집 중에만 로드)
   const prevDate = new Date(year, month - 2, 1);
@@ -147,6 +150,18 @@ export default function BudgetMonthPage() {
         agreeCollect.mutate(undefined, {
           onSuccess: () => setShowSetupSheet(false),
         }),
+      onError: (err) => {
+        // 이체 계좌 등록은 거래 인증 필요 — 미인증/만료(TXN_AUTH_REQUIRED)면
+        // 설정 시트를 닫고 계좌 비밀번호 입력을 띄운 뒤, 인증 성공 시 재시도한다.
+        if (err instanceof ApiError && err.code === "TXN_AUTH_REQUIRED") {
+          setShowSetupSheet(false);
+          setTxnAuthOpen(true);
+          return;
+        }
+        toast.error(
+          err instanceof ApiError ? err.message : "잠시 후 다시 시도해 주세요.",
+        );
+      },
     });
   };
 
@@ -546,6 +561,12 @@ export default function BudgetMonthPage() {
           </Button>
         </SheetContent>
       </Sheet>
+
+      <TxnAuthDialog
+        open={txnAuthOpen}
+        onOpenChange={setTxnAuthOpen}
+        onVerified={handleSetupSave}
+      />
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, isSameDay, isAfter, startOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
 import { RefreshCcw, ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -26,11 +26,33 @@ import { budgetMonthPath } from "@/lib/navigation/routes";
 import { StockCalendarTab } from "./StockCalendarTab";
 import type { BudgetGoalSummary, CalendarDayItem } from "@/types/domain/budget";
 import { LiquidFill } from "@/components/features/budget/LiquidFill";
+import { SavingsPromoModal } from "@/components/features/budget/SavingsPromoModal";
 
 // ── 페이지 진입점 ──────────────────────────────────────────────────────────────
 
 export default function BudgetPage() {
   const goalsQ = useBudgetGoals();
+
+  // 첫 진입(목표 미설정)에서 "가계부 시작하기"로 목표가 생기는 순간 1회만 절약금 제안 모달을 띄운다.
+  // 온보딩 단계라 본질적으로 1회성(목표가 생기면 첫 진입 화면 자체가 다시 안 뜸) → 별도 플래그 불필요.
+  const ready = !goalsQ.isLoading && !goalsQ.isError;
+  const hasGoals = !!goalsQ.data && goalsQ.data.categories.length > 0;
+  const cameFromFirstEntry = useRef(false);
+  const promoShown = useRef(false);
+  const [showPromo, setShowPromo] = useState(false);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!hasGoals) {
+      cameFromFirstEntry.current = true; // 소비 분석(첫 진입) 화면을 거치는 중
+      return;
+    }
+    if (cameFromFirstEntry.current && !promoShown.current) {
+      promoShown.current = true;
+      cameFromFirstEntry.current = false;
+      setShowPromo(true);
+    }
+  }, [ready, hasGoals]);
 
   return (
     <>
@@ -58,6 +80,8 @@ export default function BudgetPage() {
       ) : (
         <Dashboard goals={goalsQ.data} />
       )}
+
+      <SavingsPromoModal open={showPromo} onOpenChange={setShowPromo} />
     </>
   );
 }
