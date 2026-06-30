@@ -50,7 +50,7 @@ export default function MaturityDepositPage() {
       <AppHeader variant="sub" title="예금 재예치" onBack={() => setExitOpen(true)} />
       <MaturityStepper current={4} />
 
-      <div className="space-y-4 pb-28">
+      <div className="space-y-4 pb-52">
         {/* 재예치 금액 */}
         <section className="rounded-2xl bg-brand-surface p-5">
           <p className="text-sm font-semibold text-primary">예금으로 다시 맡길 금액</p>
@@ -83,13 +83,23 @@ export default function MaturityDepositPage() {
             </span>
           </div>
           <p className="mt-2 px-1 text-[11.5px] leading-relaxed text-muted-foreground">
-            만기일에 같은 상품·금리로 자동 재예치돼요. 재예치하지 않으면 만기일에 포켓스톡 CMA로 이체할 수 있어요.
+            만기일에 같은 상품·금리로 자동 재예치돼요.
           </p>
         </section>
       </div>
 
       {/* 하단 버튼 */}
       <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pb-4 pt-3">
+        <div className="mb-3 break-keep rounded-xl bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+          <p className="font-bold text-foreground">확인해주세요</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            <li>
+              같은 상품으로 재예치하면 만기까지 맡기고 {account ? `연 ${account.interestRate}%를` : "같은 금리를"} 그대로 받아요
+            </li>
+            <li>CMA로 이체하면 매일 이자가 붙어 언제든 꺼내 배당주 추가 매수 등에 쓸 수 있어요</li>
+            <li>두 방법 모두 만기일에 실행되고, 만기 전엔 전환내역에서 취소할 수 있어요</li>
+          </ul>
+        </div>
         <div className="flex gap-2">
           <button
             type="button"
