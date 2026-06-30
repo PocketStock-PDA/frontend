@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, CreditCard, CheckCircle2, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, CreditCard, CheckCircle2, Check, Pencil } from "lucide-react";
 import { AppHeader } from "@/components/common/AppHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
@@ -322,9 +322,10 @@ export default function BudgetMonthPage() {
                   <button
                     type="button"
                     onClick={startEditing}
-                    className="text-xs font-medium text-muted-foreground"
+                    className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground"
                   >
-                    목표 설정
+                    <Pencil className="size-3.5" />
+                    목표 편집
                   </button>
                 ))}
             </div>
@@ -384,9 +385,9 @@ export default function BudgetMonthPage() {
                   지난달 기준
                 </span>
                 {[
-                  { label: "그대로", factor: 1 },
                   { label: "10% 절약", factor: 0.9 },
-                  { label: "20% 절약", factor: 0.8 },
+                  { label: "그대로", factor: 1 },
+                  { label: "10% 늘리기", factor: 1.1 },
                 ].map((s) => (
                   <button
                     key={s.label}
@@ -396,7 +397,9 @@ export default function BudgetMonthPage() {
                       "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                       s.factor < 1
                         ? "bg-primary/10 text-primary"
-                        : "border border-border text-foreground",
+                        : s.factor > 1
+                          ? "bg-[#F04452]/10 text-[#F04452]"
+                          : "border border-border text-foreground",
                     )}
                   >
                     {s.label}
