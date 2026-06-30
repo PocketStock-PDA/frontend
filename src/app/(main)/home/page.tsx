@@ -565,6 +565,7 @@ export default function HomePage() {
               amountLabel={collectAmountLabel}
               isPending={collect.isPending}
               isError={collect.isError}
+              guideEnabled={!welcomeEligible || welcomeDismissed}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
               onProgress={handleProgress}

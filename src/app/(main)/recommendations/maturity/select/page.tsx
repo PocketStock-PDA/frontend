@@ -19,6 +19,7 @@ import { useMaturityReservations } from "@/hooks/queries/useMaturityReservations
 import { useDepositRollovers } from "@/hooks/queries/useDepositRollovers";
 import { ApiError } from "@/lib/api/client";
 import { useCancelMaturityReservation } from "@/hooks/mutations/useCancelMaturityReservation";
+import { useCancelDepositRollover } from "@/hooks/mutations/useCancelDepositRollover";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useDividendReinvest } from "@/hooks/queries/useDividendReinvest";
 import { useDividendHistory } from "@/hooks/queries/useDividendHistory";
@@ -54,7 +55,7 @@ function ddayLabel(days: number): string {
 
 const STATUS_META: Record<MaturityReservationStatus, { label: string; cls: string }> = {
   RESERVED: { label: "예약됨", cls: "bg-brand-surface text-primary" },
-  EXECUTED: { label: "체결됨", cls: "bg-brand-surface text-primary" },
+  EXECUTED: { label: "체결됨", cls: "bg-emerald-50 text-emerald-700" },
   CANCELLED: { label: "취소됨", cls: "bg-muted text-muted-foreground" },
   FAILED: { label: "체결 실패", cls: "bg-destructive/10 text-destructive" },
 };
@@ -77,6 +78,7 @@ export default function MaturitySelectPage() {
   const { data: rollovers = [] } = useDepositRollovers();
   const { data: bankAccounts = [] } = useBankAccounts();
   const cancelMutation = useCancelMaturityReservation();
+  const cancelRolloverMutation = useCancelDepositRollover();
 
   // 만기 예적금 accountId → 은행 정보(로고 + 폴백 텍스트용). 백엔드 DTO에 기관
   // 식별자가 없어 보유 계좌 목록(useBankAccounts)과 accountId로 조인한다. (#171)
@@ -96,6 +98,21 @@ export default function MaturitySelectPage() {
     return () => clearTimeout(t);
   }, [pendingCancelId]);
 
+  const [pendingCancelRolloverId, setPendingCancelRolloverId] = useState<number | null>(null);
+  useEffect(() => {
+    if (pendingCancelRolloverId === null) return;
+    const t = setTimeout(() => setPendingCancelRolloverId(null), 4000);
+    return () => clearTimeout(t);
+  }, [pendingCancelRolloverId]);
+
+  const [pendingCancelGroupId, setPendingCancelGroupId] = useState<number | null>(null);
+  const [cancellingGroupId, setCancellingGroupId] = useState<number | null>(null);
+  useEffect(() => {
+    if (pendingCancelGroupId === null) return;
+    const t = setTimeout(() => setPendingCancelGroupId(null), 4000);
+    return () => clearTimeout(t);
+  }, [pendingCancelGroupId]);
+
   const isLoading = accLoading || resLoading;
 
   const handleCancel = (id: number) => {
@@ -107,6 +124,42 @@ export default function MaturitySelectPage() {
       });
     } else {
       setPendingCancelId(id);
+    }
+  };
+
+  const handleCancelRollover = (id: number) => {
+    if (cancelRolloverMutation.isPending) return;
+    if (pendingCancelRolloverId === id) {
+      cancelRolloverMutation.mutate(id, {
+        onSuccess: () => { toast.success("CMA 이체 예약이 취소됐어요."); setPendingCancelRolloverId(null); },
+        onError: () => { toast.error("취소하지 못했어요. 잠시 후 다시 시도해 주세요."); setPendingCancelRolloverId(null); },
+      });
+    } else {
+      setPendingCancelRolloverId(id);
+    }
+  };
+
+  const handleCancelGroup = async (
+    accountId: number,
+    reservationIds: number[],
+    rolloverIds: number[],
+  ) => {
+    if (pendingCancelGroupId === accountId) {
+      setCancellingGroupId(accountId);
+      try {
+        await Promise.all([
+          ...reservationIds.map((id) => cancelMutation.mutateAsync(id)),
+          ...rolloverIds.map((id) => cancelRolloverMutation.mutateAsync(id)),
+        ]);
+        toast.success("전체 예약이 취소됐어요.");
+      } catch {
+        toast.error("일부를 취소하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      } finally {
+        setCancellingGroupId(null);
+        setPendingCancelGroupId(null);
+      }
+    } else {
+      setPendingCancelGroupId(accountId);
     }
   };
 
@@ -122,7 +175,7 @@ export default function MaturitySelectPage() {
     return [...reserved, ...rest];
   }, [reservations]);
 
-  // RESERVED·EXECUTED 예약이 있거나 재예치가 있는 계좌만 차단 — 전부 취소/실패면 재시도 가능.
+  // RESERVED·EXECUTED 예약이 있거나 활성 재예치가 있는 계좌만 차단 — 전부 취소/실패면 재시도 가능.
   const convertedAccountIds = useMemo(() => {
     const ids = new Set<number>();
     for (const r of reservations) {
@@ -131,7 +184,9 @@ export default function MaturitySelectPage() {
       }
     }
     for (const d of rollovers) {
-      ids.add(d.linkedBankAccountId);
+      if (d.status === "RESERVED" || d.status === "EXECUTED") {
+        ids.add(d.linkedBankAccountId);
+      }
     }
     return ids;
   }, [reservations, rollovers]);
@@ -186,6 +241,12 @@ export default function MaturitySelectPage() {
             pendingCancelId={pendingCancelId}
             isCancellingId={cancelMutation.isPending ? pendingCancelId : null}
             onCancel={handleCancel}
+            pendingCancelRolloverId={pendingCancelRolloverId}
+            isCancellingRolloverId={cancelRolloverMutation.isPending ? pendingCancelRolloverId : null}
+            onCancelRollover={handleCancelRollover}
+            pendingCancelGroupId={pendingCancelGroupId}
+            cancellingGroupId={cancellingGroupId}
+            onCancelGroup={handleCancelGroup}
           />
         )}
 
@@ -372,6 +433,12 @@ function HistoryTab({
   pendingCancelId,
   isCancellingId,
   onCancel,
+  pendingCancelRolloverId,
+  isCancellingRolloverId,
+  onCancelRollover,
+  pendingCancelGroupId,
+  cancellingGroupId,
+  onCancelGroup,
 }: {
   reservations: MaturityReservation[];
   rollovers: DepositRollover[];
@@ -380,6 +447,12 @@ function HistoryTab({
   pendingCancelId: number | null;
   isCancellingId: number | null;
   onCancel: (id: number) => void;
+  pendingCancelRolloverId: number | null;
+  isCancellingRolloverId: number | null;
+  onCancelRollover: (id: number) => void;
+  pendingCancelGroupId: number | null;
+  cancellingGroupId: number | null;
+  onCancelGroup: (accountId: number, reservationIds: number[], rolloverIds: number[]) => void;
 }) {
   const allCodes = useMemo(() => [...new Set(reservations.map((r) => r.stockCode))], [reservations]);
   const detailQueries = useStockDetails(allCodes);
@@ -422,10 +495,10 @@ function HistoryTab({
     });
   }, [reservations, rollovers, accounts]);
 
-  // 모든 예약이 취소됐고 재예치도 없는 그룹은 전환 내역에서 숨김 — 예금·적금 탭에서 재선택 가능.
+  // 모든 예약이 취소됐고 활성 재예치도 없는 그룹은 전환 내역에서 숨김 — 예금·적금 탭에서 재선택 가능.
   const visibleGroups = groups.filter(
     (g) =>
-      g.rollovers.length > 0 ||
+      g.rollovers.some((d) => d.status !== "CANCELLED") ||
       g.reservations.some((r) => r.status !== "CANCELLED"),
   );
 
@@ -449,9 +522,15 @@ function HistoryTab({
           pendingCancelId={pendingCancelId}
           isCancellingId={isCancellingId}
           onCancel={onCancel}
+          pendingCancelRolloverId={pendingCancelRolloverId}
+          isCancellingRolloverId={isCancellingRolloverId}
+          onCancelRollover={onCancelRollover}
+          pendingCancelGroupId={pendingCancelGroupId}
+          cancellingGroupId={cancellingGroupId}
+          onCancelGroup={onCancelGroup}
         />
       ))}
-      {pendingCancelId !== null && (
+      {(pendingCancelId !== null || pendingCancelRolloverId !== null || pendingCancelGroupId !== null) && (
         <p className="text-center text-[11.5px] text-muted-foreground">
           한 번 더 누르면 취소돼요
         </p>
@@ -469,6 +548,12 @@ function AccountGroupCard({
   pendingCancelId,
   isCancellingId,
   onCancel,
+  pendingCancelRolloverId,
+  isCancellingRolloverId,
+  onCancelRollover,
+  pendingCancelGroupId,
+  cancellingGroupId,
+  onCancelGroup,
 }: {
   group: AccountGroup;
   bank?: BankInfo | undefined;
@@ -476,20 +561,31 @@ function AccountGroupCard({
   pendingCancelId: number | null;
   isCancellingId: number | null;
   onCancel: (id: number) => void;
+  pendingCancelRolloverId: number | null;
+  isCancellingRolloverId: number | null;
+  onCancelRollover: (id: number) => void;
+  pendingCancelGroupId: number | null;
+  cancellingGroupId: number | null;
+  onCancelGroup: (accountId: number, reservationIds: number[], rolloverIds: number[]) => void;
 }) {
   const reserved = group.reservations.filter((r) => r.status === "RESERVED");
   // CANCELLED는 개별 행으로 보여주지 않음 — 카운트만 표시.
-  const cancelled = group.reservations.filter((r) => r.status === "CANCELLED");
   const visiblePast = group.reservations.filter(
     (r) => r.status !== "RESERVED" && r.status !== "CANCELLED",
   );
-  const rollovers = group.rollovers;
+  const rollovers = group.rollovers.filter((d) => d.status !== "CANCELLED");
   const hasReserved = reserved.length > 0;
   const hasConversion = hasReserved || rollovers.length > 0;
-  // 만기일 자동 전환 총액 = 배당주 예약(RESERVED) + 예금 재예치.
+  // 만기일 자동 전환 총액 = 배당주 예약(RESERVED) + 활성 재예치/CMA이체.
   const totalConverted =
     reserved.reduce((s, r) => s + Number(r.buyAmount), 0) +
-    rollovers.reduce((s, d) => s + Number(d.amount), 0);
+    rollovers.filter((d) => d.status !== "CANCELLED").reduce((s, d) => s + Number(d.amount), 0);
+
+  // 전체 취소 대상 — RESERVED 배당주 예약 + RESERVED CMA 롤오버
+  const cancellableCmaRollovers = rollovers.filter((d) => d.productType === "CMA" && d.status === "RESERVED");
+  const hasCancellable = reserved.length > 0 || cancellableCmaRollovers.length > 0;
+  const isGroupPending = pendingCancelGroupId === group.accountId;
+  const isGroupCancelling = cancellingGroupId === group.accountId;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -534,12 +630,42 @@ function AccountGroupCard({
             )}
           </div>
         )}
+        {hasCancellable && (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              disabled={isGroupCancelling}
+              onClick={() =>
+                onCancelGroup(
+                  group.accountId,
+                  reserved.map((r) => r.id),
+                  cancellableCmaRollovers.map((d) => d.id),
+                )
+              }
+              className={cn(
+                "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11.5px] font-bold transition-all disabled:opacity-50",
+                isGroupPending
+                  ? "bg-destructive/10 text-destructive"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <X className="size-3 shrink-0" />
+              {isGroupCancelling ? "취소 중…" : isGroupPending ? "전체 취소 확인" : "전체 취소"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* TO: 전환 결과 — 예금 재예치 + 배당주 */}
       <ul className="divide-y divide-border">
         {rollovers.map((d) => (
-          <DepositRolloverRow key={`deposit-${d.id}`} rollover={d} />
+          <DepositRolloverRow
+            key={`deposit-${d.id}`}
+            rollover={d}
+            isPendingCancel={pendingCancelRolloverId === d.id}
+            isCancelling={isCancellingRolloverId === d.id}
+            onCancel={() => onCancelRollover(d.id)}
+          />
         ))}
         {reserved.map((r) => (
           <ReservationRow
@@ -561,11 +687,6 @@ function AccountGroupCard({
             onCancel={() => {}}
           />
         ))}
-        {cancelled.length > 0 && (
-          <li className="px-4 py-2.5 text-[11.5px] text-muted-foreground">
-            외 {cancelled.length}개 취소됨
-          </li>
-        )}
       </ul>
     </div>
   );
@@ -578,7 +699,7 @@ function formatShares(n: number): string {
 }
 
 const DRIP_STATUS_CHIP: Record<DividendPayoutStatus, { label: string; cls: string }> = {
-  REINVESTED: { label: "재투자", cls: "bg-brand-surface text-primary" },
+  REINVESTED: { label: "재투자", cls: "bg-emerald-50 text-emerald-700" },
   PAID: { label: "CMA 입금", cls: "bg-muted text-muted-foreground" },
   REINVEST_FAILED: { label: "재투자 실패", cls: "bg-destructive/10 text-destructive" },
 };
@@ -590,7 +711,7 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
   const setReinvest = useSetDividendReinvest();
   const [pendingCodes, setPendingCodes] = useState<Set<string>>(new Set());
 
-  // 예약 중인 종목 (RESERVED, 국내·해외) — drip 설정 가능
+  // 활성 예약(RESERVED) 종목 코드 + 집행일 맵
   const reservedCodes = useMemo(
     () =>
       new Set(
@@ -600,6 +721,16 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
       ),
     [reservations],
   );
+
+  const maturityDateByCode = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of reservations) {
+      if (r.status === "RESERVED" && !m.has(r.stockCode)) {
+        m.set(r.stockCode, r.maturityDate);
+      }
+    }
+    return m;
+  }, [reservations]);
 
   const settingCodes = useMemo(
     () => new Set((settings ?? []).map((s) => s.stockCode)),
@@ -620,14 +751,18 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
       .map((r) => ({ stockCode: r.stockCode, stockName: r.stockName, enabled: false }));
   }, [reservations, settingCodes]);
 
-  const allSettings = useMemo(
-    () => [...(settings ?? []), ...reservedNotInSettings],
-    [settings, reservedNotInSettings],
-  );
-
   const qtyByCode = useMemo(
     () => new Map(holdings.map((h) => [h.stockCode, h.quantity])),
     [holdings],
+  );
+
+  // 보유 중이거나 활성 예약이 있는 종목만 표시 — 예약 취소 후 미보유면 숨김(설정은 DB에 유지).
+  const allSettings = useMemo(
+    () =>
+      [...(settings ?? []), ...reservedNotInSettings].filter(
+        (s) => qtyByCode.has(s.stockCode) || reservedCodes.has(s.stockCode),
+      ),
+    [settings, reservedNotInSettings, qtyByCode, reservedCodes],
   );
 
   // 로고
@@ -716,10 +851,10 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
           </p>
           <div className="mt-4 flex items-center gap-2">
             <DripFlowStep label="받은 배당" value={formatKRW(received)} />
-            <ArrowRight className="size-4 shrink-0 text-muted-foreground/40" />
-            <DripFlowStep label="재투자됨" value={formatKRW(reinvested)} />
-            <ArrowRight className="size-4 shrink-0 text-muted-foreground/40" />
-            <DripFlowStep label="재투자 횟수" value={`${reinvestCount}회`} />
+            <ArrowRight className="size-4 shrink-0 text-emerald-400" />
+            <DripFlowStep label="재투자됨" value={formatKRW(reinvested)} success />
+            <ArrowRight className="size-4 shrink-0 text-emerald-400" />
+            <DripFlowStep label="재투자 횟수" value={`${reinvestCount}회`} success />
           </div>
         </section>
       ) : (
@@ -763,6 +898,7 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
                 {allSettings.map((s) => {
                   const qty = qtyByCode.get(s.stockCode);
                   const isReserved = reservedCodes.has(s.stockCode) && qty === undefined;
+                  const execDate = isReserved ? maturityDateByCode.get(s.stockCode) : undefined;
                   const logoUrl = logoByCode.get(s.stockCode) ?? null;
                   const initial = s.stockName.trim().charAt(0).toUpperCase();
                   return (
@@ -774,16 +910,13 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="text-sm font-bold text-foreground">{s.stockName}</p>
-                          {isReserved && (
-                            <span className="rounded-full bg-brand-surface px-1.5 py-0.5 text-[11px] font-bold text-primary">
-                              예약중
-                            </span>
-                          )}
-                        </div>
+                        <p className="text-sm font-bold text-foreground">{s.stockName}</p>
                         <p className="mt-0.5 text-[11.5px] text-muted-foreground">
-                          {s.enabled ? (
+                          {isReserved ? (
+                            <span className="text-primary">
+                              {execDate ? `${formatMD(execDate)} 매수 예정` : "만기일 매수 예정"}
+                            </span>
+                          ) : s.enabled ? (
                             qty !== undefined ? (
                               <>
                                 보유{" "}
@@ -796,7 +929,7 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
                               "배당 재투자 중"
                             )
                           ) : (
-                            "꺼짐 · 배당을 현금으로 받아요"
+                            "배당은 CMA에 쌓여요"
                           )}
                         </p>
                       </div>
@@ -839,11 +972,11 @@ function DripTab({ reservations }: { reservations: MaturityReservation[] }) {
   );
 }
 
-function DripFlowStep({ label, value }: { label: string; value: string }) {
+function DripFlowStep({ label, value, success }: { label: string; value: string; success?: boolean }) {
   return (
-    <div className="flex-1 rounded-xl bg-brand-surface px-1.5 py-2.5 text-center">
-      <p className="text-[10px] font-medium text-[#3c5170]">{label}</p>
-      <p className="mt-0.5 font-numeric text-[12.5px] font-bold tabular-nums text-foreground">
+    <div className={cn("flex-1 rounded-xl px-1.5 py-2.5 text-center", success ? "bg-emerald-50" : "bg-brand-surface")}>
+      <p className={cn("text-[10px] font-medium", success ? "text-emerald-600" : "text-[#3c5170]")}>{label}</p>
+      <p className={cn("mt-0.5 font-numeric text-[12.5px] font-bold tabular-nums", success ? "text-emerald-700" : "text-foreground")}>
         {value}
       </p>
     </div>
@@ -881,12 +1014,32 @@ function DripHistoryRow({ payout, logoUrl }: { payout: DividendPayout; logoUrl: 
 
 // ── 예금 재예치 행 ────────────────────────────────────────────────────────
 
-function DepositRolloverRow({ rollover }: { rollover: DepositRollover }) {
-  const { productName, productType, amount, baseRate, maxRate, periodMonths } = rollover;
+function DepositRolloverRow({
+  rollover,
+  isPendingCancel,
+  isCancelling,
+  onCancel,
+}: {
+  rollover: DepositRollover;
+  isPendingCancel: boolean;
+  isCancelling: boolean;
+  onCancel: () => void;
+}) {
+  const { productName, productType, amount, baseRate, maxRate, periodMonths, maturityDate, status } = rollover;
   const isCma = productType === "CMA";
+  const isReserved = status === "RESERVED";
+  const isExecuted = status === "EXECUTED";
+  const isCancelled = status === "CANCELLED";
   const rateLabel = baseRate === maxRate ? `${maxRate}%` : `${baseRate}~${maxRate}%`;
+  const cmaDateLabel = maturityDate ? `${formatMD(maturityDate)} CMA 이체 예정` : "CMA 이체 예정";
   return (
-    <li className="flex items-center gap-3 px-4 py-3.5">
+    <li
+      className={cn(
+        "flex items-center gap-3 px-4 py-3.5 transition-colors",
+        isPendingCancel && "bg-destructive/5",
+        isCancelled && "opacity-50",
+      )}
+    >
       <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-surface text-primary">
         <PiggyBank className="size-[18px]" />
       </div>
@@ -894,13 +1047,40 @@ function DepositRolloverRow({ rollover }: { rollover: DepositRollover }) {
         <p className="truncate text-sm font-semibold text-foreground">{productName}</p>
         <p className="mt-0.5 font-numeric text-xs tabular-nums text-muted-foreground">
           {isCma
-            ? `${formatKRW(Number(amount))} · 포켓스톡 CMA 입금`
+            ? `${formatKRW(Number(amount))} · ${cmaDateLabel}`
             : `${formatKRW(Number(amount))} · ${periodMonths}개월 · 연 ${rateLabel}`}
         </p>
       </div>
-      <span className="shrink-0 rounded-full bg-brand-surface px-2.5 py-1 text-[11px] font-bold text-primary">
-        {isCma ? "CMA 이체" : "예금 재예치"}
-      </span>
+      {isCma && isReserved ? (
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isCancelling}
+          className={cn(
+            "flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-bold transition-all disabled:opacity-50",
+            isPendingCancel
+              ? "bg-destructive/10 text-destructive"
+              : "bg-muted text-muted-foreground hover:bg-muted/70",
+          )}
+          aria-label="CMA 이체 예약 취소"
+        >
+          <X className="size-3 shrink-0" />
+          {isCancelling ? "취소 중…" : isPendingCancel ? "취소 확인" : "취소"}
+        </button>
+      ) : (
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold",
+            isCancelled
+              ? "bg-muted text-muted-foreground"
+              : isExecuted
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-brand-surface text-primary",
+          )}
+        >
+          {isCancelled ? "취소됨" : isExecuted ? "이체 완료" : isCma ? "CMA 이체" : "예금 재예치"}
+        </span>
+      )}
     </li>
   );
 }
@@ -942,7 +1122,7 @@ function ReservationRow({
       <div className={cn("min-w-0 flex-1", !isReserved && "opacity-60")}>
         <p className="text-sm font-semibold text-foreground">{stockName}</p>
         <p className="mt-0.5 font-numeric text-xs tabular-nums text-muted-foreground">
-          {formatKRW(Number(buyAmount))} · {formatMD(maturityDate)} 집행
+          {formatKRW(Number(buyAmount))} · {formatMD(maturityDate)} 매수 예정
         </p>
       </div>
 

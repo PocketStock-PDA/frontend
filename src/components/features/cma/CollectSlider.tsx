@@ -48,6 +48,7 @@ interface CollectSliderProps {
   isPending?: boolean;
   isError?: boolean;
   className?: string;
+  guideEnabled?: boolean;
   onDragStart?: () => void;
   onDragEnd?: () => void;
   onProgress?: (pct: number) => void;
@@ -60,6 +61,7 @@ export function CollectSlider({
   isPending = false,
   isError = false,
   className,
+  guideEnabled = true,
   onDragStart,
   onDragEnd,
   onProgress,
@@ -80,6 +82,8 @@ export function CollectSlider({
   const [done, setDone]         = useState(false);
   // showHint starts false to avoid SSR mismatch; activated post-mount if motion is allowed
   const [showHint, setShowHint] = useState(false);
+  // First-visit guide label — shown once, dismissed on first drag, stored in localStorage
+  const [showGuideLabel, setShowGuideLabel] = useState(false);
 
   const THUMB_W = 36;
   const PAD     = 6;
@@ -90,6 +94,13 @@ export function CollectSlider({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!reduced) setShowHint(true);
   }, []);
+
+  useEffect(() => {
+    if (!guideEnabled) return;
+    if (localStorage.getItem("ps-cslide-hinted")) return;
+    const t = setTimeout(() => setShowGuideLabel(true), 1800);
+    return () => clearTimeout(t);
+  }, [guideEnabled]);
 
   function maxTravel() {
     return (trackRef.current?.offsetWidth ?? 300) - THUMB_W - PAD * 2;
@@ -186,6 +197,10 @@ export function CollectSlider({
 
   function onPointerStart(x: number) {
     if (showHint) setShowHint(false); // stop hint on first touch
+    if (showGuideLabel) {
+      setShowGuideLabel(false);
+      localStorage.setItem("ps-cslide-hinted", "1");
+    }
     if (doneRef.current || disabled || isPending) return;
     dragging.current = true;
     startX.current   = x - posRef.current.px;
@@ -254,8 +269,13 @@ export function CollectSlider({
         ._cslide-hint-active {
           animation: _cslide-hint 1.3s ${EASE_QUINT} 1.0s 2 both;
         }
+        @keyframes _cguide-in {
+          from { opacity: 0; transform: translateY(3px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
         @media (prefers-reduced-motion: reduce) {
           ._cslide-hint-active { animation: none !important; }
+          ._cguide-label { animation: none !important; }
         }
       `}</style>
 
@@ -347,6 +367,15 @@ export function CollectSlider({
             </div>
           </div>
         </div>
+        {showGuideLabel && !done && !isLocked && (
+          <p
+            className="_cguide-label mt-2 text-center text-[11px] text-muted-foreground"
+            style={{ animation: `_cguide-in 0.5s ${EASE_EXPO} both` }}
+            aria-hidden="true"
+          >
+            밀어서 잔돈을 CMA에 모아보세요
+          </p>
+        )}
       </div>
     </>
   );

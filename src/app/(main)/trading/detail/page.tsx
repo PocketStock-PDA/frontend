@@ -16,6 +16,12 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TxnAuthDialog } from "@/components/common/TxnAuthDialog";
 import { JigsawPuzzle } from "@/components/features/portfolio/JigsawPuzzle";
@@ -25,6 +31,8 @@ import { useExchangeRate } from "@/hooks/queries/useExchangeRate";
 import { useHoldings } from "@/hooks/queries/useHoldings";
 import { useCmaHome } from "@/hooks/queries/useCmaHome";
 import { useOrders } from "@/hooks/queries/useOrders";
+import { useAutoChargeSettings } from "@/hooks/queries/useAutoChargeSettings";
+import { AutoChargeSettingsForm } from "@/components/features/cma/AutoChargeSettingsForm";
 import { useBuyOrder } from "@/hooks/mutations/useBuyOrder";
 import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
@@ -129,7 +137,8 @@ function TradeContent({
   const [inputMode, setInputMode] = useState<InputMode>("QTY");
   const [qty, setQty] = useState(0);
   const [amount, setAmount] = useState(0);
-  const [autoCharge, setAutoCharge] = useState(true);
+  const [showAutoCharge, setShowAutoCharge] = useState(false);
+  const autoChargeQ = useAutoChargeSettings();
   // 조각(퍼즐) 선택 — 확정(탭/드래그 종료) 시 채워짐. 하단 고정바가 이 선택을 확정.
   const [pieceSel, setPieceSel] = useState<PieceSel | null>(null);
   // 드래그 중 라이브 선택(조각 수·금액 HUD용). 손 떼면 null
@@ -372,7 +381,9 @@ function TradeContent({
       inputMode === "AMOUNT" && calcPrice.gt(0)
         ? new Decimal(amount).div(calcPrice)
         : new Decimal(qty);
-    return sellQty.gt(sellableQty);
+    return tab === "WHOLE"
+      ? sellQty.gt(holdingQty.floor())
+      : sellQty.gt(sellableQty);
   })();
   const overLimitMsg =
     side === "BUY" ? "매수 가능 금액을 초과했어요" : "보유 수량을 초과했어요";
@@ -838,7 +849,10 @@ function TradeContent({
             <span className="text-sm font-medium text-foreground">
               부족금액 자동충전
             </span>
-            <Switch checked={autoCharge} onCheckedChange={setAutoCharge} />
+            <Switch
+              checked={autoChargeQ.data?.enabled ?? false}
+              onCheckedChange={() => setShowAutoCharge(true)}
+            />
           </label>
         )}
 
@@ -920,6 +934,21 @@ function TradeContent({
           </Button>
         </div>
       )}
+
+      {/* 부족금액 자동충전 설정 시트 */}
+      <Sheet open={showAutoCharge} onOpenChange={setShowAutoCharge}>
+        <SheetContent side="bottom" className="max-h-[85vh] rounded-t-2xl px-0 pb-safe">
+          <SheetHeader className="shrink-0 px-5 pb-2 pt-4">
+            <SheetTitle className="text-left text-base font-bold">부족금액 자동충전 설정</SheetTitle>
+          </SheetHeader>
+          <div className="scrollbar-thin overflow-y-auto px-5 pb-6 pt-2">
+            <AutoChargeSettingsForm
+              inline
+              onSaved={() => setShowAutoCharge(false)}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <TxnAuthDialog
         open={authSide !== null}

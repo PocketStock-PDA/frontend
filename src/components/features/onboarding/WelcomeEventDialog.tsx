@@ -94,7 +94,7 @@ export function WelcomeEventDialog({
         className="mx-auto max-w-[430px] gap-0 overflow-hidden rounded-t-[28px] border-0 data-[side=bottom]:border-t-0 px-6 pt-3 text-white"
         style={{
           backgroundImage: GRADIENT,
-          paddingBottom: "max(2.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem))",
+          paddingBottom: "max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem))",
         }}
       >
         <motion.div
@@ -209,20 +209,11 @@ export function WelcomeEventDialog({
             type="button"
             onClick={onProceed}
             {...(!reduce && { whileTap: { scale: 0.98 } })}
-            className="mb-3 h-[52px] w-full rounded-[10px] bg-white text-base font-bold text-[#2f6bff] shadow-[0_8px_20px_rgba(20,50,180,0.22)] transition-opacity hover:opacity-90 active:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+            className="h-[52px] w-full rounded-[10px] bg-white text-base font-bold text-[#2f6bff] shadow-[0_8px_20px_rgba(20,50,180,0.22)] transition-opacity hover:opacity-90 active:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
           >
             {ctaLabel}
           </motion.button>
 
-          {/* 나중에 */}
-          <motion.button
-            variants={item}
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="rounded py-1.5 text-[13px] text-white/45 transition-colors hover:text-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-1"
-          >
-            다음에 할게요
-          </motion.button>
         </motion.div>
       </SheetContent>
     </Sheet>
