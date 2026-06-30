@@ -36,13 +36,20 @@ import {
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import type { CollectSourceType } from "@/types/domain/cma";
 
-
 function CardSvgIcon() {
   return (
     <svg className="size-6 shrink-0" viewBox="6 8 24 20" fill="none">
       <rect x="9.5" y="11" width="21" height="13.5" rx="2.6" fill="#3f7bff" />
       <rect x="9.5" y="14" width="21" height="2.6" fill="#2a62e0" />
-      <rect x="12.5" y="20" width="6" height="2" rx="1" fill="#fff" fillOpacity="0.85" />
+      <rect
+        x="12.5"
+        y="20"
+        width="6"
+        height="2"
+        rx="1"
+        fill="#fff"
+        fillOpacity="0.85"
+      />
     </svg>
   );
 }
@@ -93,7 +100,9 @@ export default function HomePage() {
     origins: DOMRect[];
     target: DOMRect;
   } | null>(null);
-  const drainTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const drainTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
   // 수집 가능한 잔돈 3개 타일 ref — 코인이 각 타일에서 출발
   const accountTileRef = useRef<HTMLDivElement>(null);
@@ -142,7 +151,8 @@ export default function HomePage() {
   const handleProgress = (pct: number) => {
     dragPctRef.current = pct;
     const now = Date.now();
-    if (now - lastDrainRef.current > 48) { // ~20fps
+    if (now - lastDrainRef.current > 48) {
+      // ~20fps
       lastDrainRef.current = now;
       setDrainPct(pct);
     }
@@ -409,9 +419,14 @@ export default function HomePage() {
                       <p className="truncate text-sm font-bold text-foreground">
                         카드 사용 잔돈
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {linkedCard.cardName}
-                      </p>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                          등록
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {linkedCard.cardName}
+                        </span>
+                      </div>
                     </div>
                     <AmountDisplay
                       value={collectedCard?.amount ?? 0}
@@ -481,7 +496,10 @@ export default function HomePage() {
           {/* 은행 잔돈 · 쏠트래블 · 포인트 — C안: 카드 안 아이콘↑ 라벨 금액↓ */}
           <div className="grid grid-cols-3 gap-2">
             {accountSource && (
-              <div ref={accountTileRef} className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
+              <div
+                ref={accountTileRef}
+                className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center"
+              >
                 <span className="flex size-10 items-center justify-center text-primary">
                   <Landmark className="size-7" />
                 </span>
@@ -506,7 +524,10 @@ export default function HomePage() {
               </div>
             )}
             {fxSource && (
-              <div ref={fxTileRef} className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center">
+              <div
+                ref={fxTileRef}
+                className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center"
+              >
                 <span className="flex size-10 items-center justify-center text-primary">
                   <Plane className="size-7" />
                 </span>
@@ -531,16 +552,23 @@ export default function HomePage() {
               </div>
             )}
             {/* 포인트 — 마이신한포인트 / 금액 / 제휴 / 금액 세로 스택 */}
-            <div ref={pointTileRef} className="relative flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3 text-center">
+            <div
+              ref={pointTileRef}
+              className="relative flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3 text-center"
+            >
               <span className="flex size-10 items-center justify-center text-primary">
                 <PointsQuickIcon className="size-7" />
               </span>
               <div className="flex flex-col items-center">
-                <span className="text-[10px] text-muted-foreground">마이신한포인트</span>
+                <span className="text-[10px] text-muted-foreground">
+                  마이신한포인트
+                </span>
                 <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
                   {drainedMyShinhan.toLocaleString()}P
                 </span>
-                <span className="mt-1 text-[10px] text-muted-foreground">제휴</span>
+                <span className="mt-1 text-[10px] text-muted-foreground">
+                  제휴
+                </span>
                 <span className="font-numeric text-xs font-bold tabular-nums text-foreground">
                   {drainedPartner.toLocaleString()}P
                 </span>
@@ -572,7 +600,10 @@ export default function HomePage() {
             />
           </div>
           {collect.isError && (
-            <p role="alert" className="mt-2 text-center text-xs text-destructive">
+            <p
+              role="alert"
+              className="mt-2 text-center text-xs text-destructive"
+            >
               모으기에 실패했어요. 잠시 후 다시 시도해 주세요.
             </p>
           )}
