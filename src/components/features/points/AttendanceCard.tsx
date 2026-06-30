@@ -65,8 +65,11 @@ export function AttendanceCard() {
   const handleCheck = () => {
     if (checkedToday || check.isPending) return;
     check.mutate(undefined, {
+      // 이미 출석한 날 재호출 시 BE가 200 + awarded:0으로 응답(409 아님).
       onSuccess: (res) =>
-        toast.success(`출석 완료! +${res.awarded}P 적립됐어요`),
+        res.awarded > 0
+          ? toast.success(`출석 완료! +${res.awarded}P 적립됐어요`)
+          : toast.info("오늘은 이미 출석했어요"),
       onError: () => toast.error("출석에 실패했어요. 잠시 후 다시 시도해 주세요."),
     });
   };
