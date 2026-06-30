@@ -34,7 +34,7 @@ function fmtUSD(v: number) {
   return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtKRW(v: number) {
-  return v.toLocaleString("ko-KR");
+  return v.toLocaleString("ko-KR", { maximumFractionDigits: 0 });
 }
 function parseTime(updatedAt: string) {
   try {
