@@ -120,7 +120,13 @@ export function AssetPortfolioCard({
   pointSources = [],
   bare = false,
 }: AssetPortfolioCardProps) {
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  // 기본으로 '예금'(없으면 첫 항목)을 선택해 둬서, 첫 화면부터 드릴다운이 보이고
+  // 도넛·카테고리 칩이 누를 수 있는 요소임을 즉시 전달한다.
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(() => {
+    if (portfolio.length === 0) return null;
+    const d = portfolio.findIndex((p) => p.category === "예금");
+    return d >= 0 ? d : 0;
+  });
   const cardRef = useRef<HTMLDivElement>(null);
   const maskId = useId();
 
@@ -437,7 +443,9 @@ export function AssetPortfolioCard({
               onClick={(e) => handleSelect(idx, e)}
               className={cn(
                 "flex flex-col items-center gap-0.5 rounded-xl py-2 text-center transition-all duration-200 active:scale-[0.94]",
-                isSelected ? "" : "bg-muted/60 text-muted-foreground",
+                isSelected
+                  ? ""
+                  : "border-[1.5px] border-border bg-card text-muted-foreground shadow-sm",
               )}
               style={
                 isSelected

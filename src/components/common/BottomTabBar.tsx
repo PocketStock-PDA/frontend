@@ -15,12 +15,12 @@ import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 
 const MotionLink = motion(Link);
 
-// 홈 화면 기준 5탭 (가계부 · 포트폴리오 · 홈 · 자산 · 마이페이지)
+// 홈 화면 기준 5탭 (가계부 · 포트폴리오 · 홈 · 리밸런싱 · 마이페이지)
 const tabs = [
   { href: "/budget", label: "가계부", icon: BookNavIcon },
   { href: "/portfolio", label: "포트폴리오", icon: PortfolioNavIcon },
   { href: "/home", label: "홈", icon: HomeNavIcon },
-  { href: "/asset", label: "자산", icon: AssetNavIcon },
+  { href: "/asset", label: "리밸런싱", icon: AssetNavIcon },
   { href: "/my", label: "마이페이지", icon: ProfileNavIcon },
 ] as const;
 
