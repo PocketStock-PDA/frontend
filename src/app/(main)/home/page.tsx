@@ -150,6 +150,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!collectAnim) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCollectAnimPct(0);
       return;
     }
@@ -334,8 +335,10 @@ export default function HomePage() {
   // 임계 판단은 표시 단위(원/센트)와 동일 기준 — 포매터(ROUND_DOWN) 출력이 0이면 노출/활성 제외
   // (예: 0<USD<0.01은 "$0.00"으로 찍히므로 "0인데 활성" 모순 방지)
   // 코인 애니메이션 중 CMA 잔액 카운트업 — 스냅샷(prev) + 수집액 × 진행률
+  // eslint-disable-next-line react-hooks/refs
+  const prevKrwBalance = prevKrwBalanceRef.current;
   const displayKrwBalance = collectAnim
-    ? Math.round(prevKrwBalanceRef.current + data.totalCollectable * collectAnimPct)
+    ? Math.round(prevKrwBalance + data.totalCollectable * collectAnimPct)
     : data.cmaBalance.KRW;
 
   const krwLabel = formatKRW(data.totalCollectable);

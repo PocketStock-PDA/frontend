@@ -63,7 +63,7 @@ function makeShuffleOrder(n: number): number[] {
   const arr: number[] = Array.from({ length: n }, (_, i) => i);
   for (let i = n - 1; i > 0; i--) {
     const j = ((i * 1299721 + 491) % (i + 1) + (i + 1)) % (i + 1);
-    const tmp = arr[i]!; arr[i] = arr[j]!; arr[j] = tmp;
+    const tmp = arr[i] as number; arr[i] = arr[j] as number; arr[j] = tmp;
   }
   return arr;
 }

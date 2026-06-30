@@ -285,13 +285,16 @@ export default function PortfolioPage() {
     );
   // QUEUED 체결 대기 카드 — scope 필터 + 로고·이름 보강
   const queuedCards = queuedCodes
-    .map((code, i) => ({
-      code,
-      name: queuedDetails[i]?.data?.stockName ?? code,
-      logoUrl: queuedDetails[i]?.data?.logoUrl ?? null,
-      pieces: queuedBuyMap.get(code)!.pieces,
-      currency: queuedBuyMap.get(code)!.currency,
-    }))
+    .map((code, i) => {
+      const buy = queuedBuyMap.get(code);
+      return {
+        code,
+        name: queuedDetails[i]?.data?.stockName ?? code,
+        logoUrl: queuedDetails[i]?.data?.logoUrl ?? null,
+        pieces: buy?.pieces ?? 0,
+        currency: buy?.currency ?? ("KRW" as const),
+      };
+    })
     .filter((q) =>
       scope === "domestic"
         ? q.currency !== "USD"

@@ -404,7 +404,7 @@ function TradesTab({ orders, detailMap, isLoading, isError, market, month, side,
   function toggleRejection(orderId: number) {
     setExpandedRejections((prev) => {
       const next = new Set(prev);
-      next.has(orderId) ? next.delete(orderId) : next.add(orderId);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
       return next;
     });
   }
