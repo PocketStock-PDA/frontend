@@ -35,6 +35,8 @@ interface FxAutoSettingsFormProps {
   /** 저장 성공 후 호출 — 페이지는 /exchange 이동, 시트는 닫기. */
   onSaved?: () => void;
   submitLabel?: string;
+  /** true면 자동환전을 켜야만 저장 가능(끄고 저장 차단) — 해외 배당주 예약처럼 ON을 강제하는 곳에서 사용. */
+  requireEnabled?: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export function FxAutoSettingsForm({
   initialSettings,
   onSaved,
   submitLabel = "설정 저장",
+  requireEnabled = false,
 }: FxAutoSettingsFormProps) {
   const update = useUpdateAutoSettings();
 
@@ -219,9 +222,9 @@ export function FxAutoSettingsForm({
         <Button
           className="h-14 w-full rounded-2xl text-base font-bold"
           onClick={handleSave}
-          disabled={update.isPending}
+          disabled={update.isPending || (requireEnabled && !autoEnabled)}
         >
-          {submitLabel}
+          {requireEnabled && !autoEnabled ? "자동환전을 켜주세요" : submitLabel}
         </Button>
       </div>
 
