@@ -25,7 +25,7 @@ export const QUICK_LINKS: QuickLink[] = [
   { id: "pieces", label: "퍼즐 조각", icon: PiecesQuickIcon, href: "/portfolio?lens=pieces" },
   { id: "portfolio", label: "포트폴리오", icon: PortfolioQuickIcon, href: "/portfolio" },
   { id: "history", label: "주문 내역", icon: HistoryQuickIcon, href: "/history" },
-  { id: "asset", label: "자산", icon: AssetQuickIcon, href: "/asset" },
+  { id: "asset", label: "리밸런싱", icon: AssetQuickIcon, href: "/asset" },
   { id: "budget", label: "가계부", icon: BudgetQuickIcon, href: "/budget" },
   { id: "exchange", label: "환전", icon: ExchangeQuickIcon, href: "/exchange" },
   { id: "points", label: "포인트", icon: PointsQuickIcon, href: "/points" },
