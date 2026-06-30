@@ -4,6 +4,10 @@ import { cn } from "@/lib/utils";
 
 interface AssetActionRowsProps {
   daysUntilMaturity?: number | undefined;
+  /** 부모 카드 안에 박아 쓸 때 자체 테두리·라운드 제거 */
+  bare?: boolean;
+  /** bare로 박을 때 첫 행 위에 구분선(위 콘텐츠와 분리)을 둘지 */
+  leadingDivider?: boolean;
 }
 
 function MaturityIcon() {
@@ -36,9 +40,13 @@ function CardIcon() {
   );
 }
 
-export function AssetActionRows({ daysUntilMaturity }: AssetActionRowsProps) {
+export function AssetActionRows({
+  daysUntilMaturity,
+  bare = false,
+  leadingDivider = false,
+}: AssetActionRowsProps) {
   return (
-    <div className="rounded-2xl border border-border overflow-hidden">
+    <div className={cn(!bare && "rounded-2xl border border-border overflow-hidden")}>
       <ActionRow
         href="/recommendations/maturity/select"
         icon={<MaturityIcon />}
@@ -58,6 +66,7 @@ export function AssetActionRows({ daysUntilMaturity }: AssetActionRowsProps) {
             </span>
           ) : null
         }
+        divider={leadingDivider}
       />
       <ActionRow
         href="/recommendations/cards"
