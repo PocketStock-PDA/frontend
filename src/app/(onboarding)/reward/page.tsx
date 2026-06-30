@@ -20,7 +20,6 @@ import { useClaimWelcomeReward } from "@/hooks/mutations/useClaimWelcomeReward";
 import { toDecimal } from "@/lib/utils/decimal";
 import { formatKRW } from "@/lib/utils/currency";
 import { cn } from "@/lib/utils";
-import { tradingAutoDetailPath } from "@/lib/navigation/routes";
 import type { WelcomeReward, WelcomeRewardCandidate } from "@/types/domain/reward";
 
 /** 지급 예산 — 백엔드와 동일. 국내는 1,000원, 해외는 $1. */
@@ -263,8 +262,7 @@ export default function RewardPage() {
             null
           }
           reduce={!!reduce}
-          onAuto={() => router.replace(tradingAutoDetailPath(granted.stockCode))}
-          onLater={() => router.replace("/home")}
+          onLater={() => router.replace("/home?from=reward")}
         />
       )}
     </div>
@@ -373,13 +371,11 @@ function GrantedOverlay({
   reward,
   logoUrl,
   reduce,
-  onAuto,
   onLater,
 }: {
   reward: WelcomeReward;
   logoUrl: string | null;
   reduce: boolean;
-  onAuto: () => void;
   onLater: () => void;
 }) {
   const initial = reward.stockName.trim().charAt(0).toUpperCase();
@@ -423,25 +419,13 @@ function GrantedOverlay({
       </div>
 
       <h2 className="text-xl font-bold leading-snug text-foreground">
-        {reward.stockName}{" "}
-        <span className="font-numeric text-primary">{grantedShares(reward)}</span>가
+        {reward.stockName}
         <br />
-        모였어요
+        <span className="font-numeric text-primary">{grantedShares(reward)}</span>가 모였어요
       </h2>
-      <p className="mt-2.5 text-sm text-muted-foreground">
-        이제 잔돈이 쌓이면 자동으로 모아드려요
-      </p>
-
       <div className="mt-7 w-full max-w-[320px]">
-        <Button onClick={onAuto} className="h-14 w-full text-base font-bold">
-          자동 모으기 시작하기
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={onLater}
-          className="mt-2 h-11 w-full font-normal text-muted-foreground"
-        >
-          나중에
+        <Button onClick={onLater} className="h-14 w-full text-base font-bold">
+          잔돈 모으러 가기
         </Button>
       </div>
     </motion.div>

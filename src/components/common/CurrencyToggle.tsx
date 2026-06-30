@@ -18,14 +18,14 @@ export function CurrencyToggle({ checked, onChange, className }: CurrencyToggleP
       onClick={() => onChange(!checked)}
       className={cn(
         "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full px-1 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-        checked ? "bg-primary" : "bg-muted",
+        checked ? "bg-muted" : "bg-primary",
         className,
       )}
     >
       <span
         className={cn(
           "flex size-5 items-center justify-center rounded-full bg-white font-numeric text-[11px] font-bold shadow-sm transition-transform duration-200 ease-out",
-          checked ? "translate-x-5 text-primary" : "translate-x-0 text-muted-foreground",
+          checked ? "translate-x-5 text-muted-foreground" : "translate-x-0 text-primary",
         )}
       >
         {checked ? "₩" : "$"}

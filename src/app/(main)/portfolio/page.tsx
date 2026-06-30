@@ -25,6 +25,7 @@ import { usePortfolioSummary } from "@/hooks/queries/usePortfolioSummary";
 import { useSecuritiesAccounts } from "@/hooks/queries/useSecuritiesAccounts";
 import { useStockDetails } from "@/hooks/queries/useStockDetails";
 import { useAutoInvestSummary } from "@/hooks/queries/useAutoInvest";
+import { usePendingOrders } from "@/hooks/queries/usePendingOrders";
 import {
   portfolioDetailPath,
   tradingDetailPath,
@@ -97,6 +98,7 @@ export default function PortfolioPage() {
   const codes = holdings.map((h) => h.stockCode);
   const details = useStockDetails(codes);
   const autoSummaryQ = useAutoInvestSummary();
+  const serverPendingQ = usePendingOrders();
 
   // 자동모으기 활성 종목코드 집합 (모으기 렌즈·배지용)
   const autoCodes = new Set(
@@ -112,6 +114,26 @@ export default function PortfolioPage() {
   );
   const pendingCodes = pendingAutoStocks.map((s) => s.stockCode);
   const pendingDetails = useStockDetails(pendingCodes);
+
+  // QUEUED 매도 주문 중인 종목코드 집합 — HoldingCard "매도 체결 중" 배지용
+  const queuedSellSet = new Set<string>();
+  for (const o of serverPendingQ.data ?? []) {
+    if (o.side === "SELL" && o.status === "QUEUED") queuedSellSet.add(o.stockCode);
+  }
+
+  // QUEUED 매수 주문 중 아직 보유 없는 종목 (처음 사는 종목 — 체결 대기 중 카드로 표시)
+  // 같은 종목 여러 주문은 조각 수 합산, scope(국내/해외) 필터는 렌더 직전에 적용
+  const queuedBuyMap = new Map<string, { pieces: number; currency: string }>();
+  for (const o of serverPendingQ.data ?? []) {
+    if (o.side !== "BUY" || o.status !== "QUEUED" || heldCodes.has(o.stockCode)) continue;
+    const prev = queuedBuyMap.get(o.stockCode) ?? { pieces: 0, currency: o.currency };
+    queuedBuyMap.set(o.stockCode, {
+      pieces: prev.pieces + Math.max(0, Math.round((o.quantity ?? 0) * 100)),
+      currency: o.currency,
+    });
+  }
+  const queuedCodes = [...queuedBuyMap.keys()];
+  const queuedDetails = useStockDetails(queuedCodes);
 
   // 보유 0인데 모으기 예정만 있으면 기본 렌즈를 '모으기'로(직접 고르기 전까지). 파생값 — effect 불필요
   const effLens: Lens =
@@ -261,6 +283,23 @@ export default function PortfolioPage() {
           ? p.stock.currency === "USD"
           : true,
     );
+  // QUEUED 체결 대기 카드 — scope 필터 + 로고·이름 보강
+  const queuedCards = queuedCodes
+    .map((code, i) => ({
+      code,
+      name: queuedDetails[i]?.data?.stockName ?? code,
+      logoUrl: queuedDetails[i]?.data?.logoUrl ?? null,
+      pieces: queuedBuyMap.get(code)!.pieces,
+      currency: queuedBuyMap.get(code)!.currency,
+    }))
+    .filter((q) =>
+      scope === "domestic"
+        ? q.currency !== "USD"
+        : scope === "overseas"
+          ? q.currency === "USD"
+          : true,
+    );
+
   const pieceRows = scopedRows.filter((r) => r.parts.hasFraction);
   // 주식투자(매수매도) 바로가기 — 최다 보유 종목으로(없으면 종목 목록)
   const topCode =
@@ -352,7 +391,7 @@ export default function PortfolioPage() {
         </section>
 
         {/* 보유 — 렌즈 칩 + 렌즈별 리스트. 보유·모으기 둘 다 없을 때만 빈 화면 */}
-        {rows.length === 0 && pendingAuto.length === 0 ? (
+        {rows.length === 0 && pendingAuto.length === 0 && queuedCards.length === 0 ? (
           <EmptyState
             title="아직 모은 조각이 없어요"
             description="포인트·잔돈으로 첫 조각을 담아보세요."
@@ -378,35 +417,52 @@ export default function PortfolioPage() {
                 CSS 애니메이션이라 숨김 탭에서도 최종 상태로 끝난다(blank 방지). */}
             <div key={effLens} className="space-y-3">
               {effLens === "pieces" ? (
-                pieceRows.length === 0 ? (
+                pieceRows.length === 0 && queuedCards.length === 0 ? (
                   <EmptyState
                     title="1주 미만 조각이 없어요"
                     description="보유 종목이 모두 온주예요."
                     className="py-8"
                   />
                 ) : (
-                  pieceRows.map((r, i) => {
-                    const cv = cardView(r);
-                    return (
+                  <>
+                    {pieceRows.map((r, i) => {
+                      const cv = cardView(r);
+                      return (
+                        <div
+                          key={r.h.stockCode}
+                          className="ps-rise-in"
+                          style={{ "--i": Math.min(i, 5) } as React.CSSProperties}
+                        >
+                          <PiecesCard
+                            name={r.name}
+                            ticker={r.h.stockCode}
+                            logoUrl={r.logoUrl}
+                            quantity={r.h.quantity}
+                            pieces={r.parts.pieces}
+                            profit={cv.profit}
+                            rate={cv.rate}
+                            currency={cv.currency}
+                            onClick={() => goPieces(r.h.stockCode)}
+                          />
+                        </div>
+                      );
+                    })}
+                    {queuedCards.map((q, i) => (
                       <div
-                        key={r.h.stockCode}
+                        key={q.code}
                         className="ps-rise-in"
-                        style={{ "--i": Math.min(i, 5) } as React.CSSProperties}
+                        style={{ "--i": Math.min(pieceRows.length + i, 5) } as React.CSSProperties}
                       >
-                        <PiecesCard
-                          name={r.name}
-                          ticker={r.h.stockCode}
-                          logoUrl={r.logoUrl}
-                          quantity={r.h.quantity}
-                          pieces={r.parts.pieces}
-                          profit={cv.profit}
-                          rate={cv.rate}
-                          currency={cv.currency}
-                          onClick={() => goPieces(r.h.stockCode)}
+                        <QueuedOrderCard
+                          name={q.name}
+                          ticker={q.code}
+                          logoUrl={q.logoUrl}
+                          pieces={q.pieces}
+                          onClick={() => goPieces(q.code)}
                         />
                       </div>
-                    );
-                  })
+                    ))}
+                  </>
                 )
               ) : lens === "auto" ? (
                 <>
@@ -450,6 +506,7 @@ export default function PortfolioPage() {
                               rate={cv.rate}
                               currency={cv.currency}
                               isAuto={r.isAuto}
+                              pendingSell={queuedSellSet.has(r.h.stockCode)}
                               subtitle={scheduleByCode.get(r.h.stockCode) ?? ""}
                               onClick={() => goCollect(r.h.stockCode)}
                             />
@@ -479,7 +536,7 @@ export default function PortfolioPage() {
                     </>
                   )}
                 </>
-              ) : scopedRows.length === 0 ? (
+              ) : scopedRows.length === 0 && queuedCards.length === 0 ? (
                 <EmptyState
                   title={
                     scope === "domestic"
@@ -492,29 +549,47 @@ export default function PortfolioPage() {
                   className="py-8"
                 />
               ) : (
-                scopedRows.map((r, i) => {
-                  const cv = cardView(r);
-                  return (
+                <>
+                  {scopedRows.map((r, i) => {
+                    const cv = cardView(r);
+                    return (
+                      <div
+                        key={r.h.stockCode}
+                        className="ps-rise-in"
+                        style={{ "--i": Math.min(i, 5) } as React.CSSProperties}
+                      >
+                        <HoldingCard
+                          name={r.name}
+                          ticker={r.h.stockCode}
+                          logoUrl={r.logoUrl}
+                          quantity={r.h.quantity}
+                          evalAmount={cv.evalAmount}
+                          profit={cv.profit}
+                          rate={cv.rate}
+                          currency={cv.currency}
+                          isAuto={r.isAuto}
+                          pendingSell={queuedSellSet.has(r.h.stockCode)}
+                          onClick={() => goDetail(r.h.stockCode)}
+                        />
+                      </div>
+                    );
+                  })}
+                  {queuedCards.map((q, i) => (
                     <div
-                      key={r.h.stockCode}
+                      key={q.code}
                       className="ps-rise-in"
-                      style={{ "--i": Math.min(i, 5) } as React.CSSProperties}
+                      style={{ "--i": Math.min(scopedRows.length + i, 5) } as React.CSSProperties}
                     >
-                      <HoldingCard
-                        name={r.name}
-                        ticker={r.h.stockCode}
-                        logoUrl={r.logoUrl}
-                        quantity={r.h.quantity}
-                        evalAmount={cv.evalAmount}
-                        profit={cv.profit}
-                        rate={cv.rate}
-                        currency={cv.currency}
-                        isAuto={r.isAuto}
-                        onClick={() => goDetail(r.h.stockCode)}
+                      <QueuedOrderCard
+                        name={q.name}
+                        ticker={q.code}
+                        logoUrl={q.logoUrl}
+                        pieces={q.pieces}
+                        onClick={() => goPieces(q.code)}
                       />
                     </div>
-                  );
-                })
+                  ))}
+                </>
               )}
             </div>
           </section>
@@ -585,6 +660,51 @@ function AutoPendingCard({
       </div>
       <span className="shrink-0 text-xs font-medium text-muted-foreground">
         모으기 전
+      </span>
+    </button>
+  );
+}
+
+/** 소수점 매수 주문이 QUEUED(체결 대기 중)이고 아직 미보유인 종목 카드 */
+function QueuedOrderCard({
+  name,
+  ticker,
+  logoUrl,
+  pieces,
+  onClick,
+}: {
+  name: string;
+  ticker?: string;
+  logoUrl?: string | null;
+  pieces: number;
+  onClick: () => void;
+}) {
+  const initial = (ticker ?? name).trim().charAt(0).toUpperCase();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-4 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-muted/40 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      <Avatar className="shrink-0">
+        {logoUrl && <AvatarImage src={logoUrl} alt="" />}
+        <AvatarFallback>{initial}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-bold text-foreground">
+            {name}
+          </span>
+          <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
+            체결 중
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          조각 {pieces}개 · 1분 내 체결 예정
+        </p>
+      </div>
+      <span className="shrink-0 text-xs font-medium text-muted-foreground">
+        체결 전
       </span>
     </button>
   );

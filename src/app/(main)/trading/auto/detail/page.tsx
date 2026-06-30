@@ -186,11 +186,11 @@ function AutoInvestForm({
   const handleOvsKrwChange = (next: boolean) => {
     setOvsKrw(next);
     if (amountMode !== "AMOUNT") return;
-    // 토글 전환 시 각 모드의 기본값으로 리셋 (fx 없으면 그냥 토글만)
-    if (next && fx !== null) {
-      setAmount(toDecimal(10000).div(fx).toDecimalPlaces(2).toNumber());
-    } else if (!next) {
-      setAmount(10);
+    // amount를 표시 통화 기준으로 직접 저장 — 왕복 변환 오차 없음
+    if (next) {
+      setAmount(10000); // KRW 표시 기본값 ₩10,000
+    } else {
+      setAmount(10);   // USD 표시 기본값 $10
     }
   };
   const [enabled, setEnabled] = useState(initial.enabled);
@@ -210,32 +210,44 @@ function AutoInvestForm({
   const isUSD = currency === "USD";
   const fx = isUSD ? (exchangeRateQ.data?.baseRate ?? null) : null;
   const showKrw = ovsKrw && fx !== null;
-  // 모으기도 일반 주문과 동일한 최소주문금액(국내 1,000원 / 해외 $1)
-  const minOrder = isUSD ? 1 : 1000;
-  const minOrderText = isUSD && !showKrw ? `$${minOrder}` : `${minOrder.toLocaleString("ko-KR")}원`;
+  // amount는 표시 통화 기준 (showKrw=true → KRW, false → native)
+  // 저장 시 native로 역산: showKrw일 때 amount/fx, 아닐 때 amount 그대로
+  const nativeAmount = showKrw && fx
+    ? toDecimal(amount).div(fx).toDecimalPlaces(6).toNumber()
+    : amount;
+  // 최소주문 — 국내 1,000원 / 해외 $1. showKrw 시 표시 통화(KRW) 기준으로 환산
+  const minNative = isUSD ? 1 : 1000;
+  const minDisplay = showKrw && fx ? Math.ceil(minNative * fx) : minNative;
+  const minOrderText = showKrw || !isUSD
+    ? `${minDisplay.toLocaleString("ko-KR")}원`
+    : `$${minNative}`;
   // 신규(모으기 시작) vs 기존(관리) — CTA·헤딩·토글 분기
   const isNew = settingId === null;
   const hasAmount = amountMode === "AMOUNT" ? amount > 0 : quantity > 0;
   const price = toDecimal(currentPrice);
   const holding = holdingsQ.data?.find((h) => h.stockCode === stockCode);
   const avgPrice = holding ? holding.avgBuyPrice : currentPrice;
-  const buyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
+  const rawBuyingPower = cmaQ.data?.cmaBalance?.[isUSD ? "USD" : "KRW"] ?? 0;
+  // OrderAmountPanel에 전달할 buyingPower: 표시 통화 기준
+  const buyingPower = showKrw && fx
+    ? toDecimal(rawBuyingPower).times(fx).toDecimalPlaces(0).toNumber()
+    : rawBuyingPower;
   const maxBuyQty = price.gt(0)
-    ? new Decimal(buyingPower).div(price).floor().toNumber()
+    ? new Decimal(rawBuyingPower).div(price).floor().toNumber()
     : 0;
 
   const fmtSummaryAmount = () => {
     if (amountMode === "QTY") return `${quantity}주`;
     if (isUSD && !showKrw) return formatUSD(amount);
-    if (isUSD && showKrw && fx) return formatKRW(toDecimal(amount).times(fx).toNumber());
+    if (isUSD && showKrw) return formatKRW(amount); // amount가 이미 KRW
     return formatKRW(amount);
   };
   const summary = `${FREQ_LABEL[frequency]} ${fmtSummaryAmount()}씩`;
 
   const handleSave = () => {
     if (save.isPending) return;
-    // 모으기 최소금액 검증 — 백엔드와 동일 기준(금액 모드만, 국내 1,000원 / 해외 $1). amount는 항상 native 통화.
-    if (amountMode === "AMOUNT" && amount < minOrder) {
+    // 모으기 최소금액 검증 — 표시 통화 기준 비교(nativeAmount < minNative와 동치)
+    if (amountMode === "AMOUNT" && amount < minDisplay) {
       toast.warning(`모으기 금액은 최소 ${minOrderText} 이상이에요`);
       return;
     }
@@ -250,7 +262,7 @@ function AutoInvestForm({
       weekdays,
       dayOfMonth,
       amountMode,
-      amount,
+      amount: nativeAmount,
       quantity,
       buyCondition,
       sellCondition,
@@ -377,9 +389,9 @@ function AutoInvestForm({
           <OrderAmountPanel
             amountMode={amountMode}
             onAmountModeChange={setAmountMode}
-            isUSD={isUSD}
-            showKrw={showKrw}
-            fx={fx}
+            isUSD={isUSD && !showKrw}
+            showKrw={false}
+            fx={null}
             amount={amount}
             onAmountChange={setAmount}
             buyingPower={buyingPower}
@@ -445,7 +457,7 @@ function AutoInvestForm({
       <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 px-5 pb-4">
         <Button
           onClick={handleSave}
-          disabled={save.isPending}
+          disabled={save.isPending || (amountMode === "AMOUNT" && amount < minDisplay) || (amountMode === "QTY" && quantity <= 0)}
           className="h-12 w-full text-base font-bold"
         >
           {save.isPending
@@ -464,6 +476,7 @@ function AutoInvestForm({
         stockName={stockName}
         currentPrice={currentPrice}
         avgPrice={avgPrice}
+        currency={isUSD ? "USD" : "KRW"}
         value={buyCondition}
         onApply={setBuyCondition}
       />
@@ -473,6 +486,7 @@ function AutoInvestForm({
         stockName={stockName}
         currentPrice={currentPrice}
         avgPrice={avgPrice}
+        currency={isUSD ? "USD" : "KRW"}
         value={sellCondition}
         onApply={setSellCondition}
       />

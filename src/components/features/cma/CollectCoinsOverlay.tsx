@@ -13,7 +13,9 @@ interface CollectCoinsOverlayProps {
   onComplete: () => void;
 }
 
-const COUNT = 10;
+const COUNT = 34;
+const COIN_DURATION = 0.92;   // 코인 1개 비행 시간(s)
+const COIN_DELAY_STEP = 0.06; // 코인 간 딜레이(s)
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 const randInt = (min: number, max: number) => Math.floor(rand(min, max + 0.999));
 
@@ -75,7 +77,7 @@ export function CollectCoinsOverlay({
         mx: (sx + ex) / 2 + rand(-24, 24),
         my: (sy + ey) / 2 - rand(20, 52),
         size: rand(30, 44),
-        delay: i * 0.038,
+        delay: i * COIN_DELAY_STEP,
         startFrame: randInt(0, 7),
       };
     });
@@ -87,7 +89,7 @@ export function CollectCoinsOverlay({
       onComplete();
       return;
     }
-    const total = 900 + COUNT * 50 + 200;
+    const total = Math.round(COIN_DURATION * 1000 + (COUNT - 1) * COIN_DELAY_STEP * 1000 + 300);
     const t = window.setTimeout(onComplete, total);
     return () => window.clearTimeout(t);
   }, [active, reduceMotion, coins.length, onComplete]);
@@ -110,11 +112,11 @@ export function CollectCoinsOverlay({
             opacity: [0, 1, 1, 0],
           }}
           transition={{
-            duration: 0.72,
+            duration: COIN_DURATION,
             delay: c.delay,
             ease: [0.33, 0.0, 0.2, 1],
             opacity: {
-              duration: 0.72,
+              duration: COIN_DURATION,
               delay: c.delay,
               times: [0, 0.14, 0.82, 1],
             },

@@ -13,5 +13,6 @@ export function usePortfolioSummary(enabled = true) {
     queryFn: () =>
       api.get<PortfolioSummary>("/api/trading/portfolio/summary"),
     enabled,
+    refetchInterval: 60_000,
   });
 }

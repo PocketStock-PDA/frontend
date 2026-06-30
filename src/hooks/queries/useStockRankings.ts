@@ -18,5 +18,6 @@ export function useStockRankings(market: StockMarket, sort: RankingSort) {
       api.get<StockRankingItem[]>(`/api/trading/stocks/rankings/${market}`, {
         params: { sort },
       }),
+    refetchInterval: 60_000,
   });
 }

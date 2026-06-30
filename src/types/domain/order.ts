@@ -108,4 +108,6 @@ export interface OrderHistoryItem {
   realizedPnl: number | null;
   /** 실현손익 환산 KRW — 해외=native×체결환율(환율없으면 null), 국내=native. */
   realizedPnlKrw: number | null;
+  /** REJECTED 사유 — 거절된 주문만 non-null. */
+  failReason: string | null;
 }

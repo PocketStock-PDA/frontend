@@ -580,78 +580,33 @@ export function JigsawPuzzle({
         })
       )}
 
-      {/* 접수 손맛 — 수량 기반 캐논 채움. buy=다음 N칸 캐스케이드+스냅+글린트 / sell=마지막 N칸 날아감 */}
-      {pendingBuy > 0 && (
-        <>
-          {Array.from({ length: pendingBuy }, (_, k) => filled + k)
-            .filter((i) => i < total)
-            .map((i, k) => (
-              <motion.g
-                key={`pi-${i}`}
-                style={{ transformBox: "fill-box", transformOrigin: "center" }}
-                initial={reduce ? false : { scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={
-                  reduce
-                    ? { duration: 0 }
-                    : {
-                        delay: k * 0.04,
-                        type: "spring",
-                        stiffness: 520,
-                        damping: 17,
-                        mass: 0.6,
-                      }
-                }
-              >
-                {renderFilled(i)}
-                {/* 락인 글린트 — 박히는 순간 가장자리 한 번 반짝 */}
-                {!reduce && (
-                  <motion.path
-                    d={paths[i]}
-                    fill="none"
-                    stroke="#ffffff"
-                    strokeWidth={2.5}
-                    strokeLinejoin="round"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: [0, 0.95, 0] }}
-                    transition={{
-                      delay: k * 0.04 + 0.14,
-                      duration: 0.4,
-                      ease: "easeOut",
-                      times: [0, 0.35, 1],
-                    }}
-                  />
-                )}
-              </motion.g>
-            ))}
-          {/* 접수=대기 신호 — 은은한 펄스 */}
-          {!reduce && (
+      {/* 접수 대기 — 캐스케이드 입장 애니메이션은 유지하되 65% 불투명도로 표시.
+          실제 체결 시 filled 증가로 자연스럽게 100%가 되므로 "두 번 추가된" 이중 표시가 없다.
+          글린트·펄스는 제거 — 입장 애니메이션만으로 손맛이 충분하고 체결 후 사라지는 타이밍이 깔끔하다. */}
+      {pendingBuy > 0 &&
+        Array.from({ length: pendingBuy }, (_, k) => filled + k)
+          .filter((i) => i < total)
+          .map((i, k) => (
             <motion.g
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0.08, 0.26, 0.08] }}
-              transition={{
-                delay: pendingBuy * 0.04 + 0.3,
-                duration: 1.8,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
+              key={`pi-${i}`}
+              style={{ transformBox: "fill-box", transformOrigin: "center" }}
+              initial={reduce ? false : { scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 0.65 }}
+              transition={
+                reduce
+                  ? { duration: 0 }
+                  : {
+                      delay: k * 0.04,
+                      type: "spring",
+                      stiffness: 520,
+                      damping: 17,
+                      mass: 0.6,
+                    }
+              }
             >
-              {Array.from({ length: pendingBuy }, (_, k) => filled + k)
-                .filter((i) => i < total)
-                .map((i) => (
-                  <path
-                    key={`pp-${i}`}
-                    d={paths[i]}
-                    fill="none"
-                    stroke="#ffffff"
-                    strokeWidth={1.5}
-                    strokeLinejoin="round"
-                  />
-                ))}
+              {renderFilled(i)}
             </motion.g>
-          )}
-        </>
-      )}
+          ))}
 
       {pendingSell > 0 && (
         <>
