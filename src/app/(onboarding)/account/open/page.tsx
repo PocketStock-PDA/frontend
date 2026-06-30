@@ -7,12 +7,17 @@ import { InstitutionLogo } from "@/components/common/InstitutionLogo";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
-import { EmptyState } from "@/components/common/EmptyState";
 import { SkeletonCard } from "@/components/common/SkeletonCard";
 import { PinKeypad } from "@/components/common/PinKeypad";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useBankAccounts } from "@/hooks/queries/useBankAccounts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useCmaHome, isNoCmaAccount } from "@/hooks/queries/useCmaHome";
 import {
   useAgreeTerms,
@@ -20,17 +25,9 @@ import {
   useOpenAccount,
   useOpenCmaAccount,
 } from "@/hooks/mutations/useAccountOpen";
-import {
-  useRequestAccountVerify,
-  useConfirmAccountVerify,
-} from "@/hooks/mutations/useAccountVerify";
-import { formatKRW } from "@/lib/utils/currency";
 import { formatPhone, isValidPhone } from "@/lib/utils/phone";
 import { cn } from "@/lib/utils";
-import type {
-  AccountVerifyRequestResult,
-  BankAccount,
-} from "@/types/domain/account";
+import type { AccountVerifyRequestResult } from "@/types/domain/account";
 
 type Step = "TERMS" | "INFO" | "BANK" | "VERIFY" | "PASSWORD" | "DONE";
 type AccountKind = "FULL" | "CMA";
@@ -38,13 +35,35 @@ type AccountKind = "FULL" | "CMA";
 const STEP_TITLE: Record<Step, string> = {
   TERMS: "약관 동의",
   INFO: "회원 정보 확인",
-  BANK: "인증할 계좌 선택",
+  BANK: "계좌 인증",
   VERIFY: "1원 송금 인증",
   PASSWORD: "계좌 비밀번호 설정",
   DONE: "계좌 개설 완료",
 };
 
-const STEP_ORDER: Step[] = ["TERMS", "INFO", "BANK", "VERIFY", "PASSWORD", "DONE"];
+// 계좌 인증 단계에서 선택할 은행 (public/institution-logo/{code}.png)
+const BANKS = [
+  { code: "SHINHAN_BANK", name: "신한" },
+  { code: "KB_BANK", name: "국민" },
+  { code: "WOORI_BANK", name: "우리" },
+  { code: "HANA_BANK", name: "하나" },
+  { code: "NH_BANK", name: "농협" },
+  { code: "IBK_BANK", name: "기업" },
+  { code: "KAKAO_BANK", name: "카카오뱅크" },
+  { code: "TOSS_BANK", name: "토스뱅크" },
+  { code: "KBANK", name: "케이뱅크" },
+  { code: "SC_BANK", name: "SC제일" },
+  { code: "MG_BANK", name: "새마을" },
+] as const;
+
+const STEP_ORDER: Step[] = [
+  "TERMS",
+  "INFO",
+  "BANK",
+  "VERIFY",
+  "PASSWORD",
+  "DONE",
+];
 
 // CMA는 POST /api/cma/account, 증권은 POST /api/trading/accounts(DOMESTIC·OVERSEAS).
 // FULL=CMA+종합(둘 다), CMA=CMA만.
@@ -60,6 +79,20 @@ const TERMS = [
 const errMsg = (e: unknown) =>
   e instanceof ApiError ? e.message : "잠시 후 다시 시도해 주세요.";
 
+// 1원 송금 인증 목 데이터 — 실제 검증 없이 화면용으로만 생성한다.
+const makeMockVerify = (): AccountVerifyRequestResult => {
+  const code = String(Math.floor(Math.random() * 900) + 100); // 3자리
+  return {
+    verificationId:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `mock-${Date.now()}`,
+    depositorName: `포켓스톡${code}`,
+    code,
+    expiresIn: 180,
+  };
+};
+
 export default function AccountOpenPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("TERMS");
@@ -67,9 +100,10 @@ export default function AccountOpenPage() {
   const [agreed, setAgreed] = useState<Set<number>>(new Set());
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [bankCode, setBankCode] = useState<string | null>(null);
+  const [accountInput, setAccountInput] = useState("");
   const [verify, setVerify] = useState<AccountVerifyRequestResult | null>(null);
-  const [accountNo, setAccountNo] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<{ label: string; no: string }[]>([]);
   // 이 플로우에서 개설을 시작/완료했는지. true면 개설 직후 useCmaHome이 200으로 바뀌어도
   // "이미 보유 → /home" 가드가 발동하지 않게 한다. (#155)
   const [opened, setOpened] = useState(false);
@@ -80,10 +114,7 @@ export default function AccountOpenPage() {
     if (cmaQ.isSuccess && !opened) router.replace("/home");
   }, [cmaQ.isSuccess, opened, router]);
 
-  const bankQ = useBankAccounts();
   const agreeTerms = useAgreeTerms();
-  const reqVerify = useRequestAccountVerify();
-  const confirmVerify = useConfirmAccountVerify();
   const setPw = useSetAccountPassword();
   const openAcc = useOpenAccount();
   const openCma = useOpenCmaAccount();
@@ -99,7 +130,12 @@ export default function AccountOpenPage() {
   if (!opened && !isNoCmaAccount(cmaQ.error)) {
     return (
       <>
-        <AppHeader variant="sub" title="계좌 개설" showMenu={false} showBack={false} />
+        <AppHeader
+          variant="sub"
+          title="계좌 개설"
+          showMenu={false}
+          showBack={false}
+        />
         <div className="p-4">
           <SkeletonCard lines={3} className="h-48" />
         </div>
@@ -120,7 +156,7 @@ export default function AccountOpenPage() {
       />
 
       {step !== "DONE" && (
-        <div className="h-[2px] overflow-hidden bg-muted">
+        <div className="h-0.5 overflow-hidden bg-muted">
           <div
             className="h-full w-full origin-left bg-primary transition-transform duration-500"
             style={{ transform: `scaleX(${progress})` }}
@@ -166,19 +202,14 @@ export default function AccountOpenPage() {
 
         {step === "BANK" && (
           <BankStep
-            query={bankQ}
-            selectedId={selectedId}
-            setSelectedId={setSelectedId}
-            pending={reqVerify.isPending}
+            bankCode={bankCode}
+            setBankCode={setBankCode}
+            accountInput={accountInput}
+            setAccountInput={setAccountInput}
             onNext={() => {
-              if (selectedId === null || reqVerify.isPending) return;
-              reqVerify.mutate(selectedId, {
-                onSuccess: (data) => {
-                  setVerify(data);
-                  setStep("VERIFY");
-                },
-                onError: (e) => toast.error(errMsg(e)),
-              });
+              if (bankCode === null || accountInput.trim().length === 0) return;
+              setVerify(makeMockVerify());
+              setStep("VERIFY");
             }}
           />
         )}
@@ -187,40 +218,23 @@ export default function AccountOpenPage() {
           <VerifyStep
             key={verify.verificationId}
             verify={verify}
-            bank={bankQ.data?.find((a) => a.accountId === selectedId)}
-            pending={confirmVerify.isPending}
-            resending={reqVerify.isPending}
-            onResend={() => {
-              if (selectedId === null || reqVerify.isPending) return;
-              reqVerify.mutate(selectedId, {
-                onSuccess: (data) => setVerify(data),
-                onError: (e) => toast.error(errMsg(e)),
-              });
+            bank={{
+              bankName: BANKS.find((b) => b.code === bankCode)?.name ?? "",
+              accountName: accountInput,
             }}
-            onConfirm={(code) =>
-              confirmVerify.mutate(
-                { verificationId: verify.verificationId, code },
-                {
-                  onSuccess: (res) => {
-                    if (res.verified) {
-                      toast.success("계좌 인증 완료");
-                      setStep("PASSWORD");
-                    } else {
-                      toast.error("입금자명이 일치하지 않아요.");
-                    }
-                  },
-                  onError: (e) => toast.error(errMsg(e)),
-                },
-              )
-            }
+            pending={false}
+            resending={false}
+            onResend={() => setVerify(makeMockVerify())}
+            onConfirm={() => {
+              toast.success("계좌 인증 완료");
+              setStep("PASSWORD");
+            }}
           />
         )}
 
         {step === "PASSWORD" && (
           <PasswordStep
-            pending={
-              setPw.isPending || openCma.isPending || openAcc.isPending
-            }
+            pending={setPw.isPending || openCma.isPending || openAcc.isPending}
             onDone={(pw) =>
               setPw.mutate(pw, {
                 onSuccess: () =>
@@ -229,14 +243,20 @@ export default function AccountOpenPage() {
                     onSuccess: (cma) => {
                       // CMA가 생긴 시점부터 /home 리다이렉트 가드를 끈다 (FULL은 증권개설이 더 남음)
                       setOpened(true);
+                      const cmaRow = cma.cmaAccountNo
+                        ? [{ label: "포켓스톡 CMA", no: cma.cmaAccountNo }]
+                        : [];
                       if (kind === "CMA") {
-                        setAccountNo(cma.cmaAccountNo);
+                        setAccounts(cmaRow);
                         setStep("DONE");
                         return;
                       }
                       openAcc.mutate(SECURITIES_TYPES, {
                         onSuccess: (sec) => {
-                          setAccountNo(sec.accountNo);
+                          setAccounts([
+                            ...cmaRow,
+                            { label: "종합(국내·해외)", no: sec.accountNo },
+                          ]);
                           setStep("DONE");
                         },
                         onError: (e) => toast.error(errMsg(e)),
@@ -252,7 +272,7 @@ export default function AccountOpenPage() {
 
         {step === "DONE" && (
           <DoneStep
-            accountNo={accountNo}
+            accounts={accounts}
             kind={kind}
             onStart={() => router.replace("/asset-link")}
           />
@@ -306,8 +326,12 @@ function TermsStep({
         <p className="text-xs font-medium text-muted-foreground">계좌 종류</p>
         {(
           [
-            { value: "FULL", label: "CMA + 종합계좌", desc: "국내·해외 주식 + CMA" },
-            { value: "CMA", label: "CMA 계좌만", desc: "포켓스톡 CMA만 개설" },
+            {
+              value: "FULL",
+              label: "CMA + 종합계좌",
+              desc: "국내·해외 주식 + 포켓스톡 CMA",
+            },
+            // { value: "CMA", label: "CMA 계좌만", desc: "포켓스톡 CMA만 개설" },
           ] as const
         ).map((o) => (
           <button
@@ -348,10 +372,12 @@ function TermsStep({
         <button
           type="button"
           onClick={toggleAll}
-          className="flex w-full items-center gap-2.5 rounded-xl bg-muted/60 px-4 py-3 text-left"
+          className="flex w-full items-center gap-2.5 rounded-xl bg-muted px-4 py-3 text-left"
         >
           <CheckCircle on={allOn} />
-          <span className="text-sm font-semibold text-foreground">전체 동의</span>
+          <span className="text-sm font-semibold text-foreground">
+            전체 동의
+          </span>
         </button>
         {TERMS.map((t) => (
           <button
@@ -389,7 +415,7 @@ function CheckCircle({ on }: { on: boolean }) {
     <span
       className={cn(
         "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors",
-        on ? "bg-primary text-primary-foreground" : "bg-muted",
+        on ? "bg-primary text-primary-foreground" : "bg-white border",
       )}
     >
       {on && <Check className="size-3" />}
@@ -431,7 +457,9 @@ function InfoStep({
           />
         </label>
         <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-foreground">휴대폰번호</span>
+          <span className="text-sm font-medium text-foreground">
+            휴대폰번호
+          </span>
           <Input
             value={phone}
             onChange={(e) => setPhone(formatPhone(e.target.value))}
@@ -459,94 +487,73 @@ function InfoStep({
   );
 }
 
-// ── 3. 인증할 계좌 선택 ────────────────────────────────────────────────────────
+// ── 3. 계좌 인증 (은행 선택 + 계좌번호 직접 입력) ───────────────────────────────
 function BankStep({
-  query,
-  selectedId,
-  setSelectedId,
-  pending,
+  bankCode,
+  setBankCode,
+  accountInput,
+  setAccountInput,
   onNext,
 }: {
-  query: ReturnType<typeof useBankAccounts>;
-  selectedId: number | null;
-  setSelectedId: (id: number) => void;
-  pending: boolean;
+  bankCode: string | null;
+  setBankCode: (code: string) => void;
+  accountInput: string;
+  setAccountInput: (v: string) => void;
   onNext: () => void;
 }) {
-  if (query.isLoading) return <SkeletonCard lines={4} className="mt-6 h-44" />;
-  if (query.isError) {
-    return (
-      <div className="pt-6">
-        <EmptyState
-          title="계좌를 불러오지 못했어요"
-          description="잠시 후 다시 시도해 주세요."
-          action={
-            <Button variant="outline" size="sm" onClick={() => query.refetch()}>
-              다시 시도
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
-  // 1원 인증 대상은 입출금(DEMAND) 통장만 — 적금/예금(SAVINGS/DEPOSIT)은 제외.
-  const accounts = (query.data ?? []).filter(
-    (a) => !a.isDormant && a.accountType === "DEMAND",
-  );
-  if (accounts.length === 0) {
-    return (
-      <div className="pt-6">
-        <EmptyState
-          title="인증할 계좌가 없어요"
-          description="본인 명의의 입출금 계좌가 필요해요."
-        />
-      </div>
-    );
-  }
+  const ok = bankCode !== null && accountInput.trim().length > 0;
   return (
     <div className="pt-6">
       <p className="mb-5 text-sm text-muted-foreground">
         본인 명의 계좌로 1원을 보내 인증해요.
       </p>
-      <div className="space-y-2">
-        {accounts.map((a: BankAccount) => (
-          <button
-            key={a.accountId}
-            type="button"
-            onClick={() => setSelectedId(a.accountId)}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors",
-              selectedId === a.accountId
-                ? "border-primary bg-primary/5"
-                : "border-border hover:border-primary/30",
-            )}
-          >
-            <InstitutionLogo
-              code={a.bankCode}
-              name={a.bankName}
-              className="size-10 shrink-0"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-foreground">
-                {a.bankName} · {a.accountName}
-              </span>
-              <span className="block text-xs text-muted-foreground">
-                {formatKRW(a.balance)}
-              </span>
-            </span>
-            {selectedId === a.accountId && (
-              <Check className="size-4 text-primary" />
-            )}
-          </button>
-        ))}
-      </div>
+
+      <section className="space-y-1.5">
+        <p className="text-sm font-medium text-foreground">은행 선택</p>
+        <Select
+          {...(bankCode ? { value: bankCode } : {})}
+          onValueChange={(v) => setBankCode(v)}
+        >
+          <SelectTrigger className="h-12! w-full rounded-lg px-2.5 text-base md:text-sm">
+            <SelectValue placeholder="은행을 선택해 주세요" />
+          </SelectTrigger>
+          <SelectContent>
+            {BANKS.map((b) => (
+              <SelectItem key={b.code} value={b.code} className="py-2.5">
+                <InstitutionLogo
+                  code={b.code}
+                  name={b.name}
+                  className="size-6 shrink-0"
+                />
+                <span className="text-sm font-medium text-foreground">
+                  {b.name}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </section>
+
+      <label className="mt-5 block space-y-1.5">
+        <span className="text-sm font-medium text-foreground">계좌번호</span>
+        <Input
+          value={accountInput}
+          onChange={(e) =>
+            setAccountInput(e.target.value.replace(/[^0-9-]/g, ""))
+          }
+          inputMode="numeric"
+          placeholder="계좌번호 입력 (- 없이)"
+          className="h-12"
+        />
+      </label>
+
       <BottomCta>
         <Button
           onClick={onNext}
-          disabled={selectedId === null || pending}
+          disabled={!ok}
           className="h-12 w-full text-[15px] font-semibold"
         >
-          {pending ? "1원 보내는 중..." : "이 계좌로 인증하기"}
+          이 계좌로 인증하기
         </Button>
       </BottomCta>
     </div>
@@ -563,7 +570,7 @@ function VerifyStep({
   onConfirm,
 }: {
   verify: AccountVerifyRequestResult;
-  bank: BankAccount | undefined;
+  bank: { bankName: string; accountName: string };
   pending: boolean;
   resending: boolean;
   onResend: () => void;
@@ -616,8 +623,8 @@ function VerifyStep({
             <span className="ml-auto text-[10px] text-[#8e8e93]">지금</span>
           </div>
           <p className="text-[12px] leading-[1.5] text-[#1c1c1e]">
-            포켓스톡에서 요청하신 입금 1원이{" "}
-            {bank ? `${bank.bankName} ` : ""}계좌로 입금되었어요.
+            포켓스톡에서 요청하신 입금 1원이 {bank ? `${bank.bankName} ` : ""}
+            계좌로 입금되었어요.
           </p>
           <p className="mt-0.5 text-[12px] text-[#48484a]">
             입금자명:{" "}
@@ -749,9 +756,17 @@ function PasswordStep({
           ? "계좌 비밀번호 4자리를 입력해 주세요"
           : "한 번 더 입력해 주세요"}
       </p>
-      <PinKeypad value={pin} onChange={handleChange} length={4} disabled={pending} secure />
+      <PinKeypad
+        value={pin}
+        onChange={handleChange}
+        length={4}
+        disabled={pending}
+        secure
+      />
       {pending && (
-        <p className="text-center text-sm text-muted-foreground">계좌 개설 중...</p>
+        <p className="text-center text-sm text-muted-foreground">
+          계좌 개설 중...
+        </p>
       )}
     </div>
   );
@@ -771,33 +786,41 @@ function PocketStockLogo() {
 }
 
 function DoneStep({
-  accountNo,
+  accounts,
   kind,
   onStart,
 }: {
-  accountNo: string | null;
+  accounts: { label: string; no: string }[];
   kind: AccountKind;
   onStart: () => void;
 }) {
   return (
     <div className="flex min-h-[calc(100svh-5rem)] flex-col px-4">
       <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-8 pt-10 text-center">
-        <div
-          className="ps-rise-in"
-          style={{ "--i": 0 } as React.CSSProperties}
-        >
+        <div className="ps-rise-in" style={{ "--i": 0 } as React.CSSProperties}>
           <PocketStockLogo />
         </div>
         <div
           className="ps-rise-in space-y-2"
           style={{ "--i": 1 } as React.CSSProperties}
         >
-          <h2 className="text-xl font-bold text-foreground">계좌 개설 완료!</h2>
-          {accountNo && (
-            <p className="font-numeric text-sm text-muted-foreground">
-              <span className="mr-1.5">계좌번호</span>
-              <span className="font-semibold text-foreground">{accountNo}</span>
-            </p>
+          <h2 className="text-lg font-semibold text-foreground">계좌 개설 완료</h2>
+          {accounts.length > 0 && (
+            <div className="mx-auto w-full max-w-[280px] space-y-1.5 rounded-xl bg-muted px-6 py-4">
+              {accounts.map((a) => (
+                <div
+                  key={a.no}
+                  className="flex items-center justify-between gap-4 text-sm"
+                >
+                  <span className="shrink-0 text-muted-foreground">
+                    {a.label}
+                  </span>
+                  <span className="font-numeric truncate font-semibold text-foreground">
+                    {a.no}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
           <p className="text-sm leading-relaxed text-muted-foreground">
             {kind === "FULL" ? (

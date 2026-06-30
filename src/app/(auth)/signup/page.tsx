@@ -84,7 +84,10 @@ export default function SignupPage() {
       />
       <div className="pb-2">
         {step !== "DONE" && (
-          <Stepper current={STEP_ORDER.indexOf(step)} total={STEP_ORDER.length} />
+          <Stepper
+            current={STEP_ORDER.indexOf(step)}
+            total={STEP_ORDER.length}
+          />
         )}
 
         {step === "ACCOUNT" && (
@@ -149,7 +152,11 @@ const PW_RULES = [
   { key: "UPPERCASE", label: "대문자", test: (p: string) => /[A-Z]/.test(p) },
   { key: "LOWERCASE", label: "소문자", test: (p: string) => /[a-z]/.test(p) },
   { key: "DIGIT", label: "숫자", test: (p: string) => /\d/.test(p) },
-  { key: "SPECIAL", label: "특수문자", test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  {
+    key: "SPECIAL",
+    label: "특수문자",
+    test: (p: string) => /[^A-Za-z0-9]/.test(p),
+  },
 ];
 
 function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
@@ -266,7 +273,9 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
                   ok ? "font-medium text-primary" : "text-muted-foreground",
                 )}
               >
-                <Check className={cn("size-3.5", ok ? "opacity-100" : "opacity-30")} />
+                <Check
+                  className={cn("size-3.5", ok ? "opacity-100" : "opacity-30")}
+                />
                 {r.label}
               </li>
             );
@@ -276,7 +285,9 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
 
       {/* 비밀번호 확인 */}
       <div className="space-y-1.5">
-        <span className="text-sm font-medium text-foreground">비밀번호 확인</span>
+        <span className="text-sm font-medium text-foreground">
+          비밀번호 확인
+        </span>
         <Input
           type="password"
           value={confirm}
@@ -286,7 +297,9 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
           className="h-12"
         />
         {confirm.length > 0 && !match && (
-          <p className="text-xs text-destructive">비밀번호가 일치하지 않아요.</p>
+          <p className="text-xs text-destructive">
+            비밀번호가 일치하지 않아요.
+          </p>
         )}
       </div>
 
@@ -302,7 +315,14 @@ function AccountStep({ onNext }: { onNext: (acc: Account) => void }) {
 }
 
 // ── 2. 휴대폰 본인확인 (SMS) ───────────────────────────────────────────────────
-const CARRIERS = ["SKT", "KT", "LGU+", "알뜰폰(SKT)", "알뜰폰(KT)", "알뜰폰(LG)"];
+const CARRIERS = [
+  "SKT",
+  "KT",
+  "LGU+",
+  "알뜰폰(SKT)",
+  "알뜰폰(KT)",
+  "알뜰폰(LG)",
+];
 
 // ── 입력 검증 (zod) ────────────────────────────────────────────────────────────
 // 휴대폰 포맷(formatPhone)·정규식(PHONE_REGEX)은 공용 유틸 사용 — 계좌개설과 동일 규칙 공유.
@@ -433,11 +453,15 @@ function VerifyStep({ onNext }: { onNext: (p: Person) => void }) {
       </div>
 
       <div className="space-y-1.5">
-        <span className="text-sm font-medium text-foreground">주민등록번호</span>
+        <span className="text-sm font-medium text-foreground">
+          주민등록번호
+        </span>
         <div className="flex items-center gap-2">
           <Input
             value={front}
-            onChange={(e) => setFront(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(e) =>
+              setFront(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             inputMode="numeric"
             placeholder="앞 6자리"
             className="h-12 flex-1"
@@ -446,12 +470,16 @@ function VerifyStep({ onNext }: { onNext: (p: Person) => void }) {
           <div className="flex flex-1 items-center gap-1.5">
             <Input
               value={back}
-              onChange={(e) => setBack(e.target.value.replace(/\D/g, "").slice(0, 1))}
+              onChange={(e) =>
+                setBack(e.target.value.replace(/\D/g, "").slice(0, 1))
+              }
               inputMode="numeric"
               placeholder="첫 자리"
               className="h-12 w-14 text-center"
             />
-            <span className="text-lg tracking-widest text-muted-foreground">●●●●●●</span>
+            <span className="text-lg tracking-widest text-muted-foreground">
+              ●●●●●●
+            </span>
           </div>
         </div>
         {frontError || backError ? (
@@ -494,9 +522,7 @@ function VerifyStep({ onNext }: { onNext: (p: Person) => void }) {
           placeholder="010-0000-0000"
           className="h-12"
         />
-        {phoneError && (
-          <p className="text-xs text-destructive">{phoneError}</p>
-        )}
+        {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
       </div>
 
       {!sent ? (
@@ -511,13 +537,19 @@ function VerifyStep({ onNext }: { onNext: (p: Person) => void }) {
         <div className="space-y-2">
           <Input
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(e) =>
+              setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             inputMode="numeric"
             placeholder="인증번호 6자리"
-            className="h-12 text-center text-xl font-bold tracking-[0.4em]"
+            className="h-12 text-center text-xl font-semibold tracking-[0.4em] placeholder:text-[14px] placeholder:text-gray-400"
           />
           <div className="flex justify-between text-xs">
-            <span className={cn(expired ? "text-destructive" : "text-muted-foreground")}>
+            <span
+              className={cn(
+                expired ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
               남은 시간 {mm}:{ss}
             </span>
             <button
@@ -552,10 +584,25 @@ const SIGNUP_TERMS: {
   required: boolean;
 }[] = [
   { key: "service", termId: 1, label: "서비스 이용약관", required: true },
-  { key: "privacy", termId: 2, label: "개인정보 수집·이용 동의", required: true },
+  {
+    key: "privacy",
+    termId: 2,
+    label: "개인정보 수집·이용 동의",
+    required: true,
+  },
   { key: "invest", termId: 3, label: "투자권유 동의", required: true },
-  { key: "mydata", termId: null, label: "마이데이터 서비스 이용약관", required: false },
-  { key: "marketing", termId: null, label: "마케팅 활용 동의", required: false },
+  {
+    key: "mydata",
+    termId: null,
+    label: "마이데이터 서비스 이용약관",
+    required: false,
+  },
+  {
+    key: "marketing",
+    termId: null,
+    label: "마케팅 활용 동의",
+    required: false,
+  },
 ];
 
 function TermsStep({ onNext }: { onNext: (terms: TermItem[]) => void }) {
@@ -591,7 +638,9 @@ function TermsStep({ onNext }: { onNext: (terms: TermItem[]) => void }) {
           className="flex w-full items-center gap-2 rounded-xl bg-muted/60 px-4 py-3 text-left"
         >
           <CheckCircle on={allOn} />
-          <span className="text-sm font-bold text-foreground">약관 전체 동의</span>
+          <span className="text-sm font-bold text-foreground">
+            약관 전체 동의
+          </span>
         </button>
         {SIGNUP_TERMS.map((t) => (
           <button
@@ -628,7 +677,9 @@ function CheckCircle({ on }: { on: boolean }) {
     <span
       className={cn(
         "flex size-5 shrink-0 items-center justify-center rounded-full",
-        on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+        on
+          ? "bg-primary text-primary-foreground"
+          : "bg-muted text-muted-foreground",
       )}
     >
       <Check className="size-3.5" />
@@ -686,7 +737,9 @@ function SecureStep({
           className="flex w-full flex-col items-start gap-1 rounded-xl border border-border px-4 py-4 text-left"
         >
           <span className="text-base font-bold text-foreground">PIN 번호</span>
-          <span className="text-xs text-muted-foreground">숫자 6자리로 빠르게 로그인</span>
+          <span className="text-xs text-muted-foreground">
+            숫자 6자리로 빠르게 로그인
+          </span>
         </button>
         <button
           type="button"
@@ -694,7 +747,9 @@ function SecureStep({
           className="flex w-full flex-col items-start gap-1 rounded-xl border border-border px-4 py-4 text-left"
         >
           <span className="text-base font-bold text-foreground">패턴</span>
-          <span className="text-xs text-muted-foreground">점 4개 이상을 이어 로그인</span>
+          <span className="text-xs text-muted-foreground">
+            점 4개 이상을 이어 로그인
+          </span>
         </button>
       </div>
     );
@@ -761,7 +816,12 @@ function PinKeypadField({
   };
 
   return (
-    <PinKeypad value={pin} onChange={handleChange} length={6} disabled={disabled} />
+    <PinKeypad
+      value={pin}
+      onChange={handleChange}
+      length={6}
+      disabled={disabled}
+    />
   );
 }
 
@@ -792,7 +852,10 @@ function DoneStep({ onStart }: { onStart: () => void }) {
       <p className="text-sm text-muted-foreground">
         포켓스톡에 오신 것을 환영해요. 로그인하고 시작해 보세요.
       </p>
-      <Button onClick={onStart} className="mt-6 h-12 w-full text-base font-bold">
+      <Button
+        onClick={onStart}
+        className="mt-6 h-12 w-full text-base font-bold"
+      >
         로그인하러 가기
       </Button>
     </div>
