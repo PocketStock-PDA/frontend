@@ -127,6 +127,11 @@ export default function HomePage() {
   // 코인 애니메이션 완료 여부 — API 성공과 AND 조건으로 팝업 트리거
   const [collectAnimDone, setCollectAnimDone] = useState(false);
   const [sliderResetKey, setSliderResetKey] = useState(0);
+  const [collectAnim, setCollectAnim] = useState<{
+    id: number;
+    origin: DOMRect;
+    target: DOMRect;
+  } | null>(null);
 
   // 코인 애니 종료 시 팝업 — API 응답 대기 없이 바로 노출
   useEffect(() => {
@@ -149,11 +154,6 @@ export default function HomePage() {
   const [fxSheetOpen, setFxSheetOpen] = useState(false);
   // 수집 소스 "수정 모드" — 기어 1개로 진입, 각 타일에서 시트를 열어 설정한다.
   const [editCollect, setEditCollect] = useState(false);
-  const [collectAnim, setCollectAnim] = useState<{
-    id: number;
-    origin: DOMRect;
-    target: DOMRect;
-  } | null>(null);
 
   // 모으기 완료 시 CMA 잔액 카운트업
   const prevKrwBalanceRef = useRef(0);
