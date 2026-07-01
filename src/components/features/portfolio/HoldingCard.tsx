@@ -18,6 +18,8 @@ export interface HoldingCardProps {
   rate: number;
   /** 자동모으기 진행 중 — 배지 노출 */
   isAuto?: boolean;
+  /** 자동모으기 설정했지만 첫 체결 전 — "첫 담기 대기" 배지 (isAuto와 배타적) */
+  firstPending?: boolean;
   /** 매도 주문 QUEUED 체결 대기 중 — 배지 노출 */
   pendingSell?: boolean;
   /** 보조 라인 대체 텍스트 — 모으기 렌즈에서 일정("매일 10,000원씩")을 보유량 대신 노출 */
@@ -39,6 +41,7 @@ export function HoldingCard({
   profit,
   rate,
   isAuto = false,
+  firstPending = false,
   pendingSell = false,
   subtitle,
   currency = "KRW",
@@ -62,11 +65,15 @@ export function HoldingCard({
           <span className="truncate text-sm font-bold text-foreground">
             {name}
           </span>
-          {isAuto && (
+          {firstPending ? (
+            <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
+              첫 모으기 대기
+            </span>
+          ) : isAuto ? (
             <span className="shrink-0 rounded-full bg-brand-surface px-1.5 py-0.5 text-[10px] font-semibold text-primary">
               모으는 중
             </span>
-          )}
+          ) : null}
           {pendingSell && (
             <span className="shrink-0 rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-500">
               매도 체결 중

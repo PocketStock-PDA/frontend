@@ -152,10 +152,10 @@ export function CollectStatus({
             기다리기 힘들다면
           </span>
           <span className="mt-0.5 block text-[15px] font-bold leading-snug text-foreground">
-            지금 이 주식 바로 담을 수 있어요
+            지금 이 주식 바로 모을 수 있어요
           </span>
           <span className="mt-2 flex items-center gap-0.5 text-[13px] font-bold text-primary">
-            지금 담으러 가기
+            지금 모으러 가기
             <ChevronRight className="size-3.5" />
           </span>
         </span>

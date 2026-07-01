@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { setAccessToken, clearSession, getDeviceId } from "@/lib/auth/session";
+import { clearPushToken } from "@/lib/push/webPush";
 import type { AuthMethodType, LoginResult } from "@/types/domain/auth";
 
 /** 간편 로그인용 X-Device-Id 헤더 — 등록(auth-method)·로그인(login/pin)이 동일 기기로 묶이도록 공유 */
@@ -35,7 +36,10 @@ export function usePinLogin() {
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<unknown>("/api/auth/logout", {}),
+    mutationFn: async () => {
+      await clearPushToken();
+      return api.post<unknown>("/api/auth/logout", {});
+    },
     onSettled: () => {
       clearSession();
       queryClient.clear();

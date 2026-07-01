@@ -431,10 +431,10 @@ export default function PortfolioPage() {
         queuedCards.length === 0 ? (
           <EmptyState
             title="아직 모은 조각이 없어요"
-            description="포인트·잔돈으로 첫 조각을 담아보세요."
+            description="포인트·잔돈으로 첫 조각을 모아보세요."
             action={
               <Button size="sm" onClick={() => router.push("/trading")}>
-                첫 조각 담으러 가기
+                첫 조각 모으러 가기
               </Button>
             }
           />
@@ -531,6 +531,10 @@ export default function PortfolioPage() {
                     <>
                       {autoRows.map((r, i) => {
                         const cv = cardView(r);
+                        const autoStock = autoSummaryQ.data?.stocks.find(
+                          (s) => s.stockCode === r.h.stockCode,
+                        );
+                        const firstPending = (autoStock?.executedCount ?? 1) === 0;
                         return (
                           <div
                             key={r.h.stockCode}
@@ -551,6 +555,7 @@ export default function PortfolioPage() {
                               rate={cv.rate}
                               currency={cv.currency}
                               isAuto={r.isAuto}
+                              firstPending={firstPending}
                               pendingSell={queuedSellSet.has(r.h.stockCode)}
                               subtitle={scheduleByCode.get(r.h.stockCode) ?? ""}
                               onClick={() => goCollect(r.h.stockCode)}
@@ -700,7 +705,7 @@ function AutoPendingCard({
             {name}
           </span>
           <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
-            첫 담기 대기
+            첫 모으기 대기
           </span>
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -708,7 +713,7 @@ function AutoPendingCard({
         </p>
         {/* 미보유(첫 매수 전) — 아직 담긴 조각이 없음을 명시해 '모으는 중' 카드와 구분 */}
         <p className="mt-0.5 text-[11px] text-muted-foreground break-keep">
-          아직 담긴 조각이 없어요. 다음 정기 매수일에 첫 담기가 시작돼요.
+          아직 모은 조각이 없어요. 다음 정기 매수일에 첫 모으기가 시작돼요.
         </p>
       </div>
     </button>

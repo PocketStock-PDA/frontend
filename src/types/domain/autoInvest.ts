@@ -29,6 +29,8 @@ export interface AutoInvestStock {
   buyQuantity: number | null;
   currency: string;
   isActive: boolean;
+  /** 모으기로 FILLED 체결된 누적 횟수 (0 = 아직 한 번도 체결 안 됨) */
+  executedCount: number;
 }
 
 /** GET /api/trading/auto-invest 응답 */
