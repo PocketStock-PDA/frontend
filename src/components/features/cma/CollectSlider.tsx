@@ -223,8 +223,8 @@ export function CollectSlider({
     onDragEnd?.();
 
     if (posRef.current.pct >= THRESHOLD) {
+      doneRef.current = true; // bounce 즉시 차단
       animate(true, () => {
-        doneRef.current = true;
         setDone(true);
         onCollect();
       });
