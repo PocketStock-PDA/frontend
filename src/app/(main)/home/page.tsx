@@ -75,7 +75,7 @@ const SOURCE_LABEL: Record<CollectSourceType, string> = {
 // 잔돈 대시보드 표시 타이틀 — ACCOUNT/CARD/POINT는 고정 라벨, FX만 기관명 그대로.
 const sourceTitle = (sourceType: CollectSourceType, _name: string) => {
   if (sourceType === "ACCOUNT") return "은행 잔돈";
-  if (sourceType === "CARD") return "카드 사용 잔돈";
+  if (sourceType === "CARD") return "결제 후 잔돈 적립 카드";
   if (sourceType === "POINT") return "포인트";
   return _name;
 };
@@ -483,7 +483,7 @@ export default function HomePage() {
                     <CardSvgIcon />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-foreground">
-                        카드 사용 잔돈
+                        결제 후 잔돈 적립 카드
                       </p>
                       <div className="mt-1 flex items-center gap-1.5">
                         <span className="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
@@ -515,7 +515,7 @@ export default function HomePage() {
                     <CardSvgIcon />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-foreground">
-                        카드 사용 잔돈
+                        결제 후 잔돈 적립 카드
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
                         카드를 연결하면 잔돈을 적립할 수 있어요
