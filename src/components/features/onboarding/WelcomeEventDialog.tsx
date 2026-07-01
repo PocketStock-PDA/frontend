@@ -91,12 +91,13 @@ export function WelcomeEventDialog({
       <SheetContent
         side="bottom"
         showCloseButton={false}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
         className="mx-auto max-w-[430px] gap-0 border-0 bg-transparent p-0 shadow-none data-[side=bottom]:border-t-0"
       >
-        {/* 패널 전체를 아래로 스와이프하면 닫힘(핸들이 유도하는 제스처 실제 구현).
-            Radix Dialog는 드래그 닫기를 지원하지 않으므로 framer-motion으로 처리. */}
+        {/* 첫 주식 지급 이벤트는 필수 수령 — 드래그·백드롭·Esc로 닫히지 않고 '지금 받기'로만 진행한다. */}
         <motion.div
-          className="flex flex-col overflow-hidden rounded-t-[28px] px-6 pt-3 text-white"
+          className="flex flex-col overflow-hidden rounded-t-[28px] px-6 pt-7 text-white"
           style={{
             backgroundImage: GRADIENT,
             paddingBottom: "max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem))",
@@ -104,22 +105,7 @@ export function WelcomeEventDialog({
           variants={container}
           initial="hidden"
           animate="show"
-          drag="y"
-          dragConstraints={{ top: 0, bottom: 0 }}
-          dragElastic={{ top: 0, bottom: 0.6 }}
-          dragSnapToOrigin
-          onDragEnd={(_, info) => {
-            if (info.offset.y > 100 || info.velocity.y > 500) {
-              onOpenChange(false);
-            }
-          }}
         >
-          {/* 드래그 핸들 */}
-          <motion.div
-            variants={item}
-            aria-hidden
-            className="mx-auto mb-5 h-1 w-9 rounded-full bg-white/35"
-          />
 
           {/* 이벤트 칩 */}
           <motion.div variants={popItem} className="mb-3">
@@ -137,11 +123,11 @@ export function WelcomeEventDialog({
                 <br />
                 무료 지급!
               </SheetTitle>
-              <SheetDescription className="text-[14px] leading-relaxed text-white/75">
+              <SheetDescription className="break-keep text-[14px] leading-relaxed text-white/75">
                 <span className="font-numeric font-bold tabular-nums text-white">
                   1,000원
                 </span>{" "}
-                상당의 소수점 주식을
+                상당의 소수점 주식
                 <br />
                 바로 드려요
               </SheetDescription>
