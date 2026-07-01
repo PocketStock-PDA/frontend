@@ -17,7 +17,7 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 
 // TODO: 라우트는 사용자 지정 대기 중 (현재 임시 "#")
 const MENU: RecentMenu[] = [
-  { label: "주식모으기", href: "/trading" },
+  { label: "종목 탐색", href: "/trading" },
   { label: "환전", href: "/exchange" },
   { label: "가계부", href: "/budget" },
   { label: "포트폴리오", href: "/portfolio" },

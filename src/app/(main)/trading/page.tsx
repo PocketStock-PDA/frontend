@@ -21,7 +21,10 @@ import {
   tradingAutoDetailPath,
   tradingDetailPath,
 } from "@/lib/navigation/routes";
-import { CollectIcon } from "@/components/features/portfolio/ActionIcons";
+import {
+  CollectIcon,
+  PieceIcon,
+} from "@/components/features/portfolio/ActionIcons";
 import type {
   RankingSort,
   StockMarket,
@@ -74,11 +77,21 @@ export default function TradingExplorePage() {
             placeholder="종목명 또는 코드 검색"
           />
           {query.trim().length > 0 && (
-            <SearchDropdown query={query} onPick={goStock} onCollect={goCollect} showCollect={!investMode} />
+            <SearchDropdown
+              query={query}
+              onPick={goStock}
+              onCollect={goCollect}
+              showCollect={!investMode}
+            />
           )}
         </div>
 
-        <Rankings market={market} onMarketChange={handleMarketChange} onPick={goStock} showCollect={!investMode} />
+        <Rankings
+          market={market}
+          onMarketChange={handleMarketChange}
+          onPick={goStock}
+          showCollect={!investMode}
+        />
       </div>
     </>
   );
@@ -139,36 +152,69 @@ function SearchRow({
   onCollect: () => void;
   showCollect: boolean;
 }) {
+  const body = (
+    <>
+      <Avatar className="size-8">
+        {item.logoUrl && (
+          <AvatarImage src={item.logoUrl} alt={item.stockName} />
+        )}
+        <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-foreground">
+          {item.stockName}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">
+          {item.exchange} · {item.stockCode}
+        </p>
+      </div>
+    </>
+  );
+
   return (
-    <div className="flex w-full items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted">
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-      >
-        <Avatar className="size-8">
-          {item.logoUrl && <AvatarImage src={item.logoUrl} alt={item.stockName} />}
-          <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-foreground">
-            {item.stockName}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {item.exchange} · {item.stockCode}
-          </p>
-        </div>
-      </button>
-      {showCollect && (
+    <div
+      className={cn(
+        "flex w-full items-center gap-3 px-4 py-2.5 transition-colors",
+        // 버튼 노출 시 행 본문은 비클릭 — 퍼즐/모으기 버튼으로만 진입
+        !showCollect && "hover:bg-muted",
+      )}
+    >
+      {showCollect ? (
+        <div className="flex min-w-0 flex-1 items-center gap-3">{body}</div>
+      ) : (
         <button
           type="button"
-          onClick={onCollect}
-          aria-label={`${item.stockName} 모으기 설정`}
-          className="group shrink-0 flex flex-col items-center gap-0.5 rounded-2xl bg-card px-3.5 py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95"
+          onClick={onClick}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
-          <CollectIcon className="size-5" />
-          <span className="whitespace-nowrap text-[10px] font-medium text-primary">모으기</span>
+          {body}
         </button>
+      )}
+      {showCollect && (
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onClick}
+            aria-label={`${item.stockName} 퍼즐`}
+            className="group flex w-14 flex-col items-center gap-0.5 rounded-2xl bg-card py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95"
+          >
+            <PieceIcon className="size-5" />
+            <span className="whitespace-nowrap text-[10px] font-medium text-primary">
+              퍼즐
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onCollect}
+            aria-label={`${item.stockName} 모으기 설정`}
+            className="group flex w-14 flex-col items-center gap-0.5 rounded-2xl bg-card py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95"
+          >
+            <CollectIcon className="size-5" />
+            <span className="whitespace-nowrap text-[10px] font-medium text-primary">
+              모으기
+            </span>
+          </button>
+        </div>
       )}
     </div>
   );
@@ -199,7 +245,8 @@ function Rankings({
   );
 
   // 해외 탭 + 환율 보유 시에만 원화 환산. 국내는 항상 원화라 무관.
-  const fx = market === "overseas" ? exchangeRateQ.data?.baseRate ?? null : null;
+  const fx =
+    market === "overseas" ? (exchangeRateQ.data?.baseRate ?? null) : null;
   const showKrw = ovsKrw && fx !== null;
   // 순위 가격 포맷 — 원화 보기면 USD가를 환율로 환산, 아니면 종목 통화 그대로.
   const fmtPrice = (price: number, currency: string) =>
@@ -312,45 +359,68 @@ function RankingRow({
   const price = live?.currentPrice ?? item.price;
   const changeRate = live?.changeRate ?? item.changeRate;
   const priceText = fmtPrice(price, item.currency);
-  return (
-    // 행 전체 = 매수매도 진입, '모으기'는 별도 형제 버튼(중첩 금지)
-    <div className="flex w-full items-center gap-2 py-3">
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-      >
-        <span className="w-5 shrink-0 text-center font-numeric text-sm font-bold text-primary">
-          {item.rank}
+  const body = (
+    <>
+      <span className="w-5 shrink-0 text-center font-numeric text-sm font-bold text-primary">
+        {item.rank}
+      </span>
+      <Avatar className="size-9">
+        {item.logoUrl && (
+          <AvatarImage src={item.logoUrl} alt={item.stockName} />
+        )}
+        <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-foreground">
+          {item.stockName}
+        </p>
+        <span className="block truncate font-numeric tabular-nums text-xs font-medium text-foreground">
+          {priceText}
         </span>
-        <Avatar className="size-9">
-          {item.logoUrl && (
-            <AvatarImage src={item.logoUrl} alt={item.stockName} />
-          )}
-          <AvatarFallback>{item.stockName.trim().charAt(0)}</AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-foreground">
-            {item.stockName}
-          </p>
-          <div className="flex items-center gap-1.5">
-            <span className="font-numeric tabular-nums text-xs font-medium text-foreground">
-              {priceText}
-            </span>
-            <ChangeIndicator value={changeRate} percent size="sm" />
-          </div>
-        </div>
-      </button>
-      {showCollect && (
+        <ChangeIndicator value={changeRate} percent size="sm" />
+      </div>
+    </>
+  );
+
+  return (
+    // 버튼 노출 시 행 본문은 비클릭 — 퍼즐/모으기 버튼으로만 진입(중첩 금지)
+    <div className="flex w-full items-center gap-2 py-3">
+      {showCollect ? (
+        <div className="flex min-w-0 flex-1 items-center gap-3">{body}</div>
+      ) : (
         <button
           type="button"
-          onClick={() => router.push(tradingAutoDetailPath(item.stockCode))}
-          aria-label={`${item.stockName} 모으기 설정`}
-          className="group shrink-0 flex flex-col items-center gap-0.5 rounded-2xl bg-card px-3.5 py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          onClick={onClick}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
         >
-          <CollectIcon className="size-5" />
-          <span className="whitespace-nowrap text-[10px] font-medium text-primary">모으기</span>
+          {body}
         </button>
+      )}
+      {showCollect && (
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onClick}
+            aria-label={`${item.stockName} 퍼즐`}
+            className="group flex w-14 flex-col items-center gap-0.5 rounded-2xl bg-card py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <PieceIcon className="size-5" />
+            <span className="whitespace-nowrap text-[10px] font-medium text-primary">
+              퍼즐
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push(tradingAutoDetailPath(item.stockCode))}
+            aria-label={`${item.stockName} 모으기 설정`}
+            className="group flex w-14 flex-col items-center gap-0.5 rounded-2xl bg-card py-1.5 shadow-sm ring-1 ring-border transition-all hover:ring-primary/30 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <CollectIcon className="size-5" />
+            <span className="whitespace-nowrap text-[10px] font-medium text-primary">
+              모으기
+            </span>
+          </button>
+        </div>
       )}
     </div>
   );
