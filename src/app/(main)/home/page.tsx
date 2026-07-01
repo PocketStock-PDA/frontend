@@ -137,7 +137,7 @@ export default function HomePage() {
       rewardShownRef.current
     ) return;
     rewardShownRef.current = true;
-    const t = setTimeout(() => setRewardCollectOpen(true), 450);
+    const t = setTimeout(() => setRewardCollectOpen(true), 120);
     return () => clearTimeout(t);
   }, [collectAnimDone, collect.isSuccess]);
 

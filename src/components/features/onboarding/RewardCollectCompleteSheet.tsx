@@ -20,11 +20,11 @@ export function RewardCollectCompleteSheet({
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={reduce ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.99 }}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, y: 16 }}
           transition={{ duration: 0.38, ease: EASE_OUT }}
-          className="overflow-hidden rounded-2xl p-4 text-white"
+          className="fixed inset-x-0 bottom-(--bottom-nav-offset) z-30 mx-auto w-full max-w-[430px] overflow-hidden rounded-t-2xl p-4 text-white"
           style={{ backgroundImage: GRADIENT }}
           role="status"
           aria-live="polite"
