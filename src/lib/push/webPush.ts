@@ -95,6 +95,18 @@ export async function disablePush(): Promise<void> {
 }
 
 /**
+ * 로그아웃 시 서버 토큰만 제거 — 브라우저 구독은 유지(재로그인 시 PushSync가 재등록).
+ * 다른 사용자가 같은 기기에 로그인할 때 이전 사용자 토큰이 남아 알림이 섞이는 것을 방지.
+ */
+export async function clearPushToken(): Promise<void> {
+  try {
+    await api.delete<void>("/api/notifications/token");
+  } catch {
+    // best-effort — 실패해도 로그아웃은 계속
+  }
+}
+
+/**
  * 앱 로드 시 토큰 보장(자동) — 이미 권한 허용된 경우에만 구독 재등록.
  * 권한 요청은 하지 않음(거슬리지 않게). 실패는 조용히 무시.
  */
