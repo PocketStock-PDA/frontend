@@ -17,6 +17,8 @@ export interface JigsawPuzzleProps {
   onSelectionCommit?: (
     selection: { mode: "buy" | "sell"; indexes: number[] } | null,
   ) => void;
+  /** 비대화형 모드에서 드래그·탭 시도 시 호출 — 거래 버튼으로 유도하는 용도 */
+  onDragAttempt?: () => void;
   /** 드래그 중 라이브 선택 변화(조각 수·금액 실시간 표시용). 종료/취소 시 null */
   onSelectionChange?: (
     selection: { mode: "buy" | "sell"; indexes: number[] } | null,
@@ -111,6 +113,7 @@ export function JigsawPuzzle({
   recentIndex,
   onSelectionCommit,
   onSelectionChange,
+  onDragAttempt,
   selectedIndexes,
   logoUrl,
   pendingBuy = 0,
@@ -192,7 +195,10 @@ export function JigsawPuzzle({
   };
 
   const handleDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!interactive) return;
+    if (!interactive) {
+      onDragAttempt?.();
+      return;
+    }
     const idx = pieceAt(e.clientX, e.clientY);
     if (idx === null || modeOf(idx) === null) return; // reserved(대기) 칸은 선택 불가
     svgRef.current?.setPointerCapture(e.pointerId);
@@ -276,7 +282,7 @@ export function JigsawPuzzle({
         interactive && "cursor-pointer select-none",
         className,
       )}
-      style={interactive ? { touchAction: "none" } : undefined}
+      style={(interactive || !!onDragAttempt) ? { touchAction: "none" } : undefined}
       onPointerDown={handleDown}
       onPointerMove={handleMove}
       onPointerUp={handleUp}

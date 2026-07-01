@@ -82,7 +82,7 @@ export default function AutoInvestPage() {
     return <MissingStockCodeState />;
   }
 
-  return <AutoInvestContent stockCode={stockCode} />;
+  return <AutoInvestContent key={stockCode} stockCode={stockCode} />;
 }
 
 function MissingStockCodeState() {

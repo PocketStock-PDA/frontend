@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import { ChevronRight, Layers } from "lucide-react";
+import { ChevronDown, ChevronRight, Layers } from "lucide-react";
 import Decimal from "decimal.js";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -36,6 +36,8 @@ import {
 } from "@/hooks/queries/useWholeShares";
 import { useCancelOrder } from "@/hooks/mutations/useCancelOrder";
 import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
+import { useOrderNotification, type OrderNotification } from "@/hooks/useOrderNotification";
+import { useTradingStore, EMPTY_PENDING } from "@/store/tradingStore";
 import { formatKRW, formatUSD } from "@/lib/utils/currency";
 import { parseUTC } from "@/lib/utils/date";
 import { toDecimal } from "@/lib/utils/decimal";
@@ -91,6 +93,7 @@ export default function StockDetailPage() {
 
   return (
     <StockDetailContent
+      key={stockCode}
       stockCode={stockCode}
       isPieces={isPieces}
       isCollect={isCollect}
@@ -151,6 +154,56 @@ function StockDetailContent({
 
   const [ovsKrw, setOvsKrw] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState(false);
+  const [nudgeBtns, setNudgeBtns] = useState(false);
+  const nudgeTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const triggerNudge = () => {
+    setNudgeBtns(true);
+    if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
+    nudgeTimer.current = setTimeout(() => setNudgeBtns(false), 1800);
+  };
+
+  // tradingStore에서 이 종목의 pending 조각 주문 읽기
+  const removePending = useTradingStore((s) => s.removePending);
+  const pendingOrders = useTradingStore((s) => s.pendingByStock[stockCode] ?? EMPTY_PENDING);
+  const hasPending = pendingOrders.length > 0;
+
+  // TTL 만료분 즉시 폐기 (마운트 시 1회)
+  useEffect(() => {
+    const now = Date.now();
+    const expired = new Set(
+      pendingOrders.filter((p) => p.expiresAt <= now).map((p) => p.orderId),
+    );
+    if (expired.size > 0) removePending(stockCode, expired);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pendingRef = useRef(pendingOrders);
+  useEffect(() => {
+    pendingRef.current = pendingOrders;
+  }, [pendingOrders]);
+
+  const holdingsRefetch = holdingsQ.refetch;
+
+  // WS 체결통보 → 이 종목 pending 즉시 resolve
+  const handleOrderNotification = useCallback(
+    async (n: OrderNotification) => {
+      if (n.stockCode !== stockCode) return;
+      const matched = pendingRef.current.find((p) => p.orderId === n.orderId);
+      if (!matched) return;
+      if (n.status === "FILLED") {
+        await holdingsRefetch();
+        removePending(stockCode, new Set([n.orderId]));
+        const verb = matched.mode === "buy" ? "매수" : "매도";
+        const qty = n.filledQuantity !== null ? `${n.filledQuantity}주 ` : "";
+        toast.success(`${qty}${verb} 체결됐어요`);
+      } else if (n.status === "REJECTED" || n.status === "CANCELLED") {
+        removePending(stockCode, new Set([n.orderId]));
+        toast.error("체결되지 못한 주문이 있어요.");
+      }
+    },
+    [stockCode, holdingsRefetch, removePending],
+  );
+  useOrderNotification(handleOrderNotification, hasPending);
 
   if (holdingsQ.isLoading || detailQ.isLoading) {
     return (
@@ -188,6 +241,9 @@ function StockDetailContent({
     .times(PIECES_PER_SHARE)
     .toDecimalPlaces(0, Decimal.ROUND_DOWN)
     .toNumber();
+
+  const pendingBuy = pendingOrders.reduce((s, p) => s + (p.mode === "buy" ? p.count : 0), 0);
+  const pendingSell = pendingOrders.reduce((s, p) => s + (p.mode === "sell" ? p.count : 0), 0);
 
   const hv = summaryQ.data?.holdings.find((h) => h.stockCode === stockCode);
   const evalAmount =
@@ -395,8 +451,20 @@ function StockDetailContent({
                   <JigsawPuzzle
                     total={PIECES_PER_SHARE}
                     filled={pieces}
+                    pendingBuy={pendingBuy}
+                    pendingSell={pendingSell}
                     logoUrl={detail.logoUrl}
+                    onDragAttempt={triggerNudge}
                   />
+                  <div
+                    className={cn(
+                      "mt-2 flex items-center justify-center gap-1 text-sm font-semibold text-primary transition-opacity duration-300",
+                      nudgeBtns ? "opacity-100" : "pointer-events-none opacity-0",
+                    )}
+                  >
+                    아래 버튼으로 매수·매도해요
+                    <ChevronDown className="size-4" />
+                  </div>
                   {canConvert && (
                     <div className="mt-3">
                       <FacetCard
@@ -702,7 +770,10 @@ function StockDetailContent({
 
       {/* 현황·조각 뷰 — 하단 매수·매도 버튼 */}
       {!isCollect && (
-        <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-background px-5 pt-3">
+        <div className={cn(
+          "fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t bg-background px-5 pt-3 transition-colors duration-300",
+          nudgeBtns ? "border-primary/40" : "border-border",
+        )}>
           <div className="flex gap-2.5 pb-3">
             <Button
               onClick={() =>
