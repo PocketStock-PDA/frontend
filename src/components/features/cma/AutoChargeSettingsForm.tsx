@@ -109,9 +109,9 @@ export function AutoChargeSettingsForm({ onSaved, inline = false }: Props) {
         <Switch checked={enabled} onCheckedChange={setEnabled} />
       </label>
 
-      {/* 충전 재원 계좌 드롭다운 */}
+      {/* 충전 계좌 드롭다운 */}
       <div className={cn("space-y-2", !enabled && "pointer-events-none opacity-40")}>
-        <p className="text-sm font-bold text-foreground">충전 재원 계좌</p>
+        <p className="text-sm font-bold text-foreground">충전 계좌</p>
 
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <div
@@ -165,7 +165,7 @@ export function AutoChargeSettingsForm({ onSaved, inline = false }: Props) {
 
           <SheetContent side="bottom" className="max-h-[85vh] rounded-t-2xl px-0 pb-safe">
             <SheetHeader className="shrink-0 px-5 pb-2 pt-4">
-              <SheetTitle className="text-left text-base font-bold">충전 재원 계좌 선택</SheetTitle>
+              <SheetTitle className="text-left text-base font-bold">충전 계좌 선택</SheetTitle>
             </SheetHeader>
 
             <div className="scrollbar-thin overflow-y-auto px-5 pb-6 pt-2">
@@ -206,7 +206,7 @@ export function AutoChargeSettingsForm({ onSaved, inline = false }: Props) {
       {inline ? (
         <div className="space-y-2">
           {enabled && sourceAccountId === null && (
-            <p className="text-center text-xs text-destructive">충전 재원 계좌를 선택해 주세요</p>
+            <p className="text-center text-xs text-destructive">충전 계좌를 선택해 주세요</p>
           )}
           <Button
             onClick={handleSave}
@@ -219,7 +219,7 @@ export function AutoChargeSettingsForm({ onSaved, inline = false }: Props) {
       ) : (
         <div className="fixed bottom-[var(--bottom-nav-offset)] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 px-5 pb-4">
           {enabled && sourceAccountId === null && (
-            <p className="mb-2 text-center text-xs text-destructive">충전 재원 계좌를 선택해 주세요</p>
+            <p className="mb-2 text-center text-xs text-destructive">충전 계좌를 선택해 주세요</p>
           )}
           <Button
             onClick={handleSave}
