@@ -91,8 +91,13 @@ function buildGatherMap(
   const active = stocks.filter((s) => s.isActive);
   if (active.length === 0) return map;
 
+  // 모으기는 '예정' 스케줄 — 지난 날짜엔 찍지 않고 오늘 이후만 표시한다.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, mon, day);
+    if (date < today) continue; // 과거 날짜 제외(미래 일정만)
     const dow = date.getDay(); // 0=일 … 6=토
     if (dow === 0 || dow === 6) continue; // 평일만
     const hits = active.filter((s) => {
