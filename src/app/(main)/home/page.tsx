@@ -378,6 +378,11 @@ export default function HomePage() {
     .filter((s) => !s.name.includes("신한"))
     .reduce((sum, s) => sum + s.amount, 0);
 
+  // 모을 게 있는(0원 아닌) 소스만 활성(색칠), 나머지는 흐리게
+  const accountActive = (accountSource?.amount ?? 0) > 0;
+  const fxActive = (fxSource?.amount ?? 0) > 0;
+  const pointActive = myShinhanTotal + partnerPointTotal > 0;
+
   // 드래그 진행 시 금액 카운트다운 — drainPct 0(원본)→1(0원)
   const drainFactor = 1 - drainPct;
   const drainedAccountAmount = accountSource
@@ -564,7 +569,7 @@ export default function HomePage() {
             {accountSource && (
               <div
                 ref={accountTileRef}
-                className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center"
+                className={`relative flex flex-col items-center gap-2 rounded-xl border border-border px-2 py-3 text-center transition-[filter,opacity] ${accountActive ? "bg-card" : "grayscale opacity-75 bg-muted/40"}`}
               >
                 <span className="flex size-10 items-center justify-center text-primary">
                   <Landmark className="size-7" />
@@ -592,7 +597,7 @@ export default function HomePage() {
             {fxSource && (
               <div
                 ref={fxTileRef}
-                className="relative flex flex-col items-center gap-2 rounded-xl border border-border bg-card px-2 py-3 text-center"
+                className={`relative flex flex-col items-center gap-2 rounded-xl border border-border px-2 py-3 text-center transition-[filter,opacity] ${fxActive ? "bg-card" : "grayscale opacity-75 bg-muted/40"}`}
               >
                 <span className="flex size-10 items-center justify-center text-primary">
                   <Plane className="size-7" />
@@ -620,7 +625,7 @@ export default function HomePage() {
             {/* 포인트 — 마이신한포인트 / 금액 / 제휴 / 금액 세로 스택 */}
             <div
               ref={pointTileRef}
-              className="relative flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3 text-center"
+              className={`relative flex flex-col items-center gap-1.5 rounded-xl border border-border px-2 py-3 text-center transition-[filter,opacity] ${pointActive ? "bg-card" : "grayscale opacity-75 bg-muted/40"}`}
             >
               <span className="flex size-10 items-center justify-center text-primary">
                 <PointsQuickIcon className="size-7" />
