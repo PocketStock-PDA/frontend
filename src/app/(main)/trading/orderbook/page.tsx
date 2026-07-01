@@ -59,7 +59,7 @@ export default function OrderbookPage() {
     return <MissingStockCodeState />;
   }
 
-  return <OrderbookContent stockCode={stockCode} />;
+  return <OrderbookContent key={stockCode} stockCode={stockCode} />;
 }
 
 function MissingStockCodeState() {

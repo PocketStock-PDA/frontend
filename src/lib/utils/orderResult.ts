@@ -4,10 +4,11 @@ import type {
   WholeOrderResponse,
 } from "@/types/domain/order";
 
+
 /**
  * 소수점 주문 split 응답 → 사용자 토스트 메시지.
  * 온주분(즉시 체결)과 소수분(차수 대기)을 각각 표기 — 둘 다 있으면 "온주 N주 즉시 체결 · 소수 M주 매수 접수".
- * 소수분이 QUEUED면 "잠시 후 체결" 안내를 description으로 붙인다.
+ * 소수분이 QUEUED면 다음 차수까지 남은 시간을 description에 표시.
  */
 export function splitOrderToast(
   side: "BUY" | "SELL",
@@ -23,9 +24,10 @@ export function splitOrderToast(
     segs.push(`소수 ${q}주 ${verb} 접수`);
   }
   const title = segs.length > 0 ? segs.join(" · ") : `${verb} 주문이 접수됐어요`;
-  return r.fractionalStatus === "QUEUED"
-    ? { title, description: "소수점은 잠시 후 체결돼요" }
-    : { title };
+  if (r.fractionalStatus === "QUEUED") {
+    return { title, description: "다음 회차(1분 내)에 체결돼요" };
+  }
+  return { title };
 }
 
 /**

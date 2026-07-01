@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CreditCard, Landmark, Plane, Settings } from "lucide-react";
@@ -128,18 +128,20 @@ export default function HomePage() {
   const [collectAnimDone, setCollectAnimDone] = useState(false);
   const [sliderResetKey, setSliderResetKey] = useState(0);
 
-  // 코인 애니 종료 + collect 성공 둘 다 충족 시 450ms 텀 두고 팝업
+  // 코인 애니 종료 시 팝업 — API 응답 대기 없이 바로 노출
   useEffect(() => {
-    if (
-      !collectAnimDone ||
-      !collect.isSuccess ||
-      !isFromRewardRef.current ||
-      rewardShownRef.current
-    ) return;
+    if (!collectAnimDone || !isFromRewardRef.current || rewardShownRef.current) return;
     rewardShownRef.current = true;
-    const t = setTimeout(() => setRewardCollectOpen(true), 120);
-    return () => clearTimeout(t);
-  }, [collectAnimDone, collect.isSuccess]);
+    setRewardCollectOpen(true);
+  }, [collectAnimDone]);
+
+  // useCallback으로 참조 고정 — 인라인이면 부모 리렌더마다 새 함수가 생겨
+  // CollectCoinsOverlay 내부 useEffect deps가 바뀌고 3200ms 타이머가 계속 리셋됨
+  const handleCoinAnimComplete = useCallback(() => {
+    setCollectAnim(null);
+    setCollectAnimDone(true);
+    setSliderResetKey((k) => k + 1);
+  }, []);
 
   const [pointSheetOpen, setPointSheetOpen] = useState(false);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
@@ -408,11 +410,7 @@ export default function HomePage() {
           active
           origin={collectAnim.origin}
           target={collectAnim.target}
-          onComplete={() => {
-            setCollectAnim(null);
-            setCollectAnimDone(true);
-            setSliderResetKey((k) => k + 1);
-          }}
+          onComplete={handleCoinAnimComplete}
         />
       )}
       {welcomeEligible && (

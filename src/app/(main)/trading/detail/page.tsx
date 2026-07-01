@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Menu, Search, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useUiStore } from "@/store/uiStore";
+import { useTradingStore, EMPTY_PENDING } from "@/store/tradingStore";
 import { AmountDisplay } from "@/components/common/AmountDisplay";
 import { ChangeIndicator } from "@/components/common/ChangeIndicator";
 import { CurrencyToggle } from "@/components/common/CurrencyToggle";
@@ -40,6 +41,7 @@ import { useSellOrder } from "@/hooks/mutations/useSellOrder";
 import { useWholeOrder } from "@/hooks/mutations/useWholeOrder";
 import { useStockTradeSocket } from "@/hooks/useStockTradeSocket";
 import { useStockBestAsk } from "@/hooks/useStockBestAsk";
+import { useOrderNotification, type OrderNotification } from "@/hooks/useOrderNotification";
 import { genClientOrderId } from "@/lib/utils/idempotency";
 import { toDecimal } from "@/lib/utils/decimal";
 import { PIECES_PER_SHARE } from "@/lib/utils/pieces";
@@ -58,8 +60,7 @@ type Side = "BUY" | "SELL";
 // 조각(퍼즐) 선택 — 확정 시점에 멱등키 1개 발급. 하단 고정바에서 인라인 확정.
 type PieceSel = { indexes: number[]; clientOrderId: string };
 type LiveSel = { mode: "buy" | "sell"; indexes: number[] };
-// 접수(체결 대기) 조각 주문 — 퍼즐 손맛 애니메이션용. 실제 FILLED 시 개별 해제.
-type PendingOrder = { orderId: number; mode: "buy" | "sell"; count: number };
+// PendingOrder 타입은 tradingStore에서 관리
 
 
 
@@ -77,7 +78,7 @@ export default function TradePage() {
     return <MissingStockCodeState />;
   }
 
-  return <TradeContent stockCode={stockCode} initialSide={initialSide} />;
+  return <TradeContent key={stockCode} stockCode={stockCode} initialSide={initialSide} />;
 }
 
 function MissingStockCodeState() {
@@ -164,6 +165,7 @@ function TradeContent({
     setTimeout(() => searchInputRef.current?.focus(), 30);
   };
   const exitSearch = () => {
+    searchInputRef.current?.blur();
     setIsSearching(false);
     setSearchQuery("");
   };
@@ -176,9 +178,20 @@ function TradeContent({
   // 따닥 탭 방지 — React state 업데이트 지연 없이 즉시 잠금
   const submitting = useRef(false);
 
-  // 접수(체결 대기) 조각 주문들 — 확정 즉시 퍼즐 애니메이션. 동시 다건 누적, 각자 실제 FILLED 시 개별 해제.
-  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  // 접수(체결 대기) 조각 주문들 — Zustand에 stockCode별 보관 → 뒤로가기 후 복귀해도 유지.
+  const addPending = useTradingStore((s) => s.addPending);
+  const removePending = useTradingStore((s) => s.removePending);
+  const pendingOrders = useTradingStore((s) => s.pendingByStock[stockCode] ?? EMPTY_PENDING);
   const hasPending = pendingOrders.length > 0;
+  // 마운트 시 만료된 항목 정리 (5분 TTL) — selector 안에서 Date.now() 쓰면 참조 불안정
+  useEffect(() => {
+    const now = Date.now();
+    const expired = new Set(
+      pendingOrders.filter((p) => p.expiresAt <= now).map((p) => p.orderId),
+    );
+    if (expired.size > 0) removePending(stockCode, expired);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 마운트 1회만
   const ordersRefetch = ordersQ.refetch;
   const holdingsRefetch = holdingsQ.refetch;
   // 폴링 콜백에서 최신 pending을 읽기 위한 ref(이펙트 내부 동기 setState 회피)
@@ -187,39 +200,61 @@ function TradeContent({
     pendingRef.current = pendingOrders;
   }, [pendingOrders]);
 
-  // 접수 중이면 주문내역을 폴링(차수배치 ~1분)하며 reconcile.
-  // FILLED → 보유 갱신 후 해제(확정 스냅) / 실패 → 해제(롤백). 5분 안전망.
+  type ResolveList = { orderId: number; status: string; side: string; quantity: number | null }[];
+  // FILLED/REJECTED/CANCELLED → holdings 갱신 후 pending 해제·토스트.
+  // fmtView는 early return 뒤에 선언되므로 의존하지 않는다 — 체결가 description은 생략.
+  const resolvePendingFromOrders = useRef<(list: ResolveList) => Promise<void>>(async () => { /* 첫 렌더 전 no-op, effect로 즉시 교체 */ });
   useEffect(() => {
-    if (!hasPending) return;
-    const tick = async () => {
-      const res = await ordersRefetch();
-      const list = res.data ?? [];
+    resolvePendingFromOrders.current = async (list: ResolveList) => {
       const resolved = new Set<number>();
-      let anyFilled = false;
+      const filledOrders: ResolveList = [];
       let anyFailed = false;
       for (const p of pendingRef.current) {
         const o = list.find((x) => x.orderId === p.orderId);
         if (!o) continue;
         if (o.status === "FILLED") {
           resolved.add(p.orderId);
-          anyFilled = true;
+          filledOrders.push(o);
         } else if (o.status === "REJECTED" || o.status === "CANCELLED") {
           resolved.add(p.orderId);
           anyFailed = true;
         }
       }
       if (resolved.size === 0) return;
-      if (anyFilled) void holdingsRefetch();
+      if (filledOrders.length > 0) await holdingsRefetch();
+      removePending(stockCode, resolved);
+      for (const o of filledOrders) {
+        const verb = o.side === "BUY" ? "매수" : "매도";
+        const qty = o.quantity !== null ? `${o.quantity}주 ` : "";
+        toast.success(`${qty}${verb} 체결됐어요`);
+      }
       if (anyFailed) toast.error("체결되지 못한 주문이 있어요.");
-      setPendingOrders((prev) => prev.filter((p) => !resolved.has(p.orderId)));
+    };
+  }, [holdingsRefetch, removePending, stockCode]);
+
+  // WS 체결통보 즉시 처리 — pending에 있는 orderId 체결 시 바로 resolve (폴링보다 선행)
+  const handleOrderNotification = useCallback(
+    async (notification: OrderNotification) => {
+      const isPending = pendingRef.current.some((p) => p.orderId === notification.orderId);
+      if (!isPending) return;
+      const res = await ordersRefetch();
+      await resolvePendingFromOrders.current(res.data ?? []);
+    },
+    [ordersRefetch],
+  );
+  useOrderNotification(handleOrderNotification, hasPending);
+
+  // 접수 중이면 주문내역을 폴링(차수배치 ~1분)하며 reconcile.
+  // WS 미연결·이벤트 유실 대비 fallback. 5분 안전망은 expiresAt으로 대체.
+  useEffect(() => {
+    if (!hasPending) return;
+    const tick = async () => {
+      const res = await ordersRefetch();
+      await resolvePendingFromOrders.current(res.data ?? []);
     };
     const iv = setInterval(() => void tick(), 4000);
-    const stop = setTimeout(() => setPendingOrders([]), 300_000);
-    return () => {
-      clearInterval(iv);
-      clearTimeout(stop);
-    };
-  }, [hasPending, ordersRefetch, holdingsRefetch]);
+    return () => clearInterval(iv);
+  }, [hasPending, ordersRefetch]);
 
   if (detailQ.isLoading) {
     return (
@@ -523,10 +558,7 @@ function TradeContent({
         // 소수분 접수됨 → 퍼즐에 즉시 손맛 애니메이션(실제 체결 전까지 pending). 동시 다건 누적.
         const fid = data.fractionalOrderId;
         if (fid !== null) {
-          setPendingOrders((prev) => [
-            ...prev,
-            { orderId: fid, mode: committedMode, count: committedCount },
-          ]);
+          addPending(stockCode, { orderId: fid, mode: committedMode, count: committedCount });
         }
         setPieceSel(null);
         setLive(null);
@@ -647,6 +679,15 @@ function TradeContent({
       onSuccess: (data: SplitOrderResponse) => {
         submitting.current = false;
         resetAfterSuccess(side);
+        // 소수분 접수됐으면 퍼즐에도 pending 애니메이션 — 조각 탭으로 이동해도 바로 보임
+        if (data.fractionalOrderId !== null && data.fractionalEstQty) {
+          const raw = Math.round(data.fractionalEstQty * PIECES_PER_SHARE);
+          // 매도 시 반올림 오차로 heldPieces를 초과하면 sellEnd가 음수가 되어 매도 선택이 막힘
+          const count = side === "SELL" ? Math.min(raw, heldPieces) : raw;
+          if (count > 0) {
+            addPending(stockCode, { orderId: data.fractionalOrderId, mode: side === "BUY" ? "buy" : "sell", count });
+          }
+        }
         const t = splitOrderToast(side, data);
         toast.success(
           t.title,
@@ -722,7 +763,13 @@ function TradeContent({
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="검색"
-                        className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
+                        className="min-w-0 flex-1 bg-transparent font-medium outline-none placeholder:text-muted-foreground"
+                        style={{ fontSize: '16px' }}
+                        inputMode="search"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
                         onClick={(e) => e.stopPropagation()}
                       />
                       <button
@@ -929,7 +976,7 @@ function TradeContent({
                 {heldPieces}/{PIECES_PER_SHARE} 조각
               </span>
             </div>
-            <div className="relative">
+            <div className="relative touch-none">
               <JigsawPuzzle
                 total={PIECES_PER_SHARE}
                 filled={heldPieces}
