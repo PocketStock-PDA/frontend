@@ -43,14 +43,21 @@ type Lens = "all" | "auto" | "pieces";
  * 원화 보기엔 환산 KRW 손익/원금으로 직접 계산한다(백엔드 KRW 환산수익률 필드 없음).
  * 백엔드 rate() 규약과 동일하게 원금≤0이면 0, 소수 2자리 HALF_UP.
  */
-function krwRate(profitKrw?: number | null, investedKrw?: number | null): number {
+function krwRate(
+  profitKrw?: number | null,
+  investedKrw?: number | null,
+): number {
   const inv = toDecimal(investedKrw);
   if (inv.lte(0)) return 0;
-  return toDecimal(profitKrw).div(inv).times(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+  return toDecimal(profitKrw)
+    .div(inv)
+    .times(100)
+    .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+    .toNumber();
 }
 
 const LENS_OPTIONS: { label: string; value: Lens }[] = [
-  { label: "전체", value: "all" },
+  { label: "보유종목", value: "all" },
   { label: "모으기 중", value: "auto" },
   { label: "퍼즐 조각", value: "pieces" },
 ];
@@ -118,15 +125,20 @@ export default function PortfolioPage() {
   // QUEUED 매도 주문 중인 종목코드 집합 — HoldingCard "매도 체결 중" 배지용
   const queuedSellSet = new Set<string>();
   for (const o of serverPendingQ.data ?? []) {
-    if (o.side === "SELL" && o.status === "QUEUED") queuedSellSet.add(o.stockCode);
+    if (o.side === "SELL" && o.status === "QUEUED")
+      queuedSellSet.add(o.stockCode);
   }
 
   // QUEUED 매수 주문 중 아직 보유 없는 종목 (처음 사는 종목 — 체결 대기 중 카드로 표시)
   // 같은 종목 여러 주문은 조각 수 합산, scope(국내/해외) 필터는 렌더 직전에 적용
   const queuedBuyMap = new Map<string, { pieces: number; currency: string }>();
   for (const o of serverPendingQ.data ?? []) {
-    if (o.side !== "BUY" || o.status !== "QUEUED" || heldCodes.has(o.stockCode)) continue;
-    const prev = queuedBuyMap.get(o.stockCode) ?? { pieces: 0, currency: o.currency };
+    if (o.side !== "BUY" || o.status !== "QUEUED" || heldCodes.has(o.stockCode))
+      continue;
+    const prev = queuedBuyMap.get(o.stockCode) ?? {
+      pieces: 0,
+      currency: o.currency,
+    };
     queuedBuyMap.set(o.stockCode, {
       pieces: prev.pieces + Math.max(0, Math.round((o.quantity ?? 0) * 100)),
       currency: o.currency,
@@ -199,8 +211,12 @@ export default function PortfolioPage() {
   const fx = summary?.usdKrwRate ?? null;
 
   // scope에 따라 표시할 증권계좌번호
-  const domesticAccountNo = accounts.find((a) => a.type === "DOMESTIC")?.accountNo;
-  const overseasAccountNo = accounts.find((a) => a.type === "OVERSEAS")?.accountNo;
+  const domesticAccountNo = accounts.find(
+    (a) => a.type === "DOMESTIC",
+  )?.accountNo;
+  const overseasAccountNo = accounts.find(
+    (a) => a.type === "OVERSEAS",
+  )?.accountNo;
   const displayAccountNo =
     scope === "domestic"
       ? domesticAccountNo
@@ -227,7 +243,9 @@ export default function PortfolioPage() {
     const showKrw = ovsKrw && fx !== null; // 토글 ON + 환율 보유 시 원화 환산
     displayEval = (showKrw ? o?.evalKrw : o?.evalUsd) ?? 0;
     displayProfit = (showKrw ? o?.profitKrw : o?.profitUsd) ?? 0;
-    displayRate = showKrw ? krwRate(o?.profitKrw, o?.investedKrw) : o?.profitRate ?? 0;
+    displayRate = showKrw
+      ? krwRate(o?.profitKrw, o?.investedKrw)
+      : (o?.profitRate ?? 0);
     displayCurrency = showKrw ? "KRW" : "USD";
     scopeLabel = "해외 평가금액";
   } else {
@@ -250,7 +268,9 @@ export default function PortfolioPage() {
   // KRW 표시 스코프(전체·국내·해외 원화)는 카드도 profitKrw + krwRate() 기준으로 통일.
   // 해외 USD 표시만 native 통화 사용.
   const cardKrw =
-    scope === "all" || scope === "domestic" || (scope === "overseas" && ovsKrw && fx !== null);
+    scope === "all" ||
+    scope === "domestic" ||
+    (scope === "overseas" && ovsKrw && fx !== null);
   const cardView = (r: (typeof rows)[number]) =>
     cardKrw
       ? {
@@ -259,7 +279,12 @@ export default function PortfolioPage() {
           rate: krwRate(r.profitKrw, r.investedKrw),
           currency: "KRW" as const,
         }
-      : { evalAmount: r.evalAmount, profit: r.profit, rate: r.rate, currency: r.currency };
+      : {
+          evalAmount: r.evalAmount,
+          profit: r.profit,
+          rate: r.rate,
+          currency: r.currency,
+        };
 
   const autoRows = scopedRows.filter((r) => r.isAuto);
   // 종목코드 → 모으기 일정 문구("매일 10,000원씩") — 보유/미보유 모으기 카드 공용
@@ -337,12 +362,17 @@ export default function PortfolioPage() {
             <div className="mb-1 flex items-baseline gap-1.5">
               <p className="text-sm font-medium text-primary">{scopeLabel}</p>
               {displayAccountNo && (
-                <p className="text-xs text-muted-foreground">{displayAccountNo}</p>
+                <p className="text-xs text-muted-foreground">
+                  {displayAccountNo}
+                </p>
               )}
             </div>
             <div className="mt-1 flex items-start justify-between gap-3">
               {/* 범위/통화 토글로 값이 바뀔 때만 스왑 애니메이션(시세 틱엔 반응 안 함) */}
-              <div key={`${scope}:${displayCurrency}`} className="ps-amount-swap min-w-0">
+              <div
+                key={`${scope}:${displayCurrency}`}
+                className="ps-amount-swap min-w-0"
+              >
                 <AmountDisplay
                   value={displayEval}
                   currency={displayCurrency}
@@ -372,12 +402,14 @@ export default function PortfolioPage() {
               icon={<StockIcon className="size-8" />}
               label="주식 투자"
               onClick={() =>
-                router.push(topCode ? tradingDetailPath(topCode) : "/trading?invest=1")
+                router.push(
+                  topCode ? tradingDetailPath(topCode) : "/trading?invest=1",
+                )
               }
             />
             <ActionTile
               icon={<CollectIcon className="size-8" />}
-              label="주식 모으기"
+              label="종목 탐색"
               onClick={() => router.push("/trading")}
             />
             <ActionTile
@@ -394,7 +426,9 @@ export default function PortfolioPage() {
         </section>
 
         {/* 보유 — 렌즈 칩 + 렌즈별 리스트. 보유·모으기 둘 다 없을 때만 빈 화면 */}
-        {rows.length === 0 && pendingAuto.length === 0 && queuedCards.length === 0 ? (
+        {rows.length === 0 &&
+        pendingAuto.length === 0 &&
+        queuedCards.length === 0 ? (
           <EmptyState
             title="아직 모은 조각이 없어요"
             description="포인트·잔돈으로 첫 조각을 담아보세요."
@@ -434,7 +468,9 @@ export default function PortfolioPage() {
                         <div
                           key={r.h.stockCode}
                           className="ps-rise-in"
-                          style={{ "--i": Math.min(i, 5) } as React.CSSProperties}
+                          style={
+                            { "--i": Math.min(i, 5) } as React.CSSProperties
+                          }
                         >
                           <PiecesCard
                             name={r.name}
@@ -454,7 +490,11 @@ export default function PortfolioPage() {
                       <div
                         key={q.code}
                         className="ps-rise-in"
-                        style={{ "--i": Math.min(pieceRows.length + i, 5) } as React.CSSProperties}
+                        style={
+                          {
+                            "--i": Math.min(pieceRows.length + i, 5),
+                          } as React.CSSProperties
+                        }
                       >
                         <QueuedOrderCard
                           name={q.name}
@@ -496,7 +536,9 @@ export default function PortfolioPage() {
                             key={r.h.stockCode}
                             className="ps-rise-in"
                             style={
-                              { "--i": Math.min(i + 1, 5) } as React.CSSProperties
+                              {
+                                "--i": Math.min(i + 1, 5),
+                              } as React.CSSProperties
                             }
                           >
                             <HoldingCard
@@ -581,7 +623,11 @@ export default function PortfolioPage() {
                     <div
                       key={q.code}
                       className="ps-rise-in"
-                      style={{ "--i": Math.min(scopedRows.length + i, 5) } as React.CSSProperties}
+                      style={
+                        {
+                          "--i": Math.min(scopedRows.length + i, 5),
+                        } as React.CSSProperties
+                      }
                     >
                       <QueuedOrderCard
                         name={q.name}
@@ -653,17 +699,18 @@ function AutoPendingCard({
           <span className="truncate text-sm font-bold text-foreground">
             {name}
           </span>
-          <span className="shrink-0 rounded-full bg-brand-surface px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-            모으는 중
+          <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">
+            첫 담기 대기
           </span>
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {autoScheduleText(stock)}
         </p>
+        {/* 미보유(첫 매수 전) — 아직 담긴 조각이 없음을 명시해 '모으는 중' 카드와 구분 */}
+        <p className="mt-0.5 text-[11px] text-muted-foreground break-keep">
+          아직 담긴 조각이 없어요. 다음 정기 매수일에 첫 담기가 시작돼요.
+        </p>
       </div>
-      <span className="shrink-0 text-xs font-medium text-muted-foreground">
-        모으기 전
-      </span>
     </button>
   );
 }
