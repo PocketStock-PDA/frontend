@@ -544,9 +544,9 @@ function StockDetailContent({
                     subtitle={
                       pieces > 0
                         ? `${pieces} / ${PIECES_PER_SHARE} 조각 · 1주까지 ${PIECES_PER_SHARE - pieces}조각`
-                        : "소수점으로 한 조각씩 담아보세요"
+                        : "소수점으로 한 조각씩 모아보세요"
                     }
-                    cta={pieces > 0 ? null : "담기"}
+                    cta={pieces > 0 ? null : "모으기"}
                     onClick={() =>
                       router.push(portfolioDetailPath(stockCode, { view: "pieces" }))
                     }
