@@ -304,7 +304,7 @@ export function CollectSlider({
             ref={labelRef}
             className={cn(
               "pointer-events-none absolute inset-0 flex items-center justify-center gap-2 transition-[opacity,transform] duration-200",
-            amountLabel ? "pl-10" : "",
+            amountLabel ? "pl-16" : "pl-6",
               done ? "translate-y-1.5 opacity-0" : "translate-y-0 opacity-100",
             )}
           >
